@@ -1,0 +1,285 @@
+@echo off
+:: ============================================================
+::  furmark-benchmark.bat  (all-in-one)
+::  Double-click de chay. Tu dong detect do phan giai man hinh.
+::
+::  Tuy chon dong lenh:
+::    furmark-benchmark.bat [furmark_exe] [device_id] [device_name] [api_url]
+:: ============================================================
+title FurMark GPU Benchmark - Auto Upload
+setlocal EnableDelayedExpansion
+
+:: === CAU HINH - SUA O DAY ====================================
+set "FURMARK_PATH=C:\Program Files\Geeks3D\FurMark2_x64\furmark.exe"
+set "API_BASE=https://laplap.example.com"
+set "DURATION_MIN=5"
+set "GPU_INDEX=0"
+set "DEVICE_ID="
+set "DEVICE_NAME="
+:: =============================================================
+
+if not "%~1"=="" set "FURMARK_PATH=%~1"
+if not "%~2"=="" set "DEVICE_ID=%~2"
+if not "%~3"=="" set "DEVICE_NAME=%~3"
+if not "%~4"=="" set "API_BASE=%~4"
+
+if "!DEVICE_ID!"==""   for /f "delims=" %%i in ('hostname') do set "DEVICE_ID=%%i"
+if "!DEVICE_NAME!"=="" set "DEVICE_NAME=%COMPUTERNAME%"
+
+echo.
+echo  ============================================
+echo   FurMark GPU Benchmark - Auto Upload
+echo  ============================================
+echo.
+echo   FurMark    : !FURMARK_PATH!
+echo   Device ID  : !DEVICE_ID!
+echo   Device     : !DEVICE_NAME!
+echo   Server     : !API_BASE!
+echo   Duration   : !DURATION_MIN! phut
+echo.
+
+if not exist "!FURMARK_PATH!" (
+    echo  [LOI] Khong tim thay furmark.exe tai:
+    echo        !FURMARK_PATH!
+    echo  Tai FurMark 2: https://geeks3d.com/furmark/
+    echo  Mo file .bat nay, sua bien FURMARK_PATH.
+    pause ^& exit /b 1
+)
+echo  [OK] Tim thay FurMark.
+
+powershell -Command "exit 0" >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo  [LOI] Khong tim thay PowerShell!
+    pause ^& exit /b 1
+)
+echo  [OK] PowerShell san sang.
+echo.
+
+set "TMP_BASE=%TEMP%\__fm_%RANDOM%%RANDOM%"
+set "TMP_B64=!TMP_BASE!.b64"
+set "TMP_PS1=!TMP_BASE!.ps1"
+
+(
+echo cGFyYW0oCiAgW3N0cmluZ10kRnVyTWFya1BhdGgsCiAgW3N0cmluZ10kRGV2aWNl
+echo SWQsCiAgW3N0cmluZ10kRGV2aWNlTmFtZSwKICBbc3RyaW5nXSRBcGlCYXNlLAog
+echo IFtpbnRdJER1cmF0aW9uTWluID0gNSwKICBbaW50XSRHcHVJbmRleCAgICA9IDAK
+echo KQpmdW5jdGlvbiBXcml0ZS1TdGVwIHsgcGFyYW0oJG0pIFdyaXRlLUhvc3QgIiAg
+echo Pj4gJG0iICAtRm9yZWdyb3VuZENvbG9yIEN5YW4gfQpmdW5jdGlvbiBXcml0ZS1P
+echo SyAgIHsgcGFyYW0oJG0pIFdyaXRlLUhvc3QgIiAgW09LXSAkbSIgLUZvcmVncm91
+echo bmRDb2xvciBHcmVlbiB9CmZ1bmN0aW9uIFdyaXRlLVdhcm4geyBwYXJhbSgkbSkg
+echo V3JpdGUtSG9zdCAiICBbIV0gJG0iICAtRm9yZWdyb3VuZENvbG9yIFllbGxvdyB9
+echo CmZ1bmN0aW9uIFdyaXRlLUZhaWwgeyBwYXJhbSgkbSkgV3JpdGUtSG9zdCAiICBb
+echo WF0gJG0iICAtRm9yZWdyb3VuZENvbG9yIFJlZCB9CgojIMOi4oCd4oKsw6LigJ3i
+echo gqwgSGFyZHdhcmUgaW5mbyDDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsCldyaXRlLVN0ZXAgIkxh
+echo eSB0aG9uZyB0aW4gcGhhbiBjdW5nLi4uIgokY3B1T2JqICAgICA9IEdldC1XbWlP
+echo YmplY3QgV2luMzJfUHJvY2Vzc29yIHwgU2VsZWN0LU9iamVjdCAtRmlyc3QgMQok
+echo Q3B1TmFtZSAgICA9ICRjcHVPYmouTmFtZS5UcmltKCkKJENwdUNvcmVzICAgPSBb
+echo aW50XSRjcHVPYmouTnVtYmVyT2ZDb3JlcwokQ3B1VGhyZWFkcyA9IFtpbnRdJGNw
+echo dU9iai5OdW1iZXJPZkxvZ2ljYWxQcm9jZXNzb3JzCiRSYW1HYiAgICAgID0gW2lu
+echo dF1bTWF0aF06OlJvdW5kKChHZXQtV21pT2JqZWN0IFdpbjMyX0NvbXB1dGVyU3lz
+echo dGVtKS5Ub3RhbFBoeXNpY2FsTWVtb3J5IC8gMUdCKQokT3NPYmogICAgICA9IEdl
+echo dC1XbWlPYmplY3QgV2luMzJfT3BlcmF0aW5nU3lzdGVtIHwgU2VsZWN0LU9iamVj
+echo dCAtRmlyc3QgMQokT3NOYW1lICAgICA9ICRPc09iai5DYXB0aW9uLlRyaW0oKQok
+echo T3NWZXIgICAgICA9ICRPc09iai5WZXJzaW9uLlRyaW0oKQpXcml0ZS1PSyAiQ1BV
+echo OiAkQ3B1TmFtZSB8IFJBTTogJHtSYW1HYn1HQiIKCiMgw6LigJ3igqzDouKAneKC
+echo rCBBdXRvLWRldGVjdCBtYW4gaGluaCByZXNvbHV0aW9uIMOi4oCd4oKsw6LigJ3i
+echo gqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3i
+echo gqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3i
+echo gqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3i
+echo gqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsCiMgVXUg
+echo dGllbiBtYW4gaGluaCBjaGluaCAoQ3VycmVudEhvcml6b250YWxSZXNvbHV0aW9u
+echo ID4gMCkKJHNjcmVlblcgPSAxOTIwOyAkc2NyZWVuSCA9IDEwODAKdHJ5IHsKICBB
+echo ZGQtVHlwZSAtQXNzZW1ibHlOYW1lIFN5c3RlbS5XaW5kb3dzLkZvcm1zIC1FQSBT
+echo aWxlbnRseUNvbnRpbnVlCiAgJHNjcmVlbiA9IFtTeXN0ZW0uV2luZG93cy5Gb3Jt
+echo cy5TY3JlZW5dOjpQcmltYXJ5U2NyZWVuLkJvdW5kcwogICRzY3JlZW5XID0gJHNj
+echo cmVlbi5XaWR0aAogICRzY3JlZW5IID0gJHNjcmVlbi5IZWlnaHQKfSBjYXRjaCB7
+echo CiAgIyBGYWxsYmFjazogV01JIFZpZGVvQ29udHJvbGxlcgogIHRyeSB7CiAgICAk
+echo dmMgPSBHZXQtV21pT2JqZWN0IFdpbjMyX1ZpZGVvQ29udHJvbGxlciB8CiAgICAg
+echo ICAgICBXaGVyZS1PYmplY3QgeyAkXy5DdXJyZW50SG9yaXpvbnRhbFJlc29sdXRp
+echo b24gLWd0IDAgfSB8CiAgICAgICAgICBTb3J0LU9iamVjdCBDdXJyZW50SG9yaXpv
+echo bnRhbFJlc29sdXRpb24gLURlc2NlbmRpbmcgfAogICAgICAgICAgU2VsZWN0LU9i
+echo amVjdCAtRmlyc3QgMQogICAgaWYgKCR2YykgeyAkc2NyZWVuVyA9IFtpbnRdJHZj
+echo LkN1cnJlbnRIb3Jpem9udGFsUmVzb2x1dGlvbjsgJHNjcmVlbkggPSBbaW50XSR2
+echo Yy5DdXJyZW50VmVydGljYWxSZXNvbHV0aW9uIH0KICB9IGNhdGNoIHt9Cn0KCiMg
+echo TWFwIHNhbmcgcHJlc2V0IEZ1ck1hcmsgKGNob24gcHJlc2V0IGdhbiBuaGF0KQoj
+echo IDRLPTM4NDB4MjE2MCB8IFFIRC8ySz0yNTYweDE0NDAgfCBGSEQ9MTkyMHgxMDgw
+echo CmlmICAgICAoJHNjcmVlblcgLWdlIDM4NDApIHsgJHcgPSAzODQwOyAkaCA9IDIx
+echo NjA7ICRwcmVzZXQgPSAiNEsiIH0KZWxzZWlmICgkc2NyZWVuVyAtZ2UgMjU2MCkg
+echo eyAkdyA9IDI1NjA7ICRoID0gMTQ0MDsgJHByZXNldCA9ICIySy9RSEQiIH0KZWxz
+echo ZSAgICAgICAgICAgICAgICAgICAgICAgIHsgJHcgPSAxOTIwOyAkaCA9IDEwODA7
+echo ICRwcmVzZXQgPSAiRnVsbCBIRCIgfQoKV3JpdGUtT0sgIk1hbiBoaW5oIHBoYXQg
+echo aGllbjogJHtzY3JlZW5XfXgke3NjcmVlbkh9IC0+IEJlbmNobWFyazogJHt3fXgk
+echo e2h9ICgkcHJlc2V0KSIKCiMgw6LigJ3igqzDouKAneKCrCBGdXJNYXJrIGFyZ3Mg
+echo w6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKs
+echo w6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKs
+echo w6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKs
+echo w6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKs
+echo w6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKs
+echo w6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKs
+echo w6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKs
+echo w6LigJ3igqzDouKAneKCrMOi4oCd4oKsCiRkdXJhdGlvbk1zID0gJER1cmF0aW9u
+echo TWluICogNjAgKiAxMDAwCiRsb2dTdWZmaXggID0gImxhcGxhcF8kKEdldC1EYXRl
+echo IC1Gb3JtYXQgJ3l5eXlNTWRkSEhtbXNzJykiCiRmdXJtYXJrRGlyID0gU3BsaXQt
+echo UGF0aCAkRnVyTWFya1BhdGggLVBhcmVudAokZnVybWFya0FyZ3MgPSBAKAogICIt
+echo LWRlbW8iLCJmdXJtYXJrLWdsIiwKICAiLS13aWR0aCIsIiR3IiwiLS1oZWlnaHQi
+echo LCIkaCIsCiAgIi0tZnVsbHNjcmVlbiIsCiAgIi0tZ3B1LWluZGV4IiwiJEdwdUlu
+echo ZGV4IiwKICAiLS1iZW5jaG1hcmsiLCItLWR1cmF0aW9uLW1zIiwiJGR1cmF0aW9u
+echo TXMiLAogICItLW5vLXNjb3JlLWJveCIsCiAgIi0tbG9nZmlsZS1zdWZmaXgiLCIk
+echo bG9nU3VmZml4IgopCldyaXRlLVN0ZXAgIkJlbmNobWFyayAkRHVyYXRpb25NaW4g
+echo cGh1dCB8ICR7d314JHtofSAoJHByZXNldCkgfCBGVUxMU0NSRUVOIgpXcml0ZS1I
+echo b3N0ICIgIEtIT05HIHRhdCBjdWEgc28gRnVyTWFyayB0cm9uZyBsdWMgZGFuZyBj
+echo aGF5ISIgLUZvcmVncm91bmRDb2xvciBZZWxsb3cKCiMgw6LigJ3igqzDouKAneKC
+echo rCBDaGF5IEZ1ck1hcmsgw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsCiRzdyAgID0g
+echo W0RpYWdub3N0aWNzLlN0b3B3YXRjaF06OlN0YXJ0TmV3KCkKJHByb2MgPSBTdGFy
+echo dC1Qcm9jZXNzIC1GaWxlUGF0aCAkRnVyTWFya1BhdGggLUFyZ3VtZW50TGlzdCAk
+echo ZnVybWFya0FyZ3MgLVdvcmtpbmdEaXJlY3RvcnkgJGZ1cm1hcmtEaXIgLVBhc3NU
+echo aHJ1IC1XYWl0CiRzdy5TdG9wKCkKJGFjdHVhbFNlYyA9IFtpbnRdJHN3LkVsYXBz
+echo ZWQuVG90YWxTZWNvbmRzCldyaXRlLU9LICJGdXJNYXJrIHhvbmcuIEV4aXRDb2Rl
+echo PSQoJHByb2MuRXhpdENvZGUpIHwgVGhvaSBnaWFuOiAke2FjdHVhbFNlY31zIgoK
+echo IyDDouKAneKCrMOi4oCd4oKsIERvYyBrZXQgcXVhIMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzD
+echo ouKAneKCrMOi4oCd4oKsCldyaXRlLVN0ZXAgIkRvYyBrZXQgcXVhLi4uIgokc2Nv
+echo cmUgPSAwOyAkZnBzQXZnID0gMC4wOyAkZnBzTWluID0gMC4wOyAkZnBzTWF4ID0g
+echo MC4wOyAkR3B1TmFtZSA9ICIiCgojIENhY2ggMTogX3Njb3Jlcy5jc3YgKEZ1ck1h
+echo cmsgMiAtIGNoaW5oIHhhYyBuaGF0KQokc2NvcmVzRmlsZSA9IEpvaW4tUGF0aCAk
+echo ZnVybWFya0RpciAiX3Njb3Jlcy5jc3YiCmlmIChUZXN0LVBhdGggJHNjb3Jlc0Zp
+echo bGUpIHsKICAkcm93cyA9IEltcG9ydC1Dc3YgJHNjb3Jlc0ZpbGUgLUVBIFNpbGVu
+echo dGx5Q29udGludWUKICBpZiAoJHJvd3MgLWFuZCAkcm93cy5Db3VudCAtZ3QgMCkg
+echo ewogICAgJGxhc3QgICA9ICRyb3dzWy0xXQogICAgJHNjb3JlICA9IFtpbnRdJGxh
+echo c3Quc2NvcmUKICAgICRmcHNBdmcgPSBbTWF0aF06OlJvdW5kKFtkb3VibGVdJGxh
+echo c3QuYXZnX2ZwcywgMSkKICAgICRmcHNNaW4gPSBbTWF0aF06OlJvdW5kKFtkb3Vi
+echo bGVdJGxhc3QubWluX2ZwcywgMSkKICAgICRmcHNNYXggPSBbTWF0aF06OlJvdW5k
+echo KFtkb3VibGVdJGxhc3QubWF4X2ZwcywgMSkKICAgIGlmICgkR3B1TmFtZSAtZXEg
+echo IiIgLWFuZCAkbGFzdC5yZW5kZXJlcikgewogICAgICAkR3B1TmFtZSA9ICgkbGFz
+echo dC5yZW5kZXJlciAtcmVwbGFjZSAnL1BDSWUuKiQnLCcnKS5UcmltKCkKICAgIH0K
+echo ICAgIFdyaXRlLU9LICJfc2NvcmVzLmNzdjogU2NvcmU9JHNjb3JlICBGUFMgYXZn
+echo PSRmcHNBdmcgbWluPSRmcHNNaW4gbWF4PSRmcHNNYXgiCiAgfQp9CgojIENhY2gg
+echo MjogX2Z1cm1hcmtfbG9nKi50eHQgKEZ1ck1hcmsgMiBsb2cgZm9ybWF0KQppZiAo
+echo JHNjb3JlIC1lcSAwKSB7CiAgJGxvZ3MgPSBHZXQtQ2hpbGRJdGVtICRmdXJtYXJr
+echo RGlyIC1GaWx0ZXIgIl9mdXJtYXJrX2xvZyoudHh0IiAtRUEgU2lsZW50bHlDb250
+echo aW51ZSB8CiAgICAgICAgICBTb3J0LU9iamVjdCBMYXN0V3JpdGVUaW1lIC1EZXNj
+echo IHwgU2VsZWN0LU9iamVjdCAtRmlyc3QgMQogIGlmICgkbG9ncy5Db3VudCAtZXEg
+echo MCkgewogICAgJGxvZ3MgPSBHZXQtQ2hpbGRJdGVtICRlbnY6VEVNUCAtRmlsdGVy
+echo ICJmdXJtYXJrKi5sb2ciIC1FQSBTaWxlbnRseUNvbnRpbnVlIHwKICAgICAgICAg
+echo ICAgU29ydC1PYmplY3QgTGFzdFdyaXRlVGltZSAtRGVzYyB8IFNlbGVjdC1PYmpl
+echo Y3QgLUZpcnN0IDEKICB9CiAgaWYgKCRsb2dzLkNvdW50IC1ndCAwKSB7CiAgICAk
+echo bG9nID0gR2V0LUNvbnRlbnQgJGxvZ3NbMF0uRnVsbE5hbWUgLVJhdyAtRUEgU2ls
+echo ZW50bHlDb250aW51ZQogICAgV3JpdGUtT0sgIkRvYyBsb2c6ICQoJGxvZ3NbMF0u
+echo RnVsbE5hbWUpIgogICAgaWYgKCRsb2cgLW1hdGNoICctXHMrU0NPUkVccyo6XHMq
+echo KFxkKyknKSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg
+echo eyAkc2NvcmUgID0gW2ludF0kTWF0Y2hlc1sxXSB9CiAgICBpZiAoJGxvZyAtbWF0
+echo Y2ggJy1ccytGUFMgXChtaW4vYXZnL21heFwpXHMqOlxzKihcZCspXHMqL1xzKihc
+echo ZCspXHMqL1xzKihcZCspJykgewogICAgICAkZnBzTWluID0gW2RvdWJsZV0kTWF0
+echo Y2hlc1sxXTsgJGZwc0F2ZyA9IFtkb3VibGVdJE1hdGNoZXNbMl07ICRmcHNNYXgg
+echo PSBbZG91YmxlXSRNYXRjaGVzWzNdCiAgICB9CiAgICBpZiAoJEdwdU5hbWUgLWVx
+echo ICIiIC1hbmQgJGxvZyAtbWF0Y2ggJy1ccytyZW5kZXJlclxzKjpccyooLispJykg
+echo ewogICAgICAkR3B1TmFtZSA9ICgkTWF0Y2hlc1sxXSAtcmVwbGFjZSAnL1BDSWUu
+echo KiQnLCcnKS5UcmltKCkKICAgIH0KICAgIGlmICgkc2NvcmUgLWVxIDAgLWFuZCAk
+echo bG9nIC1tYXRjaCAnXFtzY29yZVxdLio/c2NvcmU9KFxkKyknKSB7ICRzY29yZSA9
+echo IFtpbnRdJE1hdGNoZXNbMV0gfQogICAgaWYgKCRzY29yZSAtZ3QgMCkgeyBXcml0
+echo ZS1PSyAiTG9nOiBTY29yZT0kc2NvcmUiIH0KICB9IGVsc2UgewogICAgV3JpdGUt
+echo V2FybiAiS2hvbmcgdGltIHRoYXkgbG9nIHRhaTogJGZ1cm1hcmtEaXIiCiAgfQp9
+echo CgojIENhY2ggMzogZXhpdCBjb2RlIChGdXJNYXJrIDEueCkKaWYgKCRzY29yZSAt
+echo ZXEgMCAtYW5kICRwcm9jLkV4aXRDb2RlIC1ndCAxMDApIHsKICAkc2NvcmUgPSAk
+echo cHJvYy5FeGl0Q29kZQogIFdyaXRlLVdhcm4gIkR1bmcgZXhpdCBjb2RlIGxhbSBz
+echo Y29yZSAoRnVyTWFyayAxLngpOiAkc2NvcmUiCn0KCiMgR1BVIG5hbWUgZmFsbGJh
+echo Y2sKaWYgKCRHcHVOYW1lIC1lcSAiIikgewogIHRyeSB7ICRHcHVOYW1lID0gKEdl
+echo dC1XbWlPYmplY3QgV2luMzJfVmlkZW9Db250cm9sbGVyIHwgV2hlcmUtT2JqZWN0
+echo IHsgJF8uQWRhcHRlckRBQ1R5cGUgLW5lICJJbnRlcm5hbCIgfSB8IFNlbGVjdC1P
+echo YmplY3QgLUZpcnN0IDEpLk5hbWUuVHJpbSgpIH0gY2F0Y2gge30KfQppZiAoJEdw
+echo dU5hbWUgLWVxICIiKSB7ICRHcHVOYW1lID0gIlVua25vd24gR1BVIiB9CgpXcml0
+echo ZS1Ib3N0ICIiCldyaXRlLUhvc3QgIiAgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t
+echo LS0tLS0tLS0iIC1Gb3JlZ3JvdW5kQ29sb3IgRGFya0dyYXkKJGNvbCA9IGlmKCRz
+echo Y29yZSAtZ2UgODAwMCl7Ik1hZ2VudGEifSBlbHNlaWYoJHNjb3JlIC1nZSA2MDAw
+echo KXsiQ3lhbiJ9IGVsc2VpZigkc2NvcmUgLWdlIDQwMDApeyJZZWxsb3cifSBlbHNl
+echo IHsiUmVkIn0KV3JpdGUtSG9zdCAiICAgU2NvcmUgICAgOiAkc2NvcmUiIC1Gb3Jl
+echo Z3JvdW5kQ29sb3IgJGNvbApXcml0ZS1Ib3N0ICIgICBGUFMgICAgICA6IGF2Zz0k
+echo ZnBzQXZnICBtaW49JGZwc01pbiAgbWF4PSRmcHNNYXgiCldyaXRlLUhvc3QgIiAg
+echo IEdQVSAgICAgIDogJEdwdU5hbWUiCldyaXRlLUhvc3QgIiAgIENQVSAgICAgIDog
+echo JENwdU5hbWUiCldyaXRlLUhvc3QgIiAgIFJBTSAgICAgIDogJHtSYW1HYn1HQiIK
+echo V3JpdGUtSG9zdCAiICAgUHJlc2V0ICAgOiAke3d9eCR7aH0gKCRwcmVzZXQpIgpX
+echo cml0ZS1Ib3N0ICIgIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tIiAt
+echo Rm9yZWdyb3VuZENvbG9yIERhcmtHcmF5CldyaXRlLUhvc3QgIiIKCmlmICgkc2Nv
+echo cmUgLWVxIDApIHsKICBXcml0ZS1XYXJuICJTY29yZSA9IDAuIEZ1ck1hcmsgY28g
+echo dGhlIGNodWEgY2hheSBkdW5nIGJlbmNobWFyayBtb2RlLiIKICAkYW5zID0gUmVh
+echo ZC1Ib3N0ICIgIFRpZXAgdHVjIHVwbG9hZCB2b2kgc2NvcmU9MD8gKHkvTikiCiAg
+echo aWYgKCRhbnMgLW5vdG1hdGNoICJeW3lZXSIpIHsgV3JpdGUtSG9zdCAiICBIdXku
+echo IjsgZXhpdCAwIH0KfQoKIyDDouKAneKCrMOi4oCd4oKsIFVwbG9hZCDDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqzDouKAneKCrMOi4oCd4oKsw6LigJ3igqzDouKAneKC
+echo rMOi4oCd4oKsw6LigJ3igqwKV3JpdGUtU3RlcCAiVXBsb2FkIGxlbiAkQXBpQmFz
+echo ZSAuLi4iCiRib2R5ID0gQHsKICBkZXZpY2VfaWQ9JERldmljZUlkOyBkZXZpY2Vf
+echo bmFtZT0kRGV2aWNlTmFtZQogIGNwdV9uYW1lPSRDcHVOYW1lOyBjcHVfY29yZXM9
+echo JENwdUNvcmVzOyBjcHVfdGhyZWFkcz0kQ3B1VGhyZWFkcwogIHJhbV9nYj0kUmFt
+echo R2I7IGdwdV9uYW1lPSRHcHVOYW1lOyBvc19uYW1lPSRPc05hbWU7IG9zX3ZlcnNp
+echo b249JE9zVmVyCiAgZ3B1X3Njb3JlPSRzY29yZTsgZnBzX2F2Zz0kZnBzQXZnOyBm
+echo cHNfbWluPSRmcHNNaW47IGZwc19tYXg9JGZwc01heAogIHRlc3RfZHVyYXRpb25f
+echo c2Vjb25kcz0kYWN0dWFsU2VjCn0gfCBDb252ZXJ0VG8tSnNvbiAtQ29tcHJlc3MK
+echo dHJ5IHsKICAkciA9IEludm9rZS1SZXN0TWV0aG9kIC1VcmkgIiRBcGlCYXNlL2Fw
+echo aS92MS9sYXB0b3BzL3N1Ym1pdCIgLU1ldGhvZCBQT1NUIC1Cb2R5ICRib2R5IC1D
+echo b250ZW50VHlwZSAiYXBwbGljYXRpb24vanNvbiIgLVRpbWVvdXRTZWMgMzAKICBp
+echo ZiAoJHIub2spIHsKICAgIFdyaXRlLU9LICJVcGxvYWQgdGhhbmggY29uZyEiCiAg
+echo ICBpZiAoJHIuZGF0YS5ncHVfcmFuaykgICAgICAgICB7IFdyaXRlLUhvc3QgIiAg
+echo WGVwIGxvYWkgIDogJCgkci5kYXRhLmdwdV9yYW5rKSIgLUZvcmVncm91bmRDb2xv
+echo ciBDeWFuIH0KICAgIGlmICgkci5kYXRhLnBlcmNlbnRpbGUgLWd0IDApIHsgV3Jp
+echo dGUtSG9zdCAiICBUb3AgICAgICAgOiAkKDEwMCAtICRyLmRhdGEucGVyY2VudGls
+echo ZSklIiAtRm9yZWdyb3VuZENvbG9yIEdyZWVuIH0KICAgIFdyaXRlLUhvc3QgIiAg
+echo UmFua2luZyAgIDogJEFwaUJhc2UvdGVzdC1sYXB0b3AiIC1Gb3JlZ3JvdW5kQ29s
+echo b3IgV2hpdGUKICB9IGVsc2UgeyBXcml0ZS1GYWlsICJTZXJ2ZXIgbG9pOiAkKCRy
+echo IHwgQ29udmVydFRvLUpzb24pIiB9Cn0gY2F0Y2ggewogIFdyaXRlLUZhaWwgIkto
+echo b25nIGtldCBub2kgZHVvYyBzZXJ2ZXI6ICRfIgogIFdyaXRlLVdhcm4gIlNjb3Jl
+echo IGN1YSBiYW46ICRzY29yZSAtLSBOaGFwIHRheSB0YWk6ICRBcGlCYXNlL3Rlc3Qt
+echo bGFwdG9wL3N1Ym1pdCIKfQ==
+) > "!TMP_B64!"
+
+certutil -decode "!TMP_B64!" "!TMP_PS1!" >nul 2>&1
+del /f /q "!TMP_B64!" >nul 2>&1
+
+if not exist "!TMP_PS1!" (
+    echo  [LOI] Khong giai ma duoc script!
+    pause ^& exit /b 1
+)
+
+powershell -ExecutionPolicy Bypass -NoProfile -File "!TMP_PS1!" ^
+  -FurMarkPath "!FURMARK_PATH!" -DeviceId "!DEVICE_ID!" -DeviceName "!DEVICE_NAME!" ^
+  -ApiBase "!API_BASE!" -DurationMin !DURATION_MIN! -GpuIndex !GPU_INDEX!
+
+set PS_EXIT=%ERRORLEVEL%
+del /f /q "!TMP_PS1!" >nul 2>&1
+
+if %PS_EXIT% NEQ 0 (
+    echo.
+    echo  [LOI] Script gap loi. Xem thong bao o tren.
+    pause ^& exit /b 1
+)
+
+echo.
+echo  Nhan phim bat ky de dong...
+pause >nul
+endlocal

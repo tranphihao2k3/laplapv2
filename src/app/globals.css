@@ -1,0 +1,527 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  /* Chuyển màu mượt cho nút, link, ô nhập — tránh cảm giác "nhảy" cứng khi hover/focus */
+  a,
+  button,
+  [role="button"],
+  input,
+  textarea,
+  select {
+    @apply transition-colors duration-200;
+  }
+  /* Tôn trọng người dùng tắt hiệu ứng (accessibility) */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *:not(.flip-card-inner):not(.flip-card-glow),
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Clip path reveal from bottom */
+  .clip-reveal {
+    clip-path: inset(0 0 100% 0);
+  }
+  .clip-visible {
+    clip-path: inset(0 0 0% 0);
+  }
+  /* Frosted card */
+  .card-frosted {
+    @apply bg-white/60 backdrop-blur-sm border border-slate-200/80 shadow-sm;
+  }
+  /* Subtle card hover */
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-slate-300;
+  }
+  /* Nhấc nhẹ + đổ bóng khi hover — dùng cho card/nút tương tác */
+  .hover-lift {
+    @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.99];
+  }
+  /* Phóng nhẹ ảnh bên trong khi hover thẻ (kèm overflow-hidden ở cha) */
+  .img-zoom {
+    @apply transition-transform duration-500 ease-out group-hover:scale-105;
+  }
+  /* Nhấn phản hồi cho nút bấm */
+  .press {
+    @apply transition-transform duration-100 active:scale-95;
+  }
+  /* Ẩn thanh cuộn nhưng vẫn cuộn được (dùng cho hàng tab/carousel) */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900;
+  }
+  .text-gradient-brand {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-blue-500;
+  }
+}
+
+/* ============================================================
+   Flip card — mặt trước (ảnh/tên/giá) lật sang mặt sau (thông số)
+   Dùng cho product card ở trang chủ & trang sản phẩm
+   ============================================================ */
+.flip-card {
+  perspective: 1200px;
+}
+.flip-card-inner {
+  transform-style: preserve-3d;
+  transition: transform 550ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.flip-card:hover .flip-card-inner,
+.flip-card:focus-within .flip-card-inner {
+  transform: rotateY(180deg);
+}
+.flip-card-face {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.flip-card-back {
+  transform: rotateY(180deg);
+}
+.flip-card-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 160%;
+  height: 160%;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    #3b82f6 40deg,
+    #60a5fa 90deg,
+    transparent 140deg,
+    transparent 360deg
+  );
+  animation: flip-card-spin 4s linear infinite;
+}
+@keyframes flip-card-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* ============================================================
+   Ghost loader — con ma pixel nhấp nháy (Uiverse by BlackisPlay)
+   Dùng cho <GhostLoader />. Scope dưới .ghost-loader để tránh
+   trùng id và không rò rỉ style ra ngoài.
+   ============================================================ */
+.ghost-loader {
+  position: relative;
+  scale: 0.8;
+}
+
+.ghost-loader .ghost-body {
+  animation: ghost-upNDown infinite 0.5s;
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  grid-template-rows: repeat(14, 1fr);
+  grid-column-gap: 0px;
+  grid-row-gap: 0px;
+  grid-template-areas:
+    "a1  a2  a3  a4  a5  top0  top0  top0  top0  a10 a11 a12 a13 a14"
+    "b1  b2  b3  top1 top1 top1 top1 top1 top1 top1 top1 b12 b13 b14"
+    "c1 c2 top2 top2 top2 top2 top2 top2 top2 top2 top2 top2 c13 c14"
+    "d1 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 d14"
+    "e1 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 e14"
+    "f1 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 f14"
+    "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+    "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+    "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+    "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+    "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+    "top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4 top4"
+    "st0 st0 an4 st1 an7 st2 an10 an10 st3 an13 st4 an16 st5 st5"
+    "an1 an2 an3 an5 an6 an8 an9 an9 an11 an12 an14 an15 an17 an18";
+}
+
+@keyframes ghost-upNDown {
+  0%,
+  49% {
+    transform: translateY(0px);
+  }
+  50%,
+  100% {
+    transform: translateY(-10px);
+  }
+}
+
+.ghost-loader .g-top0,
+.ghost-loader .g-top1,
+.ghost-loader .g-top2,
+.ghost-loader .g-top3,
+.ghost-loader .g-top4,
+.ghost-loader .g-st0,
+.ghost-loader .g-st1,
+.ghost-loader .g-st2,
+.ghost-loader .g-st3,
+.ghost-loader .g-st4,
+.ghost-loader .g-st5 {
+  background-color: #ef4444;
+}
+
+.ghost-loader .g-top0 { grid-area: top0; }
+.ghost-loader .g-top1 { grid-area: top1; }
+.ghost-loader .g-top2 { grid-area: top2; }
+.ghost-loader .g-top3 { grid-area: top3; }
+.ghost-loader .g-top4 { grid-area: top4; }
+.ghost-loader .g-st0 { grid-area: st0; }
+.ghost-loader .g-st1 { grid-area: st1; }
+.ghost-loader .g-st2 { grid-area: st2; }
+.ghost-loader .g-st3 { grid-area: st3; }
+.ghost-loader .g-st4 { grid-area: st4; }
+.ghost-loader .g-st5 { grid-area: st5; }
+
+.ghost-loader .g-an1 { grid-area: an1; animation: ghost-flicker0 infinite 0.5s; }
+.ghost-loader .g-an18 { grid-area: an18; animation: ghost-flicker0 infinite 0.5s; }
+.ghost-loader .g-an2 { grid-area: an2; animation: ghost-flicker1 infinite 0.5s; }
+.ghost-loader .g-an17 { grid-area: an17; animation: ghost-flicker1 infinite 0.5s; }
+.ghost-loader .g-an3 { grid-area: an3; animation: ghost-flicker1 infinite 0.5s; }
+.ghost-loader .g-an16 { grid-area: an16; animation: ghost-flicker1 infinite 0.5s; }
+.ghost-loader .g-an4 { grid-area: an4; animation: ghost-flicker1 infinite 0.5s; }
+.ghost-loader .g-an15 { grid-area: an15; animation: ghost-flicker1 infinite 0.5s; }
+.ghost-loader .g-an5 { grid-area: an5; }
+.ghost-loader .g-an14 { grid-area: an14; }
+.ghost-loader .g-an6 { grid-area: an6; animation: ghost-flicker0 infinite 0.5s; }
+.ghost-loader .g-an12 { grid-area: an12; animation: ghost-flicker0 infinite 0.5s; }
+.ghost-loader .g-an7 { grid-area: an7; animation: ghost-flicker0 infinite 0.5s; }
+.ghost-loader .g-an13 { grid-area: an13; animation: ghost-flicker0 infinite 0.5s; }
+.ghost-loader .g-an9 { grid-area: an9; animation: ghost-flicker1 infinite 0.5s; }
+.ghost-loader .g-an10 { grid-area: an10; animation: ghost-flicker1 infinite 0.5s; }
+.ghost-loader .g-an8 { grid-area: an8; animation: ghost-flicker0 infinite 0.5s; }
+.ghost-loader .g-an11 { grid-area: an11; animation: ghost-flicker0 infinite 0.5s; }
+
+@keyframes ghost-flicker0 {
+  0%,
+  49% {
+    background-color: #ef4444;
+  }
+  50%,
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes ghost-flicker1 {
+  0%,
+  49% {
+    background-color: transparent;
+  }
+  50%,
+  100% {
+    background-color: #ef4444;
+  }
+}
+
+.ghost-loader .g-eye {
+  width: 40px;
+  height: 50px;
+  position: absolute;
+  top: 30px;
+  left: 10px;
+}
+
+.ghost-loader .g-eye::before {
+  content: "";
+  background-color: white;
+  width: 20px;
+  height: 50px;
+  transform: translateX(10px);
+  display: block;
+  position: absolute;
+}
+
+.ghost-loader .g-eye::after {
+  content: "";
+  background-color: white;
+  width: 40px;
+  height: 30px;
+  transform: translateY(10px);
+  display: block;
+  position: absolute;
+}
+
+.ghost-loader .g-eye1 {
+  width: 40px;
+  height: 50px;
+  position: absolute;
+  top: 30px;
+  right: 30px;
+}
+
+.ghost-loader .g-eye1::before {
+  content: "";
+  background-color: white;
+  width: 20px;
+  height: 50px;
+  transform: translateX(10px);
+  display: block;
+  position: absolute;
+}
+
+.ghost-loader .g-eye1::after {
+  content: "";
+  background-color: white;
+  width: 40px;
+  height: 30px;
+  transform: translateY(10px);
+  display: block;
+  position: absolute;
+}
+
+.ghost-loader .g-pupil {
+  width: 20px;
+  height: 20px;
+  background-color: #2563eb;
+  position: absolute;
+  top: 50px;
+  left: 10px;
+  z-index: 1;
+  animation: ghost-eyesMovement infinite 3s;
+}
+
+.ghost-loader .g-pupil1 {
+  width: 20px;
+  height: 20px;
+  background-color: #2563eb;
+  position: absolute;
+  top: 50px;
+  right: 50px;
+  z-index: 1;
+  animation: ghost-eyesMovement infinite 3s;
+}
+
+@keyframes ghost-eyesMovement {
+  0%,
+  49% {
+    transform: translateX(0px);
+  }
+  50%,
+  99% {
+    transform: translateX(10px);
+  }
+  100% {
+    transform: translateX(0px);
+  }
+}
+
+.ghost-loader .ghost-shadow {
+  background-color: black;
+  width: 140px;
+  height: 140px;
+  position: absolute;
+  border-radius: 50%;
+  transform: rotateX(80deg);
+  filter: blur(20px);
+  top: 80%;
+  animation: ghost-shadowMovement infinite 0.5s;
+}
+
+@keyframes ghost-shadowMovement {
+  0%,
+  49% {
+    opacity: 0.5;
+  }
+  50%,
+  100% {
+    opacity: 0.2;
+  }
+}
+
+/* ============================================================
+   Styling cho phần Mô tả sản phẩm hiển thị HTML
+   Dùng class .product-description-preview ở admin preview
+   và .product-description-html ở trang khách hàng (sau này)
+   ============================================================ */
+.product-description-preview,
+.product-description-html {
+  @apply space-y-5 leading-relaxed text-foreground;
+}
+
+.product-description-preview section,
+.product-description-html section {
+  @apply rounded-lg border bg-card/60 p-4 shadow-sm;
+}
+
+.product-description-preview h3,
+.product-description-html h3 {
+  @apply mb-3 text-base font-bold tracking-tight flex items-center gap-2 border-b pb-2;
+}
+
+.product-description-preview p,
+.product-description-html p {
+  @apply text-sm text-foreground/90;
+}
+
+.product-description-preview ul,
+.product-description-html ul {
+  @apply list-disc pl-5 space-y-1 text-sm;
+}
+
+.product-description-preview li,
+.product-description-html li {
+  @apply text-foreground/90;
+}
+
+.product-description-preview strong,
+.product-description-html strong {
+  @apply text-foreground font-semibold;
+}
+
+.product-description-preview table,
+.product-description-html table {
+  @apply w-full text-sm border-collapse;
+}
+
+.product-description-preview thead,
+.product-description-html thead {
+  @apply bg-muted/60;
+}
+
+.product-description-preview th,
+.product-description-html th {
+  @apply px-3 py-2 text-left font-semibold border align-top;
+}
+
+.product-description-preview td,
+.product-description-html td {
+  @apply px-3 py-2 border align-top text-foreground/90;
+}
+
+.product-description-preview tbody tr:nth-child(even),
+.product-description-html tbody tr:nth-child(even) {
+  @apply bg-muted/20;
+}
+
+/* ====== In hoá đơn: chỉ in vùng #receipt-print, ẩn phần còn lại ====== */
+@media print {
+  /* Ẩn toàn bộ trang, chỉ chừa nhánh chứa hoá đơn */
+  body * {
+    visibility: hidden;
+  }
+  #receipt-print,
+  #receipt-print * {
+    visibility: visible;
+  }
+  /* Trung hoà việc canh giữa của Dialog (fixed + translate) để hoá đơn nằm sát mép trên.
+     Nếu không, #receipt-print bị đẩy xuống giữa trang tạo khoảng trắng lớn ở đầu. */
+  [role="dialog"]:has(#receipt-print) {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  #receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    color: #000 !important;
+  }
+  /* Khổ hoá đơn nhỏ gọn, lề tối thiểu */
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+}
