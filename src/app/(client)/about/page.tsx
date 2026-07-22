@@ -16,7 +16,7 @@ import {
   Mail,
 } from "lucide-react";
 import { env } from "@/lib/env";
-import { getStoreInfo } from "@/app/api/public/store-info/route";
+import { getStoreInfo } from "@/lib/store-info";
 import { Reveal } from "@/components/client/home/reveal";
 import { cn } from "@/lib/utils";
 

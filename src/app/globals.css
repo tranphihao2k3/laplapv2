@@ -90,7 +90,7 @@
     html {
       scroll-behavior: auto;
     }
-    *:not(.flip-card-inner):not(.flip-card-glow),
+    *,
     *::before,
     *::after {
       animation-duration: 0.001ms !important;
@@ -141,51 +141,6 @@
   }
   .text-gradient-brand {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-blue-500;
-  }
-}
-
-/* ============================================================
-   Flip card — mặt trước (ảnh/tên/giá) lật sang mặt sau (thông số)
-   Dùng cho product card ở trang chủ & trang sản phẩm
-   ============================================================ */
-.flip-card {
-  perspective: 1200px;
-}
-.flip-card-inner {
-  transform-style: preserve-3d;
-  transition: transform 550ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.flip-card:hover .flip-card-inner,
-.flip-card:focus-within .flip-card-inner {
-  transform: rotateY(180deg);
-}
-.flip-card-face {
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
-.flip-card-back {
-  transform: rotateY(180deg);
-}
-.flip-card-glow {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 160%;
-  height: 160%;
-  transform: translate(-50%, -50%);
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    #3b82f6 40deg,
-    #60a5fa 90deg,
-    transparent 140deg,
-    transparent 360deg
-  );
-  animation: flip-card-spin 4s linear infinite;
-}
-@keyframes flip-card-spin {
-  to {
-    transform: translate(-50%, -50%) rotate(360deg);
   }
 }
 
