@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "laplap-laptop",
+  "name": "laplapv2",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-03-25",
   // "nodejs_compat" là bắt buộc cho OpenNext (nhiều API của Next chạy trên
@@ -17,7 +17,7 @@
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "laplap-laptop"
+      "service": "laplapv2"
     }
   ],
 
