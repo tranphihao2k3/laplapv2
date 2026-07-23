@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "laplap-laptop",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-03-25",
+  // "nodejs_compat" là bắt buộc cho OpenNext (nhiều API của Next chạy trên
+  // Node runtime). "global_fetch_strictly_public" giúp fetch nội bộ hoạt động đúng.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  // Static assets do OpenNext sinh ra khi build.
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+
+  // Cho phép Worker tự gọi lại chính nó (cần cho ISR / revalidate của Next).
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "laplap-laptop"
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+
+  // LƯU Ý: KHÔNG đặt API key / secret ở đây và cũng không đặt trong "vars".
+  // Bí mật phải nạp bằng: npx wrangler secret put <TÊN>
+  // Chỉ những biến NEXT_PUBLIC_* không nhạy cảm mới nên để trong "vars".
+}

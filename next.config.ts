@@ -20,3 +20,7 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+// Cho phép truy cập binding của Cloudflare khi chạy `next dev` (chỉ dev, no-op ở prod).
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+initOpenNextCloudflareForDev();

@@ -23,6 +23,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Cloudflare / OpenNext
+.open-next
+.wrangler
+cloudflare-env.d.ts
+
 # App nhị phân portable — không thuộc mã nguồn
 Toolcheck/
 
