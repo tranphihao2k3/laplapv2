@@ -7,6 +7,14 @@
   // Node runtime). "global_fetch_strictly_public" giúp fetch nội bộ hoạt động đúng.
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
 
+  // Biến công khai (NEXT_PUBLIC_*) — KHÔNG nhạy cảm nên để trong "vars".
+  // NEXT_PUBLIC_APP_URL cần là domain thật để og:url / canonical / preview
+  // (Zalo, Facebook, Messenger) và SEO trỏ đúng — nếu thiếu sẽ rơi về localhost.
+  "vars": {
+    "NEXT_PUBLIC_APP_URL": "https://laplapcantho.store",
+    "NEXT_PUBLIC_APP_NAME": "LapLap"
+  },
+
   // Static assets do OpenNext sinh ra khi build.
   "assets": {
     "binding": "ASSETS",

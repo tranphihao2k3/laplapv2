@@ -72,31 +72,42 @@ export function HomeProductCard({
             Hết hàng
           </span>
         )}
+      </div>
 
-        {/* Panel thông số: nằm dưới, trượt lên khi hover */}
-        <div
-          className={cn(
-            "absolute inset-x-0 bottom-0 z-10 translate-y-full bg-slate-900/95 p-3.5 text-white backdrop-blur-sm",
-            "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-0",
-          )}
-        >
-          <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">
-            <ArrowUpRight className="h-3 w-3" />
-            Cấu hình
-          </p>
-          {rows.length > 0 ? (
-            <div className="space-y-1.5">
-              {rows.map(({ label, text, Icon }, i) => (
-                <div key={i} className="flex items-start gap-2 text-[11px]">
-                  <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
-                  <span className="w-12 shrink-0 text-slate-400">{label}</span>
-                  <span className="line-clamp-1 flex-1 font-medium text-slate-100">{text}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[11px] text-slate-400">Liên hệ để biết thêm cấu hình chi tiết.</p>
-          )}
+      {/* Panel thông số: phủ toàn bộ card, trượt lên khi hover */}
+      <div
+        className={cn(
+          "absolute inset-0 z-10 flex flex-col translate-y-full bg-slate-900/95 p-3.5 text-white backdrop-blur-sm",
+          "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-0",
+        )}
+      >
+        <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">
+          <ArrowUpRight className="h-3 w-3" />
+          Cấu hình
+        </p>
+        {rows.length > 0 ? (
+          <div className="space-y-1.5">
+            {rows.map(({ label, text, Icon }, i) => (
+              <div key={i} className="flex items-start gap-2 text-[11px]">
+                <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
+                <span className="w-12 shrink-0 text-slate-400">{label}</span>
+                <span className="line-clamp-1 flex-1 font-medium text-slate-100">{text}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-400">Liên hệ để biết thêm cấu hình chi tiết.</p>
+        )}
+
+        {/* Tên + giá lặp lại ở đáy panel để card không bị trống khi hover */}
+        <div className="mt-auto border-t border-white/10 pt-2.5">
+          <h3 className="line-clamp-1 text-xs font-semibold text-slate-100">{product.name}</h3>
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-sm font-bold text-white">
+              {product.price > 0 ? formatCurrency(product.price) : "Liên hệ"}
+            </span>
+            <ArrowUpRight className="h-4 w-4 text-blue-400" />
+          </div>
         </div>
       </div>
 
