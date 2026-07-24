@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getShopInfo } from "@/lib/shop-info";
 import { env } from "@/lib/env";
 import { Breadcrumb } from "@/components/client/product/breadcrumb";
 import { ProductGallery } from "@/components/client/product/product-gallery";
@@ -185,6 +186,7 @@ export default async function ProductDetailPage({
   if (!product) notFound();
 
   const related = await getRelatedProducts(product.category?.id ?? null, product.id);
+  const shop = await getShopInfo();
 
   const hasSpecs = (product.variants?.[0]?.specs &&
     Object.values(product.variants[0].specs as Record<string, string>).some((v) => v?.trim())) as boolean | undefined;
@@ -274,7 +276,7 @@ export default async function ProductDetailPage({
           <ProductGallery images={product.images} productName={product.name} />
         </div>
         <div className="lg:sticky lg:top-24 lg:self-start">
-          <ProductInfo product={product} />
+          <ProductInfo product={product} consultPhone={shop.phone} />
         </div>
       </div>
 

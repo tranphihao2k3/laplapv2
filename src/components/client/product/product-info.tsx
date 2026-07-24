@@ -23,6 +23,7 @@ import type { ProductWithVariants } from "./types";
 
 type Props = {
   product: ProductWithVariants;
+  consultPhone?: string | null;
 };
 
 const HIGHLIGHT_KEYS: { key: string; label: string; icon: typeof Cpu }[] = [
@@ -33,9 +34,12 @@ const HIGHLIGHT_KEYS: { key: string; label: string; icon: typeof Cpu }[] = [
   { key: "display", label: "Màn hình", icon: Monitor },
 ];
 
-export function ProductInfo({ product }: Props) {
+export function ProductInfo({ product, consultPhone }: Props) {
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
+
+  const phone = consultPhone?.trim() || null;
+  const telHref = phone ? `tel:${phone.replace(/[^\d+]/g, "")}` : null;
 
   const variants = product.variants ?? [];
   const selectedVariant = variants[selectedVariantIdx] ?? null;
@@ -189,13 +193,15 @@ export function ProductInfo({ product }: Props) {
       </div>
 
       {/* Consult CTA */}
-      <a
-        href="tel:0900000000"
-        className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
-      >
-        <Phone className="h-4 w-4" />
-        Cần tư vấn? Gọi ngay 0900 000 000
-      </a>
+      {telHref && (
+        <a
+          href={telHref}
+          className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+        >
+          <Phone className="h-4 w-4" />
+          Cần tư vấn? Gọi ngay {phone}
+        </a>
+      )}
 
       {/* Trust badges */}
       <div className="grid grid-cols-1 gap-3 rounded-lg border bg-card/50 p-3 sm:grid-cols-3 sm:p-4">
@@ -225,13 +231,15 @@ export function ProductInfo({ product }: Props) {
               </p>
             )}
           </div>
-          <a
-            href="tel:0900000000"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border text-primary"
-            aria-label="Goi tu van"
-          >
-            <Phone className="h-5 w-5" />
-          </a>
+          {telHref && (
+            <a
+              href={telHref}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border text-primary"
+              aria-label="Goi tu van"
+            >
+              <Phone className="h-5 w-5" />
+            </a>
+          )}
           <Button size="lg" className="flex-1">
             <ShoppingCart className="mr-2 h-5 w-5" />
             Thêm vào giỏ

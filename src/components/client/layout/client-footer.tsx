@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { getShopInfo, telHref } from "@/lib/shop-info";
 
 const FOOTER_LINKS = {
   "Về LapLap": [
@@ -23,7 +24,10 @@ const FOOTER_LINKS = {
 };
 
 
-export function ClientFooter() {
+export async function ClientFooter() {
+  const shop = await getShopInfo();
+  const tel = telHref(shop.phone);
+
   return (
     <footer className="border-t bg-muted/30">
       <div className="container py-12">
@@ -38,9 +42,27 @@ export function ClientFooter() {
               Hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cam kết sản phẩm chính hãng, giá tốt nhất.
             </p>
             <div className="space-y-1 text-sm text-muted-foreground">
-              <p>📍 123 Nguyễn Văn Cừ, Ninh Kiều, Cần Thơ</p>
-              <p>📞 1900 1234</p>
-              <p>✉️ info@laplap.vn</p>
+              {shop.address && <p>📍 {shop.address}</p>}
+              {shop.phone && (
+                <p>
+                  📞{" "}
+                  {tel ? (
+                    <a href={tel} className="transition-colors hover:text-foreground">
+                      {shop.phone}
+                    </a>
+                  ) : (
+                    shop.phone
+                  )}
+                </p>
+              )}
+              {shop.email && (
+                <p>
+                  ✉️{" "}
+                  <a href={`mailto:${shop.email}`} className="transition-colors hover:text-foreground">
+                    {shop.email}
+                  </a>
+                </p>
+              )}
             </div>
           </div>
 
