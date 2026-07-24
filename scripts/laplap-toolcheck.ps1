@@ -1,6 +1,7 @@
 param(
     [string]$ApiBase = "__API_BASE__",
-    [string]$ScanToken = "__SCAN_TOKEN__"
+    [string]$ScanToken = "__SCAN_TOKEN__",
+    [string]$ToolcheckUrl = "__TOOLCHECK_URL__"
 )
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -8,6 +9,44 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ToolRoot = Join-Path $ScriptRoot "Toolcheck"
+
+# Tai bo cong cu (Toolcheck + scripts) tu Storage neu chua co san canh scanner.
+# Goi cong cu ~145MB duoc host tren Supabase Storage, khong nhet trong zip nho nay.
+function Ensure-Toolcheck {
+    if (Test-Path $ToolRoot) { return $true }
+    if ([string]::IsNullOrWhiteSpace($ToolcheckUrl) -or $ToolcheckUrl -like "*__TOOLCHECK_URL__*") {
+        Write-Host "  [X] Chua cau hinh duong dan tai Toolcheck." -ForegroundColor Red
+        return $false
+    }
+
+    $zipPath = Join-Path $ScriptRoot "Toolcheck.zip"
+    Write-Host ""
+    Write-Host "  >> Lan dau chay: dang tai bo cong cu Toolcheck (~145MB)..." -ForegroundColor Cyan
+    Write-Host "     Nguon: $ToolcheckUrl" -ForegroundColor DarkGray
+    try {
+        $ProgressPreference = "SilentlyContinue"
+        Invoke-WebRequest -Uri $ToolcheckUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 600
+    } catch {
+        Write-Host "  [X] Tai Toolcheck that bai: $($_.Exception.Message)" -ForegroundColor Red
+        return $false
+    }
+
+    Write-Host "  >> Dang giai nen Toolcheck..." -ForegroundColor Cyan
+    try {
+        Expand-Archive -Path $zipPath -DestinationPath $ScriptRoot -Force
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "  [X] Giai nen that bai: $($_.Exception.Message)" -ForegroundColor Red
+        return $false
+    }
+
+    if (Test-Path $ToolRoot) {
+        Write-Host "  [OK] Da chuan bi xong Toolcheck." -ForegroundColor Green
+        return $true
+    }
+    Write-Host "  [X] Khong tim thay thu muc Toolcheck sau khi giai nen." -ForegroundColor Red
+    return $false
+}
 $SubmitUrl = "$ApiBase/api/v1/system-scan/submit?token=$ScanToken"
 $script:LastDeviceId = $env:COMPUTERNAME
 $script:LastDeviceName = $env:COMPUTERNAME
@@ -536,8 +575,8 @@ function Show-ToolMenu {
     }
 }
 
-if (-not (Test-Path $ToolRoot)) {
-    Write-Fail "Khong tim thay thu muc Toolcheck. Hay giai nen day du file zip truoc khi chay."
+if (-not (Ensure-Toolcheck)) {
+    Write-Fail "Khong chuan bi duoc thu muc Toolcheck. Kiem tra ket noi mang roi chay lai."
     Read-Host "Nhan Enter de dong"
     exit 1
 }

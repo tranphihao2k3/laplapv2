@@ -1,9 +1,20 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { NextRequest } from "next/server";
 
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Gói công cụ (~90MB) và template scanner được host trên Cloudflare R2 (bucket public).
+// Worker KHÔNG đọc filesystem — chỉ fetch template .ps1, chèn token, rồi đóng gói 1 zip
+// NHỎ trả về; gói tools 90MB thì scanner tự tải thẳng từ R2. Xem [[system-scan-fs-breaks-on-workers]].
+//
+// TOOLCHECK_BASE_URL = URL gốc public của bucket R2, ví dụ https://pub-xxxx.r2.dev
+// (đặt trong wrangler.jsonc > vars — là URL công khai, không phải secret).
+function storageBase(): string {
+  const base = process.env.TOOLCHECK_BASE_URL?.trim();
+  if (!base) {
+    throw new Error("TOOLCHECK_BASE_URL chưa được cấu hình (wrangler vars).");
+  }
+  return base.replace(/\/$/, "");
+}
 
 type ZipEntry = {
   name: string;
@@ -108,32 +119,6 @@ function makeZip(entries: ZipEntry[]) {
   return Buffer.concat([...localParts, ...centralParts, end]);
 }
 
-async function collectFiles(dir: string, zipRoot: string): Promise<ZipEntry[]> {
-  const dirents = await fs.readdir(dir, { withFileTypes: true });
-  const entries: ZipEntry[] = [];
-
-  for (const dirent of dirents) {
-    const fullPath = path.join(dir, dirent.name);
-    const zipPath = `${zipRoot}/${dirent.name}`.replace(/\\/g, "/");
-
-    if (dirent.isDirectory()) {
-      const childEntries = await collectFiles(fullPath, zipPath);
-      entries.push(...childEntries);
-      continue;
-    }
-
-    if (!dirent.isFile()) continue;
-
-    const [data, stat] = await Promise.all([
-      fs.readFile(fullPath),
-      fs.stat(fullPath),
-    ]);
-    entries.push({ name: zipPath, data, mtime: stat.mtime });
-  }
-
-  return entries.sort((a, b) => a.name.localeCompare(b.name));
-}
-
 function scannerBat() {
   return `@echo off
 chcp 65001 >nul
@@ -152,7 +137,9 @@ function readme(apiBase: string, token: string) {
 
 1. Giai nen file zip nay ra mot thu muc rieng.
 2. Chay file LapLap-Scanner.bat.
-3. Scanner se quet cau hinh, gui ket qua ve web, sau do hien menu mo cac tool trong Toolcheck.
+3. Lan dau chay, scanner se TU DONG tai bo cong cu Toolcheck (~145MB) ve va giai nen
+   ngay canh no. Nhung lan sau khong can tai lai.
+4. Scanner se quet cau hinh, gui ket qua ve web, sau do hien menu mo cac tool.
 
 Server: ${apiBase}
 Token : ${token}
@@ -170,23 +157,21 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Missing token" }, { status: 400 });
   }
 
-  const root = process.cwd();
-  const toolcheckDir = path.join(root, "Toolcheck");
-  const scannerTemplatePath = path.join(root, "scripts", "laplap-toolcheck.ps1");
-  const furmarkScriptPath = path.join(root, "public", "scripts", "furmark-benchmark.ps1");
-
   try {
-    await fs.access(toolcheckDir);
     const apiBase = req.nextUrl.origin;
-    const [toolEntries, scannerTemplate, furmarkScript] = await Promise.all([
-      collectFiles(toolcheckDir, "Toolcheck"),
-      fs.readFile(scannerTemplatePath, "utf8"),
-      fs.readFile(furmarkScriptPath),
-    ]);
+    const base = storageBase();
+
+    // Lay template scanner tu R2 (khong doc filesystem tren Worker).
+    const res = await fetch(`${base}/laplap-toolcheck.ps1`, { cache: "no-store" });
+    if (!res.ok) {
+      throw new Error(`Fetch scanner template failed: ${res.status}`);
+    }
+    const scannerTemplate = await res.text();
 
     const scannerScript = scannerTemplate
       .replaceAll("__API_BASE__", apiBase)
-      .replaceAll("__SCAN_TOKEN__", token);
+      .replaceAll("__SCAN_TOKEN__", token)
+      .replaceAll("__TOOLCHECK_URL__", `${base}/Toolcheck.zip`);
 
     const entries: ZipEntry[] = [
       {
@@ -204,12 +189,6 @@ export async function GET(req: NextRequest) {
         data: Buffer.from(readme(apiBase, token), "utf8"),
         mtime: new Date(),
       },
-      {
-        name: "scripts/furmark-benchmark.ps1",
-        data: Buffer.from(furmarkScript),
-        mtime: new Date(),
-      },
-      ...toolEntries,
     ];
 
     const zip = makeZip(entries);

@@ -12,7 +12,10 @@
   // (Zalo, Facebook, Messenger) và SEO trỏ đúng — nếu thiếu sẽ rơi về localhost.
   "vars": {
     "NEXT_PUBLIC_APP_URL": "https://laplapcantho.store",
-    "NEXT_PUBLIC_APP_NAME": "LapLap"
+    "NEXT_PUBLIC_APP_NAME": "LapLap",
+    // URL gốc public của bucket R2 chứa Toolcheck.zip + laplap-toolcheck.ps1.
+    // Điền URL r2.dev (hoặc custom domain) sau khi tạo bucket. Là URL công khai, không phải secret.
+    "TOOLCHECK_BASE_URL": "https://pub-7c51a9003fb047ee809178f21148ed17.r2.dev"
   },
 
   // Static assets do OpenNext sinh ra khi build.
