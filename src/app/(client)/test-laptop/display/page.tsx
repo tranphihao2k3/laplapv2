@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,19 +75,11 @@ export default function DisplayPage() {
   };
 
   if (isFullscreen) {
-    return (
-      <>
-        {/* Ẩn tất cả header sticky khi fullscreen bằng global style */}
-        <style>{`
-          body.display-fullscreen header {
-            visibility: hidden !important;
-            pointer-events: none !important;
-          }
-        `}</style>
-        <div
-          className={`fixed inset-0 z-[9999] flex flex-col items-center justify-between cursor-pointer ${colors[currentColorIdx].color}`}
-          onClick={handleScreenClick}
-        >
+    const overlay = (
+      <div
+        className={`fixed inset-0 z-[2147483647] flex flex-col items-center justify-between cursor-pointer ${colors[currentColorIdx].color}`}
+        onClick={handleScreenClick}
+      >
         <div className="w-full flex items-center justify-between p-4 bg-black/40 text-white select-none">
           <p className="text-sm font-semibold">
             {colors[currentColorIdx].name} ({currentColorIdx + 1}/{colors.length})
@@ -124,8 +117,11 @@ export default function DisplayPage() {
 
         <div />
       </div>
-    </>
     );
+
+    // Portal ra thẳng document.body: thoát khỏi mọi header sticky / containing block
+    // của layout (ClientHeader + header test-laptop) để phủ kín toàn màn hình.
+    return typeof document !== "undefined" ? createPortal(overlay, document.body) : overlay;
   }
 
   return (
