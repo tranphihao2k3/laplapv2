@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getShopInfo } from "@/lib/shop-info";
 import { env } from "@/lib/env";
 import { Breadcrumb } from "@/components/client/product/breadcrumb";
@@ -15,7 +15,7 @@ import type { ProductWithVariants } from "@/components/client/product/types";
 
 async function getProductBySlug(slug: string): Promise<ProductWithVariants | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = (await createClient()) as any;
+  const supabase = createAdminClient() as any;
 
   const { data: product } = await supabase
     .from("products")
@@ -97,7 +97,7 @@ async function getRelatedProducts(
 ): Promise<{ id: string; name: string; slug: string; price: number; thumbnail_url: string | null }[]> {
   if (!categoryId) return [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = (await createClient()) as any;
+  const supabase = createAdminClient() as any;
 
   const { data } = await supabase
     .from("products")
