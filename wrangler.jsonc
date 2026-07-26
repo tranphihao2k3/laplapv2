@@ -7,6 +7,15 @@
   // Node runtime). "global_fetch_strictly_public" giúp fetch nội bộ hoạt động đúng.
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
 
+  // Wrangler bọc mỗi hàm bằng helper `__name` (esbuild keepNames) để giữ tên hàm
+  // khi debug. Nhưng next-themes sinh script chống nháy theme bằng cách stringify
+  // một hàm (Function.toString()) rồi nhúng inline vào <head>. Chuỗi đó dính luôn
+  // lời gọi `__name(...)` — trong trình duyệt `__name` không tồn tại → lỗi
+  // "ReferenceError: __name is not defined", làm hỏng hydrate và vỡ các trang
+  // tương tác (vd trang chi tiết sản phẩm). Tắt để chuỗi inline sạch.
+  // Yêu cầu Wrangler >= 4.13.0. Docs: https://opennext.js.org/cloudflare/howtos/keep_names
+  "keep_names": false,
+
   // Biến công khai (NEXT_PUBLIC_*) — KHÔNG nhạy cảm nên để trong "vars".
   // NEXT_PUBLIC_APP_URL cần là domain thật để og:url / canonical / preview
   // (Zalo, Facebook, Messenger) và SEO trỏ đúng — nếu thiếu sẽ rơi về localhost.
