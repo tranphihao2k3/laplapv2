@@ -17,18 +17,18 @@ export default function ClientHomePage() {
   return (
     <div className="bg-white">
       <HeroSection />
+      <TrustBar />
       <BrandStrip />
       <FlashSale />
       <FeaturedProducts />
       <NeedCollections />
       <PriceRangeSection />
-      <PromoBanners />
       <BestSellers />
+      <PromoBanners />
       <ServiceCards />
       <StatsBar />
       <Testimonials />
       <BlogTips />
-      <TrustBar />
       <Newsletter />
     </div>
   );

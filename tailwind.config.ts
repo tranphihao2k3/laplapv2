@@ -12,6 +12,18 @@ const config: Config = {
   		}
   	},
   	extend: {
+  		// Token easing/duration dùng chung cho hiệu ứng hover thẻ & ảnh.
+  		// Đặt tên thay vì viết arbitrary `ease-[cubic-bezier(...)]` /
+  		// `duration-[600ms]` — vì plugin tailwindcss-animate cũng đăng ký
+  		// duration-*/ease-* cho animation nên giá trị arbitrary bị cảnh báo
+  		// "ambiguous and matches multiple utilities".
+  		transitionTimingFunction: {
+  			smooth: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  			glide: 'cubic-bezier(0.25, 1, 0.5, 1)',
+  		},
+  		transitionDuration: {
+  			'600': '600ms',
+  		},
   		colors: {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',

@@ -491,6 +491,17 @@ export type BenchmarkDraftRow = {
   expires_at: Timestamp | null;
 };
 
+// Kết quả quét hệ thống do scanner gửi lên, web poll theo token.
+// Xem supabase/migrations/020_system_scan_results.sql
+export type SystemScanResultRow = {
+  token: string;
+  status: string;
+  payload: Json | null;
+  created_at: Timestamp | null;
+  updated_at: Timestamp | null;
+  expires_at: Timestamp | null;
+};
+
 // ---------- Helper: build Insert/Update từ Row ----------
 type Insertable<T, Required extends keyof T = never> = {
   [K in Required]: T[K];
@@ -529,6 +540,12 @@ export type Database = {
         Row: BenchmarkDraftRow;
         Insert: Insertable<BenchmarkDraftRow>;
         Update: Updatable<BenchmarkDraftRow>;
+        Relationships: [];
+      };
+      system_scan_results: {
+        Row: SystemScanResultRow;
+        Insert: Insertable<SystemScanResultRow, "token">;
+        Update: Updatable<SystemScanResultRow>;
         Relationships: [];
       };
       laptops: {

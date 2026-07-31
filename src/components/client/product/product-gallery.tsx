@@ -35,37 +35,39 @@ export function ProductGallery({ images, productName }: Props) {
   return (
     <>
       <div
-        className="group relative aspect-[4/3] cursor-zoom-in overflow-hidden rounded-xl border bg-white sm:aspect-square"
+        className="group relative aspect-[4/3] cursor-zoom-in overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50 to-white sm:aspect-square"
         onClick={() => setOpen(true)}
       >
         <Image
           src={current.url}
           alt={current.alt}
           fill
-          className="object-contain p-4 transition-transform duration-300 group-hover:scale-105"
+          className="object-contain p-6 transition-transform duration-600 group-hover:scale-105"
           sizes="(max-width: 768px) 100vw, 50vw"
           priority
           quality={100}
         />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/5">
-          <div className="rounded-full bg-background/90 p-2 opacity-0 shadow transition-opacity group-hover:opacity-100">
-            <ZoomIn className="h-5 w-5" />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/[0.03]">
+          <div className="rounded-full bg-white/90 p-2.5 opacity-0 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+            <ZoomIn className="h-5 w-5 text-slate-700" />
           </div>
         </div>
       </div>
 
       {images.length > 1 && (
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">
           {images.map((img, idx) => (
             <button
               key={idx}
               onClick={() => setIndex(idx)}
               className={cn(
-                "relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 bg-white transition-colors",
-                idx === index ? "border-primary" : "border-border hover:border-muted-foreground/40",
+                "relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 bg-white transition-all",
+                idx === index
+                  ? "border-slate-900"
+                  : "border-slate-200 opacity-70 hover:border-slate-400 hover:opacity-100",
               )}
             >
-              <Image src={img.url} alt={`${productName} ${idx + 1}`} fill className="object-contain p-1" sizes="64px" />
+              <Image src={img.url} alt={`${productName} ${idx + 1}`} fill className="object-contain p-1.5" sizes="64px" />
             </button>
           ))}
         </div>

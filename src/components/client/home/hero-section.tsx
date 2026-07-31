@@ -1,25 +1,11 @@
 "use client";
 
-import type { ComponentType } from "react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { buildHeroSlide, type HomepageHeroSetting } from "@/lib/homepage-hero";
-
-type Slide = {
-  id: number;
-  eyebrow: string;
-  title: string[];
-  sub: string;
-  cta: string;
-  href: string;
-  accent: string;
-  bg: string;
-  Icon: ComponentType<{ className?: string; strokeWidth?: number }>;
-  image?: string;
-};
+import { FerrofluidLazy } from "@/components/ui/ferrofluid-lazy";
 
 export function HeroSection() {
   const defaultSlide = useMemo(() => buildHeroSlide(), []);
@@ -38,74 +24,77 @@ export function HeroSection() {
     [heroQuery.data, defaultSlide],
   );
 
-  const HeroIcon = typeof slide.Icon === "function" ? slide.Icon : ArrowRight;
-
   return (
-    <section className="container pt-4 md:pt-6">
-      <div className={cn("relative overflow-hidden rounded-3xl transition-colors duration-700", slide.bg)}>
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.025]"
-          style={{
-            backgroundImage:
-              "linear-gradient(to right,#000 1px,transparent 1px),linear-gradient(to bottom,#000 1px,transparent 1px)",
-            backgroundSize: "48px 48px",
-          }}
-        />
+    <section className="relative w-full">
+      <div className="relative w-full overflow-hidden bg-[#0a0a0c]">
+        {/* Nền ferrofluid động phủ kín banner (WebGL, client-only) */}
+        <div className="absolute inset-0 z-0">
+          <FerrofluidLazy
+            className="h-full w-full"
+            colors={["#ffffff", "#ffffff", "#ffffff"]}
+            speed={0.5}
+            scale={1.4}
+            glow={2}
+            flowDirection="down"
+            mouseInteraction
+          />
+        </div>
 
-        <div className="relative grid gap-8 px-5 py-10 sm:gap-10 sm:px-8 sm:py-14 md:px-16 md:py-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-12 lg:px-20 lg:py-24">
-          <div className="max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 sm:mb-5 animate-[fadeSlideUp_0.5s_cubic-bezier(0.22,1,0.36,1)_both]">
-              <span className={cn("inline-block h-1.5 w-6 rounded-full", slide.accent)} />
-              <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">
-                {slide.eyebrow}
-              </span>
-            </div>
+        {/* Lớp phủ tối nhẹ ở giữa để chữ luôn đọc rõ */}
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,rgba(10,10,12,0.75)_0%,rgba(10,10,12,0.35)_45%,transparent_75%)]" />
 
-            <h1 className="space-y-1">
-              {slide.title.map((line, i) => (
-                <div key={`title-${i}`} className="overflow-hidden">
-                  <span
-                    className="block text-3xl font-extrabold leading-[1.08] tracking-tight text-slate-900 sm:text-4xl md:text-5xl lg:text-6xl"
-                    style={{
-                      animation: `slideUpIn 0.65s cubic-bezier(0.22,1,0.36,1) ${i * 80}ms both`,
-                    }}
-                  >
-                    {line}
-                  </span>
-                </div>
-              ))}
-            </h1>
-
-            <p
-              className="mt-4 max-w-md text-sm text-slate-500 sm:mt-6 sm:text-base md:text-lg"
-              style={{ animation: "fadeSlideUp 0.7s cubic-bezier(0.22,1,0.36,1) 200ms both" }}
-            >
-              {slide.sub}
-            </p>
-
-            <div style={{ animation: "fadeSlideUp 0.7s cubic-bezier(0.22,1,0.36,1) 300ms both" }}>
-              <Link
-                href={slide.href || "/products"}
-                className="group mt-6 inline-flex items-center gap-2 rounded-full bg-slate-900 px-7 py-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-slate-700 hover:shadow-md active:scale-[0.98] sm:mt-8"
-              >
-                {slide.cta}
-                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Link>
-            </div>
+        <div className="relative z-[2] flex min-h-[560px] flex-col items-center justify-center px-5 py-20 text-center sm:min-h-[600px]">
+          <div
+            className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-white/15 bg-white/[0.06] py-1.5 pl-1.5 pr-3.5 backdrop-blur-md"
+            style={{ animation: "fadeSlideUp 0.5s cubic-bezier(0.22,1,0.36,1) both" }}
+          >
+            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-900">
+              Mới
+            </span>
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/70">
+              {slide.eyebrow}
+            </span>
           </div>
 
-          <div className="relative hidden h-[420px] overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-100/70 shadow-xl shadow-slate-900/5 lg:block">
-            {slide.image ? (
-              <img
-                src={slide.image}
-                alt={slide.title.join(" ")}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <HeroIcon className="h-72 w-72 text-slate-900/10" />
+          <h1 className="max-w-4xl">
+            {slide.title.map((line, i) => (
+              <div key={`title-${i}`} className="overflow-hidden">
+                <span
+                  className="block text-[2.5rem] font-semibold leading-[1.04] tracking-[-0.02em] text-white sm:text-6xl md:text-7xl"
+                  style={{
+                    animation: `slideUpIn 0.65s cubic-bezier(0.22,1,0.36,1) ${i * 80}ms both`,
+                  }}
+                >
+                  {line}
+                </span>
               </div>
-            )}
+            ))}
+          </h1>
+
+          <p
+            className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 sm:text-base md:text-lg"
+            style={{ animation: "fadeSlideUp 0.7s cubic-bezier(0.22,1,0.36,1) 200ms both" }}
+          >
+            {slide.sub}
+          </p>
+
+          <div
+            className="mt-9 flex flex-col items-center gap-3 sm:flex-row sm:gap-3.5"
+            style={{ animation: "fadeSlideUp 0.7s cubic-bezier(0.22,1,0.36,1) 300ms both" }}
+          >
+            <Link
+              href={slide.href || "/products"}
+              className="group inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-slate-900 transition-all hover:shadow-[0_8px_30px_-8px_rgba(255,255,255,0.5)] active:scale-[0.98]"
+            >
+              {slide.cta}
+              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </Link>
+            <Link
+              href="/dich-vu-sua-chua"
+              className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.04] px-8 py-3.5 text-sm font-medium text-white backdrop-blur-sm transition-all hover:border-white/30 hover:bg-white/10 active:scale-[0.98]"
+            >
+              Tìm hiểu thêm
+            </Link>
           </div>
         </div>
       </div>

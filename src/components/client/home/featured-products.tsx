@@ -1,6 +1,5 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import { ProductSection } from "./product-section";
 
 export function FeaturedProducts() {
@@ -8,8 +7,7 @@ export function FeaturedProducts() {
     <ProductSection
       title="Sản phẩm mới nhất"
       eyebrow="Mới về"
-      icon={Sparkles}
-      accentColor="bg-blue-600"
+      description="Những mẫu laptop vừa lên kệ, cập nhật liên tục mỗi tuần."
       sort="newest"
       limit={8}
       moreHref="/products?sort=newest"

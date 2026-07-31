@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { httpGet, httpPatch, httpPost, httpDelete } from "@/lib/api/http";
 import { buildHeroSlide, HERO_TEMPLATES, type HomepageHeroSetting } from "@/lib/homepage-hero";
+import { FinancingSettings } from "./_components/financing-settings";
 import type { Paginated } from "@/lib/api/response";
 
 // ====== Types ======
@@ -798,6 +799,15 @@ function SystemSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Trả góp — khai báo bên trả góp & kỳ hạn, lưu vào settings key "financing.providers" */}
+      <FinancingSettings
+        raw={byKey.get("financing.providers")?.value}
+        saving={upsert.isPending}
+        onSave={(value) =>
+          upsert.mutate({ key: "financing.providers", group: "checkout", value })
+        }
+      />
 
       <Card>
         <CardHeader>

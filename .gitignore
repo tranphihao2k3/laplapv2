@@ -42,3 +42,6 @@ tmp_decode_*.py
 tmp_decode_*.ps1
 dev-error.txt
 dev-output.txt
+
+# Cấu hình Claude Code riêng của từng máy (quyền chạy lệnh) — không chia sẻ
+.claude/settings.local.json

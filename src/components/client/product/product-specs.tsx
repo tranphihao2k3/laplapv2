@@ -78,10 +78,10 @@ export function ProductSpecs({ product }: Props) {
       {orderedGroups.map((group) => {
         const rows = grouped.get(group)!;
         return (
-          <div key={group} className="overflow-hidden rounded-xl border">
-            <div className="flex items-center gap-2 border-b bg-muted/50 px-4 py-2.5">
-              <Layers className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">{group}</h3>
+          <div key={group} className="overflow-hidden rounded-xl border border-slate-200/80">
+            <div className="flex items-center gap-2 border-b border-slate-200/80 bg-slate-50/70 px-4 py-3">
+              <Layers className="h-4 w-4 text-slate-400" />
+              <h3 className="text-sm font-semibold text-slate-900">{group}</h3>
             </div>
             <table className="block w-full text-sm sm:table">
               <tbody className="block sm:table-row-group">
@@ -91,15 +91,15 @@ export function ProductSpecs({ product }: Props) {
                   return (
                     <tr
                       key={key}
-                      className={`flex flex-col sm:table-row ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}
+                      className={`flex flex-col sm:table-row ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"}`}
                     >
-                      <td className="px-3 pt-2.5 align-top font-medium text-muted-foreground sm:w-1/3 sm:px-4 sm:py-3">
-                        <div className="flex items-center gap-1.5 sm:gap-2">
-                          {Icon && <Icon className="h-4 w-4 shrink-0 text-primary/70" />}
+                      <td className="px-4 pt-2.5 align-top font-medium text-slate-500 sm:w-1/3 sm:py-3.5">
+                        <div className="flex items-center gap-2">
+                          {Icon && <Icon className="h-4 w-4 shrink-0 text-slate-400" />}
                           <span className="min-w-0">{meta?.label ?? key}</span>
                         </div>
                       </td>
-                      <td className="break-words px-3 pb-2.5 pt-0.5 text-foreground sm:px-4 sm:py-3 sm:pt-3">{value}</td>
+                      <td className="break-words px-4 pb-2.5 pt-0.5 text-slate-800 sm:py-3.5">{value}</td>
                     </tr>
                   );
                 })}

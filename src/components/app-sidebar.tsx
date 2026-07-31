@@ -26,6 +26,7 @@ import {
   UserCog,
   UserPlus,
   Wrench,
+  Music2,
 } from "lucide-react";
 
 import { NavDocuments } from "@/components/nav-documents";
@@ -80,6 +81,7 @@ const documents = [
   { name: "Bảo hành", url: "/quanly/warranties", icon: ShieldCheck, group: "Hậu mãi" },
   { name: "Phiếu sửa chữa", url: "/quanly/repair-tickets", icon: Shield, group: "Hậu mãi" },
   { name: "Bảng giá sửa chữa", url: "/quanly/repair-services", icon: Wrench, group: "Hậu mãi" },
+  { name: "Nhạc Test Loa", url: "/quanly/speaker-songs", icon: Music2, group: "Hậu mãi" },
 
   { name: "Tổ chức", url: "/quanly/organizations", icon: Building2, group: "Hệ thống" },
   { name: "Cửa hàng", url: "/quanly/shops", icon: Store, group: "Hệ thống" },

@@ -41,14 +41,14 @@ export function WarrantyPolicy() {
         return (
           <div
             key={p.title}
-            className="flex gap-3 rounded-xl border bg-card/50 p-4 transition-colors hover:bg-card"
+            className="group flex gap-3.5 rounded-2xl border border-slate-200/80 bg-white p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_16px_40px_-24px_rgba(15,23,42,0.4)]"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <Icon className="h-5 w-5 text-primary" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-700 transition-colors duration-300 group-hover:border-slate-900 group-hover:bg-slate-900 group-hover:text-white">
+              <Icon className="h-5 w-5" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold">{p.title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{p.desc}</p>
+              <h3 className="text-sm font-semibold text-slate-900">{p.title}</h3>
+              <p className="text-[13px] leading-relaxed text-slate-500">{p.desc}</p>
             </div>
           </div>
         );

@@ -24,8 +24,28 @@
     "NEXT_PUBLIC_APP_NAME": "LapLap",
     // URL gốc public của bucket R2 chứa Toolcheck.zip + laplap-toolcheck.ps1.
     // Điền URL r2.dev (hoặc custom domain) sau khi tạo bucket. Là URL công khai, không phải secret.
-    "TOOLCHECK_BASE_URL": "https://pub-7c51a9003fb047ee809178f21148ed17.r2.dev"
+    "TOOLCHECK_BASE_URL": "https://pub-7c51a9003fb047ee809178f21148ed17.r2.dev",
+    // URL public của R2 bucket chứa file nhạc test loa.
+    // Thay bằng URL r2.dev thực tế sau khi tạo bucket "laplap-audio" (xem hướng dẫn bên dưới).
+    "AUDIO_BASE_URL": "https://pub-59e324694def48cbbcb513841d41ec3f.r2.dev"
   },
+
+  // R2 bucket binding — Worker có thể đọc/ghi trực tiếp (không cần qua HTTP).
+  // Tạo bucket: npx wrangler r2 bucket create laplap-audio
+  // Bật public access: vào Cloudflare Dashboard > R2 > laplap-audio > Settings > Public Access
+  // Sau đó copy URL r2.dev vào AUDIO_BASE_URL bên trên.
+  "r2_buckets": [
+    {
+      "binding": "AUDIO_BUCKET",
+      "bucket_name": "laplap-audio",
+      // "remote": true — BẮT BUỘC, nếu thiếu thì upload ở `next dev` chỉ ghi vào
+      // R2 GIẢ LẬP trên máy (.wrangler/state/v3/r2/) chứ không lên bucket thật,
+      // nên Dashboard R2 trống và URL pub-*.r2.dev trả 401/404.
+      // Cờ này buộc binding đi ra bucket thật ngay cả khi dev local.
+      // Cần đăng nhập trước: npx wrangler login
+      "remote": true
+    }
+  ],
 
   // Static assets do OpenNext sinh ra khi build.
   "assets": {

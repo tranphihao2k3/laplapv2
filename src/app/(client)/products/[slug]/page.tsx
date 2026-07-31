@@ -271,7 +271,7 @@ export default async function ProductDetailPage({
       />
 
       {/* Main section */}
-      <div className="mt-4 grid gap-6 sm:mt-6 sm:gap-8 lg:grid-cols-2 lg:gap-12">
+      <div className="mt-5 grid gap-6 sm:mt-7 sm:gap-8 lg:grid-cols-2 lg:gap-14">
         <div>
           <ProductGallery images={product.images} productName={product.name} />
         </div>
@@ -281,23 +281,32 @@ export default async function ProductDetailPage({
       </div>
 
       {/* Detail tabs */}
-      <div className="mt-8 sm:mt-12">
+      <div className="mt-12 sm:mt-20">
         <Tabs defaultValue="description" className="w-full">
-          <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/60 p-1">
-            <TabsTrigger value="description" className="px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm">
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl border border-slate-200/80 bg-slate-50/70 p-1">
+            <TabsTrigger
+              value="description"
+              className="rounded-lg px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm sm:text-sm"
+            >
               Mô tả chi tiết
             </TabsTrigger>
             {hasSpecs && (
-              <TabsTrigger value="specs" className="px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm">
+              <TabsTrigger
+                value="specs"
+                className="rounded-lg px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm sm:text-sm"
+              >
                 Thông số kỹ thuật
               </TabsTrigger>
             )}
-            <TabsTrigger value="policy" className="px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm">
+            <TabsTrigger
+              value="policy"
+              className="rounded-lg px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm sm:text-sm"
+            >
               Bảo hành &amp; Chính sách
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="description" className="mt-4 sm:mt-6">
+          <TabsContent value="description" className="mt-6 sm:mt-8">
             <ProductDescription
               description={product.description}
               shortDescription={product.short_description}
@@ -307,19 +316,19 @@ export default async function ProductDetailPage({
           </TabsContent>
 
           {hasSpecs && (
-            <TabsContent value="specs" className="mt-4 sm:mt-6">
+            <TabsContent value="specs" className="mt-6 sm:mt-8">
               <ProductSpecs product={product} />
             </TabsContent>
           )}
 
-          <TabsContent value="policy" className="mt-4 sm:mt-6">
+          <TabsContent value="policy" className="mt-6 sm:mt-8">
             <WarrantyPolicy />
           </TabsContent>
         </Tabs>
       </div>
 
       {/* Related products */}
-      <div className="mt-10 sm:mt-14">
+      <div className="mt-16 sm:mt-24">
         <RelatedProducts products={related} />
       </div>
     </div>

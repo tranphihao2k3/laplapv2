@@ -21,9 +21,9 @@ export function Newsletter() {
   }
 
   return (
-    <section className="container py-12 sm:py-20">
-      <Reveal variant="scale-up" threshold={0.1}>
-        <div className="relative overflow-hidden rounded-3xl bg-slate-900 px-5 py-10 sm:px-8 sm:py-14 md:px-16 md:py-20">
+    <section className="container py-16 sm:py-28">
+      <Reveal variant="fade-up" threshold={0.1}>
+        <div className="relative overflow-hidden rounded-3xl bg-slate-950 px-5 py-12 sm:px-8 sm:py-16 md:px-16 md:py-20">
           {/* Grid overlay */}
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.04]"
@@ -34,19 +34,19 @@ export function Newsletter() {
             }}
           />
 
-          {/* Radial gradient top-right */}
-          <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-blue-600/20 blur-[80px]" />
-          <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-slate-700/40 blur-[80px]" />
+          {/* Soft ambient glows */}
+          <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/[0.05] blur-[90px]" />
+          <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-white/[0.04] blur-[90px]" />
 
           <div className="relative z-10 mx-auto max-w-xl text-center">
             <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
               <Mail className="h-6 w-6 text-white/70" />
             </div>
 
-            <h2 className="text-xl font-bold text-white sm:text-2xl md:text-3xl">
+            <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
               Nhận ưu đãi trước nhất
             </h2>
-            <p className="mt-3 text-sm text-white/50 md:text-base">
+            <p className="mt-3 text-sm leading-relaxed text-white/50 md:text-base">
               Đăng ký để nhận thông báo về khuyến mãi và sản phẩm mới nhất.
             </p>
 

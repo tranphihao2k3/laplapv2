@@ -1,12 +1,11 @@
 import { NextRequest } from "next/server";
 import { ok, handleError } from "@/lib/api/response";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
-// Use the same global-backed Map as the submit route. Reading global on each
-// request (not at module load) avoids capturing a stale/empty Map if this
-// module is initialized before submit creates global.scanResults.
-if (!(global as any).scanResults) {
-  (global as any).scanResults = new Map<string, any>();
-}
+// Đọc trạng thái quét từ bảng `system_scan_results` (cùng nguồn với route
+// submit). Xem chú thích ở submit/route.ts để biết vì sao không dùng
+// biến global trong RAM — trên Cloudflare Workers cách đó không hoạt động.
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,13 +15,23 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "Missing token" }, { status: 400 });
     }
 
-    const scanResults = (global as any).scanResults;
-    const result = scanResults.get(token);
-    if (!result) {
-      return ok({ status: "waiting" });
-    }
+    const supabase = createSupabaseServiceClient();
+    const { data: row, error } = await supabase
+      .from("system_scan_results")
+      .select("status, payload, updated_at")
+      .eq("token", token)
+      .maybeSingle();
 
-    return ok(result);
+    if (error) throw error;
+    if (!row) return ok({ status: "waiting" });
+
+    // Giữ nguyên shape mà client đang đọc (`payload.data`) để không phải sửa UI:
+    // cột DB tên `payload`, còn client mong field `data`.
+    return ok({
+      status: row.status,
+      data: row.payload ?? undefined,
+      timestamp: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+    });
   } catch (e) {
     return handleError(e);
   }

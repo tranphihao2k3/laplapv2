@@ -24,23 +24,23 @@ export function ProductCard({ product, className }: { product: Product; classNam
   return (
     <Card
       className={cn(
-        "group relative transform-gpu overflow-hidden border-slate-200 shadow-sm [will-change:transform]",
-        "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        "hover:-translate-y-1.5 hover:border-slate-300",
+        "group relative transform-gpu overflow-hidden rounded-2xl border-slate-200/80 shadow-none [will-change:transform]",
+        "transition-transform duration-300 ease-smooth",
+        "hover:-translate-y-1 hover:border-slate-300",
         className,
       )}
     >
       {/* Bóng đổ dùng lớp phủ opacity (mượt hơn animate box-shadow trực tiếp) */}
-      <div className="pointer-events-none absolute inset-0 z-0 rounded-xl opacity-0 shadow-[0_16px_40px_rgba(0,0,0,0.12)] transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-0 z-0 rounded-2xl opacity-0 shadow-[0_20px_50px_-24px_rgba(15,23,42,0.35)] transition-opacity duration-300 group-hover:opacity-100" />
 
       <Link href={`/products/${product.slug}`} className="relative z-10 block">
-        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100/60">
+        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-b from-slate-50 to-white">
           {product.image ? (
             <Image
               src={product.image}
               alt={product.name}
               fill
-              className="object-contain p-3 transition-transform duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] will-change-transform group-hover:scale-[1.08]"
+              className="object-contain p-3 transition-transform duration-700 ease-glide will-change-transform group-hover:scale-[1.08]"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             />
           ) : (
@@ -77,31 +77,30 @@ export function ProductCard({ product, className }: { product: Product; classNam
         </div>
       </Link>
 
-      <CardContent className="relative z-10 p-3 sm:p-4">
+      <CardContent className="relative z-10 p-4">
         <Link href={`/products/${product.slug}`}>
-          <h3 className="text-sm font-semibold line-clamp-2 transition-colors group-hover:text-primary sm:text-base">
+          <h3 className="line-clamp-2 text-[13px] font-medium text-slate-700 transition-colors group-hover:text-slate-900 sm:text-sm">
             {product.name}
           </h3>
         </Link>
         <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="text-base font-bold text-primary sm:text-lg">{formatCurrency(product.price)}</span>
+          <span className="text-[15px] font-semibold tracking-tight text-slate-900 sm:text-base">
+            {formatCurrency(product.price)}
+          </span>
           {product.originalPrice && (
-            <span className="text-xs text-muted-foreground line-through sm:text-sm">
+            <span className="text-xs text-slate-400 line-through sm:text-sm">
               {formatCurrency(product.originalPrice)}
             </span>
           )}
         </div>
       </CardContent>
 
-      <CardFooter className="relative z-10 p-3 pt-0 sm:p-4 sm:pt-0">
-        <Button className="w-full" size="sm">
+      <CardFooter className="relative z-10 p-4 pt-0">
+        <Button className="w-full rounded-xl" size="sm">
           <ShoppingCart className="mr-1 h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
           <span className="truncate">Thêm vào giỏ</span>
         </Button>
       </CardFooter>
-
-      {/* Vạch nhấn bên trái xuất hiện khi hover */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-0.5 origin-top scale-y-0 rounded-full bg-primary transition-transform duration-300 group-hover:scale-y-100" />
     </Card>
   );
 }

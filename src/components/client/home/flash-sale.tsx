@@ -6,7 +6,7 @@ import { Zap, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useHomeProducts } from "./use-home-data";
 import Image from "next/image";
-import { cn, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 // Countdown timer hook
 function useCountdown(targetHours = 6) {
@@ -43,30 +43,30 @@ function SaleProductCard({ product, discount }: { product: { id: string; name: s
   return (
     <Link
       href={`/products/${product.slug}`}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm transition-all hover:bg-white/10 hover:shadow-lg"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.07]"
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-white/5">
+      <div className="relative aspect-[4/3] overflow-hidden bg-white/[0.03]">
         {product.image ? (
           <Image
             src={product.image}
             alt={product.name}
             fill
-            className="object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+            className="object-contain p-5 transition-transform duration-600 group-hover:scale-105"
             sizes="(max-width: 768px) 50vw, 25vw"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-white/20 text-sm">No image</div>
+          <div className="flex h-full items-center justify-center text-sm text-white/20">No image</div>
         )}
         {/* Discount badge */}
-        <div className="absolute left-3 top-3 rounded-lg bg-red-500 px-2 py-1 text-xs font-bold text-white shadow">
+        <div className="absolute left-3 top-3 rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-semibold text-white">
           -{discount}%
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <p className="line-clamp-2 text-sm font-semibold text-white/90">{product.name}</p>
+        <p className="line-clamp-2 text-[13px] font-medium text-white/85">{product.name}</p>
         <div className="mt-auto">
-          <p className="text-xs text-white/40 line-through">{formatCurrency(originalPrice)}</p>
-          <p className="text-base font-bold text-red-400">{formatCurrency(product.price)}</p>
+          <p className="text-xs text-white/35 line-through">{formatCurrency(originalPrice)}</p>
+          <p className="text-[15px] font-semibold text-red-400">{formatCurrency(product.price)}</p>
         </div>
       </div>
     </Link>
@@ -83,41 +83,42 @@ export function FlashSale() {
   if (!isLoading && products.length === 0) return null;
 
   return (
-    <section className="container pt-10 sm:pt-16">
+    <section className="container pt-14 sm:pt-24">
       <Reveal variant="fade-up" threshold={0.08}>
-        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="relative overflow-hidden rounded-3xl bg-slate-950">
           {/* Grid pattern */}
           <div
-            className="absolute inset-0 pointer-events-none opacity-[0.03]"
+            className="pointer-events-none absolute inset-0 opacity-[0.03]"
             style={{
               backgroundImage:
                 "linear-gradient(to right,#fff 1px,transparent 1px),linear-gradient(to bottom,#fff 1px,transparent 1px)",
               backgroundSize: "40px 40px",
             }}
           />
-          <div className="relative p-4 sm:p-6 md:p-8 lg:p-10">
+          <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-red-600/10 blur-[80px]" />
+          <div className="relative p-5 sm:p-8 md:p-10 lg:p-12">
             {/* Header row */}
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 sm:mb-6 sm:gap-4">
+            <div className="mb-7 flex flex-wrap items-center justify-between gap-4 sm:mb-8">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/20 ring-1 ring-red-500/30">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-500/15 ring-1 ring-red-500/25">
                   <Zap className="h-5 w-5 text-red-400" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 animate-ping rounded-full bg-red-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-red-400">Flash Sale</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-red-400">Flash Sale</span>
                   </div>
-                  <h2 className="text-lg font-bold text-white sm:text-xl md:text-2xl">Giá sốc hôm nay</h2>
+                  <h2 className="mt-0.5 text-xl font-semibold tracking-tight text-white sm:text-2xl">Giá sốc hôm nay</h2>
                 </div>
               </div>
 
               {/* Countdown */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-white/50 mr-1">Kết thúc sau:</span>
+                <span className="mr-1 text-xs text-white/50">Kết thúc sau:</span>
                 <Pad v={h} />
-                <span className="text-white/40 font-bold">:</span>
+                <span className="font-semibold text-white/40">:</span>
                 <Pad v={m} />
-                <span className="text-white/40 font-bold">:</span>
+                <span className="font-semibold text-white/40">:</span>
                 <Pad v={s} />
               </div>
             </div>
@@ -137,10 +138,10 @@ export function FlashSale() {
               </div>
             )}
 
-            <div className="mt-6 text-center">
+            <div className="mt-8 text-center">
               <Link
                 href="/products?sort=price_asc"
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-2.5 text-sm font-medium text-white/80 transition-all hover:bg-white/10 hover:text-white"
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-6 py-2.5 text-sm font-medium text-white/80 transition-all hover:border-white/30 hover:bg-white/10 hover:text-white"
               >
                 Xem tất cả ưu đãi <ArrowRight className="h-4 w-4" />
               </Link>

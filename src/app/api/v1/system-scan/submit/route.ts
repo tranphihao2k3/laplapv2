@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { ok, handleError } from "@/lib/api/response";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
-// In-memory cache for demo/simplified real-time data transfer
-// Key: token, Value: scan data
-if (!(global as any).scanResults) {
-  (global as any).scanResults = new Map<string, any>();
-}
-const scanResults = (global as any).scanResults;
+// Trạng thái quét lưu trong bảng `system_scan_results` (migration 020),
+// KHÔNG dùng biến global trong RAM: trên Cloudflare Workers mỗi request có thể
+// chạy ở một isolate khác nhau, nên scanner POST vào isolate A còn trang web
+// poll ở isolate B sẽ không bao giờ thấy kết quả — scanner báo "ĐÃ GỬI LÊN
+// SERVER" mà web vẫn đứng mãi ở bước "Mở file".
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,23 +17,36 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Missing token" }, { status: 400 });
     }
 
+    const supabase = createSupabaseServiceClient();
+    const now = new Date().toISOString();
+
     // Heartbeat ping (không có body): scanner báo đã kết nối và đang quét.
     // Không ghi đè kết quả "complete" nếu đã có.
     const phase = sp.get("status");
     if (phase === "scanning") {
-      const existing = scanResults.get(token);
-      if (!existing || existing.status !== "complete") {
-        scanResults.set(token, { status: "scanning", timestamp: Date.now() });
+      const { data: existing } = await supabase
+        .from("system_scan_results")
+        .select("status")
+        .eq("token", token)
+        .maybeSingle();
+
+      if (existing?.status !== "complete") {
+        const { error } = await supabase
+          .from("system_scan_results")
+          .upsert({ token, status: "scanning", updated_at: now }, { onConflict: "token" });
+        if (error) throw error;
       }
       return ok({ success: true });
     }
 
     const body = await req.json();
-    scanResults.set(token, {
-      status: "complete",
-      data: body,
-      timestamp: Date.now(),
-    });
+    const { error } = await supabase
+      .from("system_scan_results")
+      .upsert(
+        { token, status: "complete", payload: body, updated_at: now },
+        { onConflict: "token" },
+      );
+    if (error) throw error;
 
     return ok({ success: true });
   } catch (e) {

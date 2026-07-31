@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Monitor, X, ArrowLeft } from "lucide-react";
+import { Monitor, ArrowLeft } from "lucide-react";
 
 const colors = [
   { name: "Đen (Kiểm tra điểm sáng)", color: "bg-black" },
@@ -75,48 +75,14 @@ export default function DisplayPage() {
   };
 
   if (isFullscreen) {
+    // Chỉ có màu thuần phủ kín — không chữ, không nút, không lớp phủ nào.
+    // Mọi text đều làm nhiễu việc soi điểm chết / dải màu, nên hướng dẫn
+    // (click để đổi màu, Esc để thoát) được ghi ở trang trước khi vào fullscreen.
     const overlay = (
       <div
-        className={`fixed inset-0 z-[2147483647] flex flex-col items-center justify-between cursor-pointer ${colors[currentColorIdx].color}`}
+        className={`fixed inset-0 z-[2147483647] cursor-pointer ${colors[currentColorIdx].color}`}
         onClick={handleScreenClick}
-      >
-        <div className="w-full flex items-center justify-between p-4 bg-black/40 text-white select-none">
-          <p className="text-sm font-semibold">
-            {colors[currentColorIdx].name} ({currentColorIdx + 1}/{colors.length})
-          </p>
-          <div className="flex gap-2">
-            <span className="text-xs text-white/70 hidden sm:inline">
-              Click hoặc dùng phím Space/Mũi tên để chuyển màu
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 border-white/20 bg-white/10 hover:bg-white/20 text-white"
-              onClick={(e) => {
-                e.stopPropagation();
-                exitFullscreen();
-              }}
-            >
-              <X className="h-4 w-4 mr-1" /> Thoát (Esc)
-            </Button>
-          </div>
-        </div>
-
-        {/* Empty flex spacer to push labels to edges */}
-        <div />
-
-        {currentColorIdx === 5 && (
-          <div className="w-full max-w-lg p-6 bg-black/50 text-white rounded-xl mx-4 mb-20 text-center pointer-events-none">
-            <p className="text-sm font-semibold mb-2">Kiểm tra Gradient (Dải màu)</p>
-            <div className="h-8 w-full bg-gradient-to-r from-black via-zinc-500 to-white rounded border border-white/20 mb-2" />
-            <p className="text-xs text-white/70">
-              Đảm bảo dải màu chuyển đều mịn màng, không bị sọc ngang dọc
-            </p>
-          </div>
-        )}
-
-        <div />
-      </div>
+      />
     );
 
     // Portal ra thẳng document.body: thoát khỏi mọi header sticky / containing block
@@ -145,10 +111,25 @@ export default function DisplayPage() {
           <div className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 py-12 text-center">
             <Monitor className="h-16 w-16 mb-4 text-zinc-900 opacity-80" />
             <h3 className="text-lg font-semibold mb-2">Kiểm tra điểm chết màn hình</h3>
-            <p className="max-w-md text-sm text-zinc-500 mb-6">
-              Màn hình sẽ hiển thị các màu cơ bản (Đen, Trắng, Đỏ, Xanh lá, Xanh dương) toàn màn hình. 
+            <p className="max-w-md text-sm text-zinc-500 mb-4">
+              Màn hình sẽ hiển thị các màu cơ bản (Đen, Trắng, Đỏ, Xanh lá, Xanh dương) toàn màn hình.
               Vui lòng nhìn kỹ xem có chấm sáng bất thường (điểm sáng) hoặc chấm đen (điểm chết) nào không.
             </p>
+            {/* Hướng dẫn nằm ở đây vì lúc fullscreen chỉ hiện màu thuần, không có chữ */}
+            <div className="mb-6 max-w-md rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left text-xs text-zinc-600">
+              <p className="mb-1.5 font-semibold text-zinc-900">Cách dùng khi vào toàn màn hình:</p>
+              <p className="mb-1">
+                <span className="font-medium text-zinc-900">Click chuột</span> hoặc{" "}
+                <span className="font-medium text-zinc-900">Space</span> /{" "}
+                <span className="font-medium text-zinc-900">→</span> để sang màu kế tiếp
+              </p>
+              <p className="mb-1">
+                <span className="font-medium text-zinc-900">←</span> để về màu trước
+              </p>
+              <p>
+                <span className="font-medium text-zinc-900">Esc</span> để thoát
+              </p>
+            </div>
             <Button
               size="lg"
               className="bg-zinc-900 text-white hover:bg-zinc-700 px-8"

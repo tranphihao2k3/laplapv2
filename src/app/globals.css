@@ -480,3 +480,10 @@
     margin: 4mm;
   }
 }
+
+/* Test màn hình (toàn màn hình): khoá cuộn để không còn thanh scroll bên phải
+   đè lên vùng màu — overlay đã là fixed inset-0 nên không cần trang cuộn nữa.
+   Class này được toggle trong src/app/(client)/test-laptop/display/page.tsx. */
+body.display-fullscreen {
+  overflow: hidden;
+}
