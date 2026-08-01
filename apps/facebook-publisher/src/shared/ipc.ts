@@ -35,6 +35,12 @@ export const IpcChannel = {
   GroupSetsMembers: "group-sets:members",
   GroupSetsAddMember: "group-sets:add-member",
   GroupSetsRemoveMember: "group-sets:remove-member",
+  TemplatesList: "templates:list",
+  TemplatesGet: "templates:get",
+  TemplatesCreate: "templates:create",
+  TemplatesUpdate: "templates:update",
+  TemplatesDelete: "templates:delete",
+  TemplatesPreview: "templates:preview",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 

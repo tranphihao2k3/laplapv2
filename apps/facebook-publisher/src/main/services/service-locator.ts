@@ -25,6 +25,8 @@ import { CatalogService } from "../services/catalog-service";
 import { ImageService } from "../services/image-service";
 import { GroupService, GroupSetService } from "../services/group-service";
 import { FacebookGroupRepository, GroupSetRepository } from "../db/repositories/facebook-groups";
+import { TemplateService } from "../services/template-service";
+import { TemplateRepository } from "../db/repositories/templates";
 import { env } from "../env";
 
 let settingsService: SettingsService | null = null;
@@ -38,6 +40,8 @@ let groupService: GroupService | null = null;
 let groupSetService: GroupSetService | null = null;
 let groupRepository: FacebookGroupRepository | null = null;
 let groupSetRepository: GroupSetRepository | null = null;
+let templateService: TemplateService | null = null;
+let templateRepository: TemplateRepository | null = null;
 
 export function initServices(db: import("better-sqlite3").Database): void {
   const settingsRepo = new SettingsRepository(db);
@@ -65,6 +69,8 @@ export function initServices(db: import("better-sqlite3").Database): void {
   groupSetRepository = new GroupSetRepository(db);
   groupService = new GroupService(groupRepository, groupSetRepository);
   groupSetService = new GroupSetService(groupSetRepository);
+  templateRepository = new TemplateRepository(db);
+  templateService = new TemplateService(templateRepository);
 }
 
 export function getCachedSettingsService(): SettingsService {
@@ -159,4 +165,18 @@ export function getCachedGroupSetRepository(): GroupSetRepository {
     throw new AppError("SERVICE_NOT_READY", "GroupSetRepository chưa sẵn sàng", 503);
   }
   return groupSetRepository;
+}
+
+export function getCachedTemplateService(): TemplateService {
+  if (!templateService) {
+    throw new AppError("SERVICE_NOT_READY", "TemplateService chưa sẵn sàng", 503);
+  }
+  return templateService;
+}
+
+export function getCachedTemplateRepository(): TemplateRepository {
+  if (!templateRepository) {
+    throw new AppError("SERVICE_NOT_READY", "TemplateRepository chưa sẵn sàng", 503);
+  }
+  return templateRepository;
 }

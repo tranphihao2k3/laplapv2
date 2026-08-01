@@ -21,12 +21,18 @@ import type {
   AppSettings,
   CatalogQuery,
   DownloadedImage,
+  GroupRecord,
+  GroupSetRecord,
   IpcResult,
   MediaCleanupResult,
   ProductSummary,
   ProductVariantSummary,
   PublisherApi,
   SyncResult,
+  TemplateInput,
+  TemplatePreviewRequest,
+  TemplatePreviewResponse,
+  TemplateRecord,
 } from "../shared/publisher-api";
 
 const getAppVersionInputSchema = z.tuple([]);
@@ -171,6 +177,23 @@ const api: PublisherApi = {
     const tuple = z.tuple(z.string().uuid(), z.string().uuid());
     return invokeTuple<null>(IpcChannel.GroupSetsRemoveMember, tuple, [setId, groupId]);
   },
+
+  // TPL-001 + TPL-002
+  templatesList: () => invoke<TemplateRecord[]>(IpcChannel.TemplatesList, z.tuple()),
+  templatesGet: (id: unknown) =>
+    invokeOneArg<TemplateRecord | null>(IpcChannel.TemplatesGet, z.string().uuid(), id),
+  templatesCreate: (input: unknown) =>
+    invokeOneArg<TemplateRecord>(IpcChannel.TemplatesCreate, templateInputSchema, input),
+  templatesUpdate: (id: unknown, patch: unknown) =>
+    invokeTuple<TemplateRecord>(
+      IpcChannel.TemplatesUpdate,
+      z.tuple(z.string().uuid(), templateInputSchema),
+      [id, patch],
+    ),
+  templatesDelete: (id: unknown) =>
+    invokeOneArg<null>(IpcChannel.TemplatesDelete, z.string().uuid(), id),
+  templatesPreview: (req: unknown) =>
+    invokeOneArg<TemplatePreviewResponse>(IpcChannel.TemplatesPreview, templatePreviewSchema, req),
 };
 
 const groupUpsertInputSchema = z.object({
@@ -182,6 +205,20 @@ const groupUpsertInputSchema = z.object({
   maxImages: z.number().int().min(0).max(50).optional(),
   allowLink: z.boolean().optional(),
   postingMode: z.enum(["assisted", "auto"]).optional(),
+});
+
+const templateInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  body: z.string().min(1).max(20_000),
+  allowlistedVariables: z.array(z.string().max(200)).max(50).default([]),
+  previewContext: z.record(z.string(), z.unknown()).optional(),
+  previewLocale: z.string().max(8).optional(),
+});
+
+const templatePreviewSchema = z.object({
+  body: z.string().min(1).max(20_000),
+  context: z.record(z.string(), z.unknown()),
+  locale: z.string().max(8).optional(),
 });
 
 try {

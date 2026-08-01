@@ -27,8 +27,15 @@ import type {
 } from "../shared/catalog";
 import type { GroupRecord, GroupSetRecord, GroupUpsert } from "../shared/groups";
 import type {
+  TemplateInput,
+  TemplatePreviewRequest,
+  TemplatePreviewResponse,
+  TemplateRecord,
+} from "../shared/templates";
+import type {
   FacebookGroupRow,
   GroupSetRow,
+  TemplateRow,
 } from "../shared/db-types";
 import {
   getCachedAuthService,
@@ -41,6 +48,8 @@ import {
   getCachedProductRepository,
   getCachedSettingsService,
   getCachedSupabaseAuthClient,
+  getCachedTemplateRepository,
+  getCachedTemplateService,
 } from "./services/service-locator";
 
 /** Lấy version app đơn giản — không nhận input. */
@@ -108,6 +117,27 @@ const groupSetsDeleteSchema = z.tuple(z.string().uuid());
 const groupSetsMembersSchema = z.tuple(z.string().uuid());
 const groupSetsAddMemberSchema = z.tuple(z.string().uuid(), z.string().uuid());
 const groupSetsRemoveMemberSchema = z.tuple(z.string().uuid(), z.string().uuid());
+
+// TPL-001 + TPL-002
+const templatesListSchema = z.tuple([]);
+const templatesGetSchema = z.tuple(z.string().uuid());
+const templatesDeleteSchema = z.tuple(z.string().uuid());
+const templateInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  body: z.string().min(1).max(20_000),
+  allowlistedVariables: z.array(z.string().max(200)).max(50).default([]),
+  previewContext: z.record(z.string(), z.unknown()).optional(),
+  previewLocale: z.string().max(8).optional(),
+});
+const templatesCreateSchema = z.tuple(templateInputSchema);
+const templatesUpdateSchema = z.tuple(z.string().uuid(), templateInputSchema);
+const templatesPreviewSchema = z.tuple(
+  z.object({
+    body: z.string().min(1).max(20_000),
+    context: z.record(z.string(), z.unknown()),
+    locale: z.string().max(8).optional(),
+  }),
+);
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -286,6 +316,28 @@ export function registerIpcHandlers(): void {
     getCachedGroupSetService().removeMember(setId, groupId);
     return null;
   });
+
+  // TPL-001 + TPL-002
+  handle(IpcChannel.TemplatesList, templatesListSchema, async () => {
+    return getCachedTemplateRepository().listAll().map(adaptTemplate);
+  });
+  handle(IpcChannel.TemplatesGet, templatesGetSchema, async ([id]) => {
+    const row = getCachedTemplateRepository().findById(id);
+    return row ? adaptTemplate(row) : null;
+  });
+  handle(IpcChannel.TemplatesCreate, templatesCreateSchema, async ([input]) => {
+    return adaptTemplate(getCachedTemplateService().create(input));
+  });
+  handle(IpcChannel.TemplatesUpdate, templatesUpdateSchema, async ([id, patch]) => {
+    return adaptTemplate(getCachedTemplateService().update(id, patch));
+  });
+  handle(IpcChannel.TemplatesDelete, templatesDeleteSchema, async ([id]) => {
+    getCachedTemplateService().delete(id);
+    return null;
+  });
+  handle(IpcChannel.TemplatesPreview, templatesPreviewSchema, async ([req]) => {
+    return { text: getCachedTemplateService().renderPreview(req.body, req.context, req.locale) };
+  });
 }
 
 async function readMediaList(dir: string): Promise<import("../shared/media").DownloadedImage[]> {
@@ -384,5 +436,24 @@ function adaptGroupSet(row: GroupSetRow): GroupSetRecord {
     id: row.id,
     name: row.name,
     createdAt: row.created_at,
+  };
+}
+
+function adaptTemplate(row: TemplateRow): TemplateRecord {
+  let allowlisted: string[] = [];
+  try {
+    const parsed = JSON.parse(row.allowlisted_variables_json);
+    if (Array.isArray(parsed)) {
+      allowlisted = parsed.filter((x): x is string => typeof x === "string");
+    }
+  } catch { /* leave empty */ }
+  return {
+    id: row.id,
+    name: row.name,
+    body: row.body,
+    allowlistedVariables: allowlisted,
+    contentText: row.content_text,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }

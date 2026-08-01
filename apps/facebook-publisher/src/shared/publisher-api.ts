@@ -21,6 +21,12 @@ import type {
   GroupSetWithMembers,
   GroupUpsert,
 } from "../groups";
+import type {
+  TemplateInput,
+  TemplatePreviewRequest,
+  TemplatePreviewResponse,
+  TemplateRecord,
+} from "../templates";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
 export type {
@@ -34,6 +40,10 @@ export type {
   GroupSetRecord,
   GroupSetWithMembers,
   GroupUpsert,
+  TemplateInput,
+  TemplatePreviewRequest,
+  TemplatePreviewResponse,
+  TemplateRecord,
 };
 
 export interface PublisherApi {
@@ -101,4 +111,12 @@ export interface PublisherApi {
   groupSetsMembers: (setId: string) => Promise<IpcResult<GroupRecord[]>>;
   groupSetsAddMember: (setId: string, groupId: string) => Promise<IpcResult<null>>;
   groupSetsRemoveMember: (setId: string, groupId: string) => Promise<IpcResult<null>>;
+
+  // TPL-001 + TPL-002
+  templatesList: () => Promise<IpcResult<TemplateRecord[]>>;
+  templatesGet: (id: string) => Promise<IpcResult<TemplateRecord | null>>;
+  templatesCreate: (input: TemplateInput) => Promise<IpcResult<TemplateRecord>>;
+  templatesUpdate: (id: string, patch: TemplateInput) => Promise<IpcResult<TemplateRecord>>;
+  templatesDelete: (id: string) => Promise<IpcResult<null>>;
+  templatesPreview: (req: TemplatePreviewRequest) => Promise<IpcResult<TemplatePreviewResponse>>;
 }
