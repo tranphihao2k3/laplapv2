@@ -44,6 +44,7 @@ export class PostJobRepository extends BaseRepo {
   private readonly findByIdStmt: Database.Statement;
   private readonly listByStateStmt: Database.Statement;
   private readonly listByCampaignStmt: Database.Statement;
+  private readonly countAttemptsStmt: Database.Statement;
   private readonly updateStateStmt: Database.Statement;
   private readonly insertAttemptStmt: Database.Statement;
 
@@ -59,6 +60,9 @@ export class PostJobRepository extends BaseRepo {
     );
     this.listByCampaignStmt = db.prepare(
       `SELECT * FROM post_jobs WHERE campaign_id = ? ORDER BY created_at ASC`,
+    );
+    this.countAttemptsStmt = db.prepare(
+      `SELECT COUNT(*) AS n FROM job_attempts WHERE job_id = ?`,
     );
     this.updateStateStmt = db.prepare(`
       UPDATE post_jobs
@@ -102,6 +106,27 @@ export class PostJobRepository extends BaseRepo {
 
   listByCampaign(campaignId: string): PostJobRow[] {
     return this.listByCampaignStmt.all(campaignId) as PostJobRow[];
+  }
+
+  /** Đếm attempts của 1 job (QUE-001, QUE-005). */
+  countAttemptsForJob(jobId: string): number {
+    const row = this.countAttemptsStmt.get(jobId) as { n: number };
+    return row?.n ?? 0;
+  }
+
+  /** Lấy attempt log cho UI-002 (history detail). */
+  listAttemptsForJob(jobId: string): JobAttemptRow[] {
+    const stmt = this.db.prepare(
+      `SELECT * FROM job_attempts WHERE job_id = ? ORDER BY attempt_number ASC`,
+    );
+    return stmt.all(jobId) as JobAttemptRow[];
+  }
+
+  /** Đếm theo state (queue control UI-001 progress). */
+  countByState(state: JobState): number {
+    const stmt = this.db.prepare(`SELECT COUNT(*) AS n FROM post_jobs WHERE state = ?`);
+    const row = stmt.get(state) as { n: number };
+    return row?.n ?? 0;
   }
 
   /**

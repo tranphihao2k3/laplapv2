@@ -55,6 +55,13 @@ export const IpcChannel = {
   BrowserCanAutoSubmit: "browser:can-auto-submit",
   DiagnosticsSaveScreenshot: "diagnostics:save-screenshot",
   DiagnosticsCleanup: "diagnostics:cleanup",
+  QueueRunRecovery: "queue:run-recovery",
+  QueueTransition: "queue:transition",
+  QueueCancelJob: "queue:cancel-job",
+  QueueCancelCampaign: "queue:cancel-campaign",
+  QueueCounts: "queue:counts",
+  QueueAttempts: "queue:attempts",
+  QueuePreflight: "queue:preflight",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 

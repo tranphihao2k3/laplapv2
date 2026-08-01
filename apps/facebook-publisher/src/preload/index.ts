@@ -31,10 +31,14 @@ import type {
   GroupRecord,
   GroupSetRecord,
   IpcResult,
+  JobAttemptRecord,
   MediaCleanupResult,
+  PreflightResult,
   ProductSummary,
   ProductVariantSummary,
   PublisherApi,
+  QueueCount,
+  RecoveryReport,
   SavedScreenshot,
   SessionHealth,
   SyncResult,
@@ -241,6 +245,50 @@ const api: PublisherApi = {
       [jobId, step, data],
     ),
   diagnosticsCleanup: () => invoke<{ removed: number }>(IpcChannel.DiagnosticsCleanup, z.tuple()),
+
+  // QUE-001/002/003/004/005
+  queueRunRecovery: () => invoke<RecoveryReport>(IpcChannel.QueueRunRecovery, z.tuple()),
+  queueTransition: (id: unknown, toState: unknown, opts?: unknown) =>
+    invokeTuple<{ attemptNumber: number }>(
+      IpcChannel.QueueTransition,
+      z.tuple(
+        z.string().uuid(),
+        z.enum([
+          "draft",
+          "queued",
+          "preflight",
+          "posting",
+          "awaiting_confirmation",
+          "published",
+          "pending_approval",
+          "unverified",
+          "needs_action",
+          "failed",
+          "skipped",
+          "cancelled",
+        ]),
+        z
+          .object({
+            errorCode: z.string().max(80).optional(),
+            errorMessage: z.string().max(2000).optional(),
+          })
+          .optional(),
+      ),
+      [id, toState, opts],
+    ),
+  queueCancelJob: (id: unknown) =>
+    invokeOneArg<null>(IpcChannel.QueueCancelJob, z.string().uuid(), id),
+  queueCancelCampaign: (id: unknown) =>
+    invokeOneArg<{ cancelled: number; notFound: number }>(
+      IpcChannel.QueueCancelCampaign,
+      z.string().uuid(),
+      id,
+    ),
+  queueCounts: () => invoke<QueueCount[]>(IpcChannel.QueueCounts, z.tuple()),
+  queueAttempts: (id: unknown) =>
+    invokeOneArg<JobAttemptRecord[]>(IpcChannel.QueueAttempts, z.string().uuid(), id),
+  queuePreflight: (id: unknown) =>
+    invokeOneArg<PreflightResult>(IpcChannel.QueuePreflight, z.string().uuid(), id),
 };
 
 const groupUpsertInputSchema = z.object({

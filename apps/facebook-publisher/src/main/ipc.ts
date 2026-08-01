@@ -60,7 +60,10 @@ import {
   getCachedGroupSetService,
   getCachedImageService,
   getCachedPostJobRepository,
+  getCachedPreflightService,
   getCachedProductRepository,
+  getCachedQueueService,
+  getCachedRecoveryService,
   getCachedSettingsService,
   getCachedSupabaseAuthClient,
   getCachedTemplateRepository,
@@ -189,6 +192,37 @@ const diagnosticsSaveScreenshotSchema = z.tuple(
   z.array(z.number().int().min(0).max(255)),
 );
 const diagnosticsCleanupSchema = z.tuple([]);
+
+// QUE-001/002/003/004/005
+const queueRunRecoverySchema = z.tuple([]);
+const queueTransitionSchema = z.tuple(
+  z.string().uuid(),
+  z.enum([
+    "draft",
+    "queued",
+    "preflight",
+    "posting",
+    "awaiting_confirmation",
+    "published",
+    "pending_approval",
+    "unverified",
+    "needs_action",
+    "failed",
+    "skipped",
+    "cancelled",
+  ]),
+  z
+    .object({
+      errorCode: z.string().max(80).optional(),
+      errorMessage: z.string().max(2000).optional(),
+    })
+    .optional(),
+);
+const queueCancelJobSchema = z.tuple(z.string().uuid());
+const queueCancelCampaignSchema = z.tuple(z.string().uuid());
+const queueCountsSchema = z.tuple([]);
+const queueAttemptsSchema = z.tuple(z.string().uuid());
+const queuePreflightSchema = z.tuple(z.string().uuid());
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -455,6 +489,70 @@ export function registerIpcHandlers(): void {
   });
   handle(IpcChannel.DiagnosticsCleanup, diagnosticsCleanupSchema, async () => {
     return getCachedDiagnosticsService().cleanupExpired();
+  });
+
+  // QUE-001/002/003/004/005
+  handle(IpcChannel.QueueRunRecovery, queueRunRecoverySchema, async () => {
+    return getCachedRecoveryService().runOnStartup();
+  });
+  handle(IpcChannel.QueueTransition, queueTransitionSchema, async ([id, toState, opts]) => {
+    return getCachedQueueService().transition({
+      id,
+      toState,
+      errorCode: opts?.errorCode,
+      errorMessage: opts?.errorMessage,
+    });
+  });
+  handle(IpcChannel.QueueCancelJob, queueCancelJobSchema, async ([id]) => {
+    getCachedQueueService().cancelJob(id);
+    return null;
+  });
+  handle(IpcChannel.QueueCancelCampaign, queueCancelCampaignSchema, async ([campaignId]) => {
+    return getCachedQueueService().cancelPendingByCampaign(campaignId);
+  });
+  handle(IpcChannel.QueueCounts, queueCountsSchema, async () => {
+    const repo = getCachedPostJobRepository();
+    const states: Array<"draft" | "queued" | "preflight" | "posting" | "awaiting_confirmation" | "published" | "pending_approval" | "unverified" | "needs_action" | "failed" | "skipped" | "cancelled"> = [
+      "draft",
+      "queued",
+      "preflight",
+      "posting",
+      "awaiting_confirmation",
+      "published",
+      "pending_approval",
+      "unverified",
+      "needs_action",
+      "failed",
+      "skipped",
+      "cancelled",
+    ];
+    return states.map((s) => ({ state: s, count: repo.countByState(s) }));
+  });
+  handle(IpcChannel.QueueAttempts, queueAttemptsSchema, async ([jobId]) => {
+    return getCachedPostJobRepository()
+      .listAttemptsForJob(jobId)
+      .map((a) => ({
+        id: a.id,
+        jobId: a.job_id,
+        attemptNumber: a.attempt_number,
+        fromState: a.from_state,
+        toState: a.to_state,
+        errorCode: a.error_code,
+        errorMessage: a.error_message,
+        startedAt: a.started_at,
+        endedAt: a.ended_at,
+      }));
+  });
+  handle(IpcChannel.QueuePreflight, queuePreflightSchema, async ([jobId]) => {
+    const auth = getCachedAuthService();
+    const settings = getCachedSettingsService();
+    const accessToken = auth.getAccessToken();
+    if (!accessToken) return { kind: "token_expired" };
+    return getCachedPreflightService().run({
+      jobId,
+      apiBaseUrl: settings.get().apiBaseUrl,
+      accessToken,
+    });
   });
 }
 

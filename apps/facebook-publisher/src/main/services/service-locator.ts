@@ -33,6 +33,9 @@ import { BrowserProfileManager } from "../browser/profile-manager";
 import { AutoSubmitGate } from "../browser/auto-submit-gate";
 import { DiagnosticsService } from "../browser/diagnostics-service";
 import { checkSessionHealth } from "../browser/session-health";
+import { QueueService } from "../services/queue-service";
+import { RecoveryService } from "../services/recovery-service";
+import { PreflightService } from "../services/preflight-service";
 import { env } from "../env";
 
 let settingsService: SettingsService | null = null;
@@ -54,6 +57,9 @@ let postJobRepository: PostJobRepository | null = null;
 let browserProfileManager: BrowserProfileManager | null = null;
 let autoSubmitGate: AutoSubmitGate | null = null;
 let diagnosticsService: DiagnosticsService | null = null;
+let queueService: QueueService | null = null;
+let recoveryService: RecoveryService | null = null;
+let preflightService: PreflightService | null = null;
 
 export function initServices(db: import("better-sqlite3").Database): void {
   const settingsRepo = new SettingsRepository(db);
@@ -96,6 +102,9 @@ export function initServices(db: import("better-sqlite3").Database): void {
   browserProfileManager = new BrowserProfileManager();
   autoSubmitGate = new AutoSubmitGate(settingsRepo);
   diagnosticsService = new DiagnosticsService(settingsRepo);
+  queueService = new QueueService(postJobRepository);
+  recoveryService = new RecoveryService(postJobRepository, queueService);
+  preflightService = new PreflightService(postJobRepository, settingsRepo);
 }
 
 export function getCachedSettingsService(): SettingsService {
@@ -246,4 +255,25 @@ export function getCachedDiagnosticsService(): DiagnosticsService {
     throw new AppError("SERVICE_NOT_READY", "DiagnosticsService chưa sẵn sàng", 503);
   }
   return diagnosticsService;
+}
+
+export function getCachedQueueService(): QueueService {
+  if (!queueService) {
+    throw new AppError("SERVICE_NOT_READY", "QueueService chưa sẵn sàng", 503);
+  }
+  return queueService;
+}
+
+export function getCachedRecoveryService(): RecoveryService {
+  if (!recoveryService) {
+    throw new AppError("SERVICE_NOT_READY", "RecoveryService chưa sẵn sàng", 503);
+  }
+  return recoveryService;
+}
+
+export function getCachedPreflightService(): PreflightService {
+  if (!preflightService) {
+    throw new AppError("SERVICE_NOT_READY", "PreflightService chưa sẵn sàng", 503);
+  }
+  return preflightService;
 }

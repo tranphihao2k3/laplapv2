@@ -40,6 +40,12 @@ import type {
   SavedScreenshot,
   SessionHealth,
 } from "../browser";
+import type {
+  JobAttemptRecord,
+  PreflightResult,
+  QueueCount,
+  RecoveryReport,
+} from "../queue";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
 export type {
@@ -66,6 +72,10 @@ export type {
   BrowserSessionStatus,
   SavedScreenshot,
   SessionHealth,
+  JobAttemptRecord,
+  PreflightResult,
+  QueueCount,
+  RecoveryReport,
 };
 
 export interface PublisherApi {
@@ -160,4 +170,14 @@ export interface PublisherApi {
   diagnosticsSaveScreenshot: (jobId: string, step: string, data: number[]) =>
     Promise<IpcResult<SavedScreenshot>>;
   diagnosticsCleanup: () => Promise<IpcResult<{ removed: number }>>;
+
+  // QUE-001/002/003/004/005 + UI-001/002
+  queueRunRecovery: () => Promise<IpcResult<RecoveryReport>>;
+  queueTransition: (id: string, toState: string, opts?: { errorCode?: string; errorMessage?: string }) =>
+    Promise<IpcResult<{ attemptNumber: number }>>;
+  queueCancelJob: (id: string) => Promise<IpcResult<null>>;
+  queueCancelCampaign: (campaignId: string) => Promise<IpcResult<{ cancelled: number; notFound: number }>>;
+  queueCounts: () => Promise<IpcResult<QueueCount[]>>;
+  queueAttempts: (jobId: string) => Promise<IpcResult<JobAttemptRecord[]>>;
+  queuePreflight: (jobId: string) => Promise<IpcResult<PreflightResult>>;
 }
