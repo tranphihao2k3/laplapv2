@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Component base — KHÔNG override mặc định Tailwind. */
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply font-sans text-muted-900 bg-muted-50 antialiased;
+  }
+}
