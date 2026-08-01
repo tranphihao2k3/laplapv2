@@ -181,6 +181,10 @@ export type ProductRow = {
   short_description: string | null;
   description: string | null;
   thumbnail_url: string | null;
+  // Mảng URL ảnh gallery (cột jsonb, xem migration 011_products_images.sql).
+  // Kiểu là string[] | null thay vì Json vì DB chỉ lưu mảng URL — nhưng jsonb
+  // không đảm bảo shape, nên chỗ đọc vẫn phải guard Array.isArray().
+  images: string[] | null;
   status: ProductStatus | null;
   tags: string[] | null;
   created_at: Timestamp | null;
