@@ -17,7 +17,15 @@ import { contextBridge, ipcRenderer } from "electron";
 import { z } from "zod";
 import { IpcChannel } from "../shared/ipc";
 import { SettingsPatchSchema } from "../shared/settings";
-import type { AppSettings, IpcResult, PublisherApi } from "../shared/publisher-api";
+import type {
+  AppSettings,
+  CatalogQuery,
+  IpcResult,
+  ProductSummary,
+  ProductVariantSummary,
+  PublisherApi,
+  SyncResult,
+} from "../shared/publisher-api";
 
 const getAppVersionInputSchema = z.tuple([]);
 
@@ -64,12 +72,56 @@ const api: PublisherApi = {
   authGetStatus: () => invoke(IpcChannel.AuthGetStatus, z.tuple()),
   authLogout: () => invoke(IpcChannel.AuthLogout, z.tuple()),
   authLogin: (input: unknown) =>
-    invokeOneArg<import("../shared/auth").AuthStatus>(
+    invokeOneArg<AuthStatus>(
       IpcChannel.AuthLogin,
       z.object({ email: z.string().email().max(254), password: z.string().min(1).max(256) }),
       input,
     ),
   authRefresh: () => invoke(IpcChannel.AuthRefresh, z.tuple()),
+
+  // CAT-001 — catalog sync + cache read
+  catalogSyncPage: (q: unknown) =>
+    invokeOneArg<SyncResult>(
+      IpcChannel.CatalogSyncPage,
+      z.object({
+        q: z.string().trim().max(200).optional(),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(20),
+      }),
+      q,
+    ),
+  catalogSyncAll: (q: unknown) =>
+    invokeOneArg<SyncResult>(
+      IpcChannel.CatalogSyncAll,
+      z.object({
+        q: z.string().trim().max(200).optional(),
+        pageSize: z.number().int().min(1).max(100).default(50),
+      }),
+      q,
+    ),
+  catalogList: (q: unknown) =>
+    invokeOneArg<{ items: ProductSummary[]; total: number }>(
+      IpcChannel.CatalogList,
+      z.object({
+        q: z.string().trim().max(200).optional(),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(20),
+      }),
+      q,
+    ),
+  catalogGet: (id: unknown) =>
+    invokeOneArg<ProductSummary | null>(
+      IpcChannel.CatalogGet,
+      z.string().uuid(),
+      id,
+    ),
+  catalogVariants: (id: unknown) =>
+    invokeOneArg<ProductVariantSummary[]>(
+      IpcChannel.CatalogVariants,
+      z.string().uuid(),
+      id,
+    ),
+  catalogLastSync: () => invoke<string | null>(IpcChannel.CatalogLastSync, z.tuple()),
 };
 
 try {

@@ -20,24 +20,36 @@ import { SettingsRepository } from "../db/repositories/settings";
 import { SettingsService } from "../services/settings-service";
 import { AuthService } from "../services/auth-service";
 import { SupabaseAuthClient } from "../api/supabase-auth-client";
+import { ProductRepository } from "../db/repositories/products";
+import { CatalogService } from "../services/catalog-service";
 import { env } from "../env";
 
 let settingsService: SettingsService | null = null;
 let authService: AuthService | null = null;
 let supabaseAuthClient: SupabaseAuthClient | null = null;
+let catalogService: CatalogService | null = null;
+let productRepository: ProductRepository | null = null;
 
 export function initServices(db: import("better-sqlite3").Database): void {
   const settingsRepo = new SettingsRepository(db);
   settingsService = new SettingsService(settingsRepo);
   authService = new AuthService(app.getPath("userData"));
   supabaseAuthClient = new SupabaseAuthClient(() => {
-    // Lazy read settings.apiBaseUrl, fallback env default.
     try {
       return settingsService?.get().apiBaseUrl ?? env.defaultApiBaseUrl;
     } catch {
       return env.defaultApiBaseUrl;
     }
   });
+
+  const productRepo = new ProductRepository(db);
+  productRepository = productRepo;
+  catalogService = new CatalogService(
+    productRepo,
+    settingsRepo,
+    () => settingsService?.get().apiBaseUrl ?? env.defaultApiBaseUrl,
+    () => authService?.getAccessToken() ?? null,
+  );
 }
 
 export function getCachedSettingsService(): SettingsService {
@@ -71,4 +83,26 @@ export function getCachedSupabaseAuthClient(): SupabaseAuthClient {
     );
   }
   return supabaseAuthClient;
+}
+
+export function getCachedCatalogService(): CatalogService {
+  if (!catalogService) {
+    throw new AppError(
+      "SERVICE_NOT_READY",
+      "CatalogService chưa sẵn sàng — gọi initServices() trước",
+      503,
+    );
+  }
+  return catalogService;
+}
+
+export function getCachedProductRepository(): ProductRepository {
+  if (!productRepository) {
+    throw new AppError(
+      "SERVICE_NOT_READY",
+      "ProductRepository chưa sẵn sàng — gọi initServices() trước",
+      503,
+    );
+  }
+  return productRepository;
 }

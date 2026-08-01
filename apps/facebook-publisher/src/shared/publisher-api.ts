@@ -8,8 +8,20 @@
 import type { IpcResult } from "../ipc";
 import type { AppSettings, SettingsPatch } from "../settings";
 import type { AuthStatus } from "../auth";
+import type {
+  CatalogQuery,
+  ProductSummary,
+  ProductVariantSummary,
+  SyncResult,
+} from "../catalog";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
+export type {
+  CatalogQuery,
+  ProductSummary,
+  ProductVariantSummary,
+  SyncResult,
+};
 
 export interface PublisherApi {
   getAppVersion: () => Promise<IpcResult<string>>;
@@ -39,4 +51,18 @@ export interface PublisherApi {
    * hiện token sắp hết. Trả AuthStatus mới.
    */
   authRefresh: () => Promise<IpcResult<AuthStatus>>;
+
+  // CAT-001
+  /** Sync 1 page từ API và upsert vào cache. */
+  catalogSyncPage: (query: CatalogQuery) => Promise<IpcResult<SyncResult>>;
+  /** Sync tất cả page (UI nút "Đồng bộ ngay"). */
+  catalogSyncAll: (query: { q?: string; pageSize?: number }) => Promise<IpcResult<SyncResult>>;
+  /** List product từ cache (UI render list). */
+  catalogList: (query: { q?: string; page: number; pageSize: number }) => Promise<IpcResult<{ items: ProductSummary[]; total: number }>>;
+  /** Get 1 product (MED-001 dùng). */
+  catalogGet: (productId: string) => Promise<IpcResult<ProductSummary | null>>;
+  /** List variants của 1 product. */
+  catalogVariants: (productId: string) => Promise<IpcResult<ProductVariantSummary[]>>;
+  /** Tra timestamp last sync (UI indicator). */
+  catalogLastSync: () => Promise<IpcResult<string | null>>;
 }

@@ -15,6 +15,12 @@ export const IpcChannel = {
   AuthLogout: "auth:logout",
   AuthLogin: "auth:login",
   AuthRefresh: "auth:refresh",
+  CatalogSyncPage: "catalog:sync-page",
+  CatalogSyncAll: "catalog:sync-all",
+  CatalogList: "catalog:list",
+  CatalogGet: "catalog:get",
+  CatalogVariants: "catalog:variants",
+  CatalogLastSync: "catalog:last-sync",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 
