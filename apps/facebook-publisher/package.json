@@ -16,15 +16,21 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
     "verify": "npm run typecheck && npm run lint && npm run build",
     "package:win": "electron-vite build && electron-builder --win --x64",
-    "test:unit": "echo \"(no unit tests yet — see FB-PUBLISHER-TASKS.md API-006, DB-002)\" && exit 0",
-    "test:integration": "echo \"(no integration tests yet — see FB-PUBLISHER-TASKS.md QA-001)\" && exit 0",
+    "test:unit": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test": "npm run test:unit",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-builder install-app-deps",
     "clean": "rimraf out dist release .electron-vite"
   },
   "dependencies": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "better-sqlite3": "^11.5.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -40,7 +46,8 @@
     "prettier": "^3.4.2",
     "rimraf": "^6.0.1",
     "typescript": "^5.7.2",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
   },
   "build": {
     "appId": "com.laplap.facebook-publisher",
@@ -51,6 +58,9 @@
     "files": [
       "out/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
     ],
     "win": {
       "target": [
