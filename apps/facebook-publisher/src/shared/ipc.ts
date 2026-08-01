@@ -7,6 +7,10 @@
  */
 export const IpcChannel = {
   AppGetVersion: "app:get-version",
+  SettingsGet: "settings:get",
+  SettingsPatch: "settings:patch",
+  SettingsReset: "settings:reset",
+  SettingsGetDefaults: "settings:get-defaults",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 

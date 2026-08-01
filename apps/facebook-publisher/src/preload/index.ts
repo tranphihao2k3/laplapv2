@@ -8,17 +8,17 @@
  *    gửi sai), main (defense in depth).
  *  - contextBridge.exposeInMainWorld chỉ lộ object `publisherApi` —
  *    KHÔNG để lộ electron, ipcRenderer, require, Buffer.
+ *
+ * APP-003: Settings methods — get / patch / reset / getDefaults. Patch
+ * payload validate qua Zod với schema `SettingsPatchSchema` (shared) để
+ * renderer không gửi field lạ (vd `secret: 'foo'`) qua IPC.
  */
 import { contextBridge, ipcRenderer } from "electron";
 import { z } from "zod";
 import { IpcChannel } from "../shared/ipc";
-import type { IpcResult, PublisherApi } from "../shared/publisher-api";
+import { SettingsPatchSchema } from "../shared/settings";
+import type { AppSettings, IpcResult, PublisherApi } from "../shared/publisher-api";
 
-/**
- * Schema đối chiếu main/ipc.ts. Preload validate TRƯỚC khi gửi sang main
- * để: (a) fail-fast cho dev, (b) tránh 1 hop IPC vô ích, (c) đảm bảo
- * main cũng có schema riêng nhưng khớp shape để defense in depth.
- */
 const getAppVersionInputSchema = z.tuple([]);
 
 function invoke<TArgs extends unknown[], TData>(
@@ -41,8 +41,22 @@ function invoke<TArgs extends unknown[], TData>(
   return ipcRenderer.invoke(channel, ...args) as Promise<IpcResult<TData>>;
 }
 
+function invokeOneArg<TData>(
+  channel: (typeof IpcChannel)[keyof typeof IpcChannel],
+  schema: z.ZodType<unknown>,
+  arg: unknown,
+): Promise<IpcResult<TData>> {
+  return invoke(channel, z.tuple(schema), arg);
+}
+
 const api: PublisherApi = {
   getAppVersion: () => invoke(IpcChannel.AppGetVersion, getAppVersionInputSchema),
+
+  settingsGet: () => invoke(IpcChannel.SettingsGet, z.tuple()),
+  settingsGetDefaults: () => invoke(IpcChannel.SettingsGetDefaults, z.tuple()),
+  settingsReset: () => invoke(IpcChannel.SettingsReset, z.tuple()),
+  settingsPatch: (patch: unknown) =>
+    invokeOneArg<AppSettings>(IpcChannel.SettingsPatch, SettingsPatchSchema, patch),
 };
 
 try {
@@ -52,3 +66,6 @@ try {
   // APP-002 enforce contextIsolation=true trong main — log để debug.
   console.error("[preload] failed to expose publisherApi:", err);
 }
+
+// Đảm bảo type được dùng (kể cả khi Build tree-shake).
+export type { AppSettings };

@@ -8,12 +8,17 @@
  *  - window.open bị chặn bừa — chỉ cho phép khi đi qua IPC handler allowlist.
  *  - Không DevTools mở ở production.
  *
- * IPC handlers được đăng ký qua `registerIpcHandlers()` ở main/ipc.ts —
- * mọi payload đều validate qua Zod trước khi chạm logic (xem ipc.ts).
+ * APP-003 wiring:
+ *  - Open SQLite DB ngay khi app ready (chạy migrations), init services.
+ *  - Worker / queue sẽ wire ở các task APP-* sau — chưa khởi động ở đây
+ *    để giữ scope APP-003 chỉ về settings.
  */
 import { app, BrowserWindow, shell, session } from "electron";
 import path from "node:path";
 import { registerIpcHandlers } from "./ipc";
+import { openDb, closeDb } from "./db/connection";
+import { runMigrations } from "./db/migrations";
+import { initServices } from "./services/service-locator";
 
 const isDev = !app.isPackaged;
 
@@ -21,8 +26,6 @@ const isDev = !app.isPackaged;
 const CSP_HEADER = [
   "default-src 'self'",
   "script-src 'self'",
-  // 'unsafe-inline' cho style vì React/Vite dev inject inline style; production
-  // sẽ bundle ra file tách. khi review có thể thu hẹp thêm.
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "connect-src 'self' https://*.supabase.co",
@@ -56,18 +59,14 @@ function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
-      // Tắt các tính năng không cần → giảm attack surface.
       webviewTag: false,
       spellcheck: false,
-      // Không cho phép renderer mở DevTools ở production.
       devTools: isDev,
     },
   });
 
   win.once("ready-to-show", () => win.show());
 
-  // Chặn navigation tới origin ngoài allowlist — mở bằng shell.openExternal
-  // thay vì navigate để không phá flow.
   win.webContents.on("will-navigate", (event, url) => {
     if (!isRendererAllowedUrl(url)) {
       event.preventDefault();
@@ -78,7 +77,6 @@ function createMainWindow(): BrowserWindow {
     }
   });
 
-  // Chặn window.open (target=_blank) — mọi popup đều phải qua IPC.
   win.webContents.setWindowOpenHandler(({ url }) => {
     console.warn(`[main] blocked window.open for ${url}`);
     if (url.startsWith("https://")) {
@@ -97,7 +95,6 @@ function createMainWindow(): BrowserWindow {
 }
 
 function configureSession(): void {
-  // CSP áp dụng cho mọi response của session mặc định.
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
@@ -108,10 +105,31 @@ function configureSession(): void {
   });
 }
 
-app.whenReady().then(() => {
+/**
+ * Lifecycle: open DB → migrate (idempotent) → init services → register IPC
+ * → tạo window. Nếu DB lỗi, app không tạo window để tránh chạy với state
+ * không xác định.
+ */
+function startup(): void {
+  try {
+    const db = openDb();
+    // Migration chạy idempotent mỗi lần startup để đảm bảo schema up-to-date
+    // khi user upgrade app (REL-001 + DB-002 upgrade test).
+    runMigrations(db);
+    initServices(db);
+  } catch (err) {
+    console.error("[startup] failed to init DB/services:", err);
+    // Quit cứng — không cho chạy app với DB hỏng.
+    app.quit();
+    return;
+  }
   configureSession();
   registerIpcHandlers();
   createMainWindow();
+}
+
+app.whenReady().then(() => {
+  startup();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -121,6 +139,10 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-  // macOS convention: app vẫn chạy khi đóng hết window.
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  // Đóng DB an toàn — tránh WAL orphan khi user update app.
+  closeDb();
 });
