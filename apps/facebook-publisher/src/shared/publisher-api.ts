@@ -7,8 +7,9 @@
  */
 import type { IpcResult } from "../ipc";
 import type { AppSettings, SettingsPatch } from "../settings";
+import type { AuthStatus } from "../auth";
 
-export type { IpcResult, AppSettings, SettingsPatch };
+export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
 
 export interface PublisherApi {
   getAppVersion: () => Promise<IpcResult<string>>;
@@ -20,4 +21,11 @@ export interface PublisherApi {
   settingsPatch: (patch: SettingsPatch) => Promise<IpcResult<AppSettings>>;
   /** Reset về default. */
   settingsReset: () => Promise<IpcResult<AppSettings>>;
+  /**
+   * Đọc auth status. Renderer KHÔNG BAO GIỜ nhận được access/refresh
+   * token — chỉ biết anonymous hay authenticated + thời điểm.
+   */
+  authGetStatus: () => Promise<IpcResult<AuthStatus>>;
+  /** Logout — xoá refresh token + clear in-memory access token. */
+  authLogout: () => Promise<IpcResult<{ ok: true }>>;
 }

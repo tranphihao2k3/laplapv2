@@ -57,6 +57,11 @@ const api: PublisherApi = {
   settingsReset: () => invoke(IpcChannel.SettingsReset, z.tuple()),
   settingsPatch: (patch: unknown) =>
     invokeOneArg<AppSettings>(IpcChannel.SettingsPatch, SettingsPatchSchema, patch),
+
+  // Auth — renderer KHÔNG BAO GIỜ nhận được access/refresh token.
+  // Chỉ authGetStatus (boolean + metadata) và authLogout.
+  authGetStatus: () => invoke(IpcChannel.AuthGetStatus, z.tuple()),
+  authLogout: () => invoke(IpcChannel.AuthLogout, z.tuple()),
 };
 
 try {

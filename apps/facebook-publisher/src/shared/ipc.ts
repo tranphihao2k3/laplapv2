@@ -11,6 +11,8 @@ export const IpcChannel = {
   SettingsPatch: "settings:patch",
   SettingsReset: "settings:reset",
   SettingsGetDefaults: "settings:get-defaults",
+  AuthGetStatus: "auth:get-status",
+  AuthLogout: "auth:logout",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 

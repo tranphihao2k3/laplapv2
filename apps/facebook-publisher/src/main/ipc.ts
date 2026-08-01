@@ -19,7 +19,10 @@ import {
   applySettingsPatch,
   DEFAULT_SETTINGS,
 } from "../shared/settings";
-import { getCachedSettingsService } from "./services/service-locator";
+import {
+  getCachedAuthService,
+  getCachedSettingsService,
+} from "./services/service-locator";
 
 /** Lấy version app đơn giản — không nhận input. */
 const getAppVersionSchema = z.tuple([]);
@@ -30,6 +33,8 @@ const settingsGetDefaultsSchema = z.tuple([]);
 const settingsPatchSchema = z.tuple(
   z.record(z.string(), z.unknown()), // patch object — SettingsPatchSchema sẽ validate trong service.
 );
+const authGetStatusSchema = z.tuple([]);
+const authLogoutSchema = z.tuple([]);
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -82,11 +87,21 @@ export function registerIpcHandlers(): void {
   handle(IpcChannel.AppGetVersion, getAppVersionSchema, () => process.versions.electron);
 
   // --- Settings ---
-  // Service được lấy qua locator — singleton lazy khi app.whenReady() xong.
   handle(IpcChannel.SettingsGet, settingsGetSchema, () => getCachedSettingsService().get());
   handle(IpcChannel.SettingsGetDefaults, settingsGetDefaultsSchema, () => applySettingsPatch(DEFAULT_SETTINGS, {}));
   handle(IpcChannel.SettingsReset, settingsResetSchema, () => getCachedSettingsService().reset());
   handle(IpcChannel.SettingsPatch, settingsPatchSchema, ([patch]) =>
     getCachedSettingsService().patch(patch),
   );
+
+  // --- Auth ---
+  handle(IpcChannel.AuthGetStatus, authGetStatusSchema, async () => {
+    const svc = getCachedAuthService();
+    return svc.loadFromDisk();
+  });
+  handle(IpcChannel.AuthLogout, authLogoutSchema, async () => {
+    const svc = getCachedAuthService();
+    await svc.logout();
+    return { ok: true } as const;
+  });
 }
