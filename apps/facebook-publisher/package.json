@@ -1,0 +1,64 @@
+{
+  "name": "@laplap/facebook-publisher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LapLap Facebook Publisher — Electron desktop app for posting product listings to Facebook groups via Playwright.",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
+    "verify": "npm run typecheck && npm run lint && npm run build",
+    "package:win": "electron-vite build && electron-builder --win --x64",
+    "test:unit": "echo \"(no unit tests yet — see FB-PUBLISHER-TASKS.md API-006, DB-002)\" && exit 0",
+    "test:integration": "echo \"(no integration tests yet — see FB-PUBLISHER-TASKS.md QA-001)\" && exit 0",
+    "clean": "rimraf out dist release .electron-vite"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.laplap.facebook-publisher",
+    "productName": "LapLap Facebook Publisher",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    }
+  }
+}
