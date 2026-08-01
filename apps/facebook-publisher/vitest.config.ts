@@ -5,5 +5,16 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     globals: false,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      include: ["src/**/*.ts"],
+      exclude: [
+        "src/main/index.ts",
+        "src/main/env.ts",
+        "src/shared/**",
+        "src/preload/**",
+      ],
+    },
   },
 });

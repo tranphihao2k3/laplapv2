@@ -14,11 +14,12 @@
     "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
-    "verify": "npm run typecheck && npm run lint && npm run build",
+    "verify": "npm run typecheck && npm run lint && npm run test:unit && npm run test:integration",
     "package:win": "electron-vite build && electron-builder --win --x64",
-    "test:unit": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test": "npm run test:unit",
+    "test:unit": "vitest run --reporter=verbose",
+    "test:integration": "vitest run --config vitest.integration.config.ts --reporter=verbose",
+    "test:coverage": "vitest run --config vitest.integration.config.ts --coverage",
+    "test": "npm run test:unit && npm run test:integration",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-builder install-app-deps",
     "clean": "rimraf out dist release .electron-vite"
@@ -74,7 +75,27 @@
           "target": "nsis",
           "arch": ["x64"]
         }
-      ]
-    }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "publisherName": "LapLap",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LapLap Facebook Publisher",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": null,
+    "extraResources": [
+      {
+        "from": "tests/fixtures",
+        "to": "fixtures",
+        "filter": ["**/*.html"]
+      }
+    ]
   }
 }
