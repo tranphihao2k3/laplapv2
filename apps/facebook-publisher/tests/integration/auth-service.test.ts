@@ -15,6 +15,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AuthService } from "../../src/main/services/auth-service";
+import { SupabaseAuthClient } from "../../src/main/api/supabase-auth-client";
 import { redact } from "../../src/main/security/token-storage";
 
 describe("redact — log redaction", () => {
@@ -61,18 +62,10 @@ describe("AuthService", () => {
     expect(() => svc.requireAccessToken()).toThrowError(/UNAUTHORIZED/);
   });
 
-  it("refreshAccessToken throw khi chưa bind refresh fn", async () => {
-    await expect(svc.refreshAccessToken()).rejects.toThrowError(/NOT_READY/);
-  });
-
   it("refreshAccessToken throw khi không có refresh token trên disk", async () => {
-    // Bind refresh fn nhưng file không tồn tại → phải 401 ngay.
-    svc.bindRefresh(async () => ({
-      accessToken: "x",
-      refreshToken: "y",
-      expiresAt: null,
-    }));
-    await expect(svc.refreshAccessToken()).rejects.toThrowError(/UNAUTHORIZED/);
+    // Truyền supabase nhưng file không tồn tại → phải 401 ngay.
+    const supabase = new SupabaseAuthClient(() => "https://api.laplap.vn");
+    await expect(svc.refreshAccessToken({ supabase })).rejects.toThrowError(/UNAUTHORIZED/);
   });
 
   it("_setAccessTokenForTest + get/require hoạt động", () => {

@@ -28,4 +28,15 @@ export interface PublisherApi {
   authGetStatus: () => Promise<IpcResult<AuthStatus>>;
   /** Logout — xoá refresh token + clear in-memory access token. */
   authLogout: () => Promise<IpcResult<{ ok: true }>>;
+  /**
+   * Login Supabase bang email + password. Frontend KHONG gui password qua
+   * thu vien cua no — chi goi publisherApi.authLogin, main goi Supabase
+   * HTTPS, password KHONG bao gio nhan dien o renderer.
+   */
+  authLogin: (input: { email: string; password: string }) => Promise<IpcResult<AuthStatus>>;
+  /**
+   * Yêu cầu refresh session. Dùng khi API-003 trả 401 hoặc scheduler phát
+   * hiện token sắp hết. Trả AuthStatus mới.
+   */
+  authRefresh: () => Promise<IpcResult<AuthStatus>>;
 }

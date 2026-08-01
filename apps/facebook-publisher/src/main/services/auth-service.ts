@@ -9,11 +9,10 @@
  *  - onBoot: đọc refresh token (nếu có) — UI-* có thể dùng để khởi động
  *    queue ngay mà không cần login lại.
  *
- * Refresh flow (chi tiết sang APP-005):
- *  - Caller (HTTP client) thấy 401.
- *  - Gọi AuthService.refreshAccessToken() → POST /auth/v1/token?grant_type=refresh_token.
- *  - Thành công: update in-memory access token + persist refresh token mới.
- *  - Fail: clearTokens() và trả UNAUTHORIZED — UI phải đẩy user về login.
+ * APP-005:
+ *  - login(email, password): goi SupabaseAuthClient, persist refresh + holder.
+ *  - refreshAccessToken: SupabaseAuthClient.refresh, persist new refresh.
+ *  - error state: AuthError typed tra ve qua IPC cho UI hien thi.
  */
 import { AppError } from "../../shared/errors";
 import {
@@ -22,33 +21,38 @@ import {
   saveRefreshToken,
   type AccessTokenHolder,
 } from "../security/token-storage";
+import type { SupabaseAuthClient, SupabaseTokensResponse } from "../api/supabase-auth-client";
 
 export type AuthStatus =
   | { kind: "anonymous" }
   | { kind: "authenticated"; refreshExpiresAt: string | null; loggedInAt: string };
 
-/**
- * Lightweight refresh interface — caller có thể inject HTTP client thật
- * (APP-005) hoặc fake cho test.
- */
-export type RefreshFn = (refreshToken: string) => Promise<{
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt: string | null;
-}>;
-
 export class AuthService {
   private readonly holder: AccessTokenHolder = { accessToken: null, obtainedAt: null };
-  // Caller inject để tránh AuthService phụ thuộc trực tiếp Supabase lib.
-  private refreshFn: RefreshFn | null = null;
   // Track để tránh 2 tác vụ cùng refresh 1 lúc.
   private refreshInFlight: Promise<string> | null = null;
 
   constructor(private readonly userDataDir?: string) {}
 
-  /** Cho main app inject http client sau khi wire xong. */
-  bindRefresh(fn: RefreshFn): void {
-    this.refreshFn = fn;
+  /**
+   * APP-005: Login bang email + password qua Supabase auth.
+   * Luu refresh + set access in-memory. Tra AppError neu that bai.
+   */
+  async login(input: { supabase: SupabaseAuthClient; email: string; password: string }): Promise<AuthStatus> {
+    try {
+      const result = await input.supabase.signInWithPassword({
+        email: input.email,
+        password: input.password,
+      });
+      await this.applyTokens(result);
+      return {
+        kind: "authenticated",
+        refreshExpiresAt: this.expiryIsoFromUnix(result.expires_at),
+        loggedInAt: new Date().toISOString(),
+      };
+    } catch (err) {
+      throw SupabaseAuthClient.normalizeError(err);
+    }
   }
 
   /** Trả access token hiện tại — null nếu chưa login. */
@@ -84,27 +88,27 @@ export class AuthService {
   }
 
   /**
-   * Sau khi login thành công: lưu refresh + cập nhật access token.
-   * `tokens.refreshToken` optional — nếu Supabase rotate refresh, ta dùng
-   * token mới; nếu không thì giữ token cũ.
+   * Áp tokens vừa nhận (login hoặc refresh) → cập nhật holder + persist
+   * refresh xuống file encrypted.
    */
-  async startSession(input: {
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: string | null;
-  }): Promise<void> {
-    this.holder.accessToken = input.accessToken;
+  private async applyTokens(t: SupabaseTokensResponse): Promise<void> {
+    this.holder.accessToken = t.access_token;
     this.holder.obtainedAt = new Date().toISOString();
-
-    await saveRefreshToken(input.refreshToken, input.expiresAt, this.userDataDir);
+    await saveRefreshToken(t.refresh_token, this.expiryIsoFromUnix(t.expires_at), this.userDataDir);
   }
 
-  /** Refresh access token bằng stored refresh. Có guard race condition. */
-  async refreshAccessToken(): Promise<string> {
+  private expiryIsoFromUnix(seconds: number | undefined | null): string | null {
+    if (typeof seconds !== "number" || !Number.isFinite(seconds)) return null;
+    return new Date(seconds * 1000).toISOString();
+  }
+
+  /**
+   * Refresh access token bằng stored refresh qua SupabaseAuthClient.
+   * Có guard race condition: 2 tác vụ refresh đồng thời chỉ chạy 1.
+   * Fail → clearTokens() + throw mapped AppError, UI sẽ đẩy login.
+   */
+  async refreshAccessToken(input: { supabase: SupabaseAuthClient }): Promise<string> {
     if (this.refreshInFlight) return this.refreshInFlight;
-    if (!this.refreshFn) {
-      throw new AppError("NOT_READY", "AuthService chưa bind refresh", 503);
-    }
     const stored = await loadRefreshToken(this.userDataDir);
     if (!stored) {
       throw new AppError("UNAUTHORIZED", "Không có refresh token — cần login lại", 401);
@@ -112,18 +116,12 @@ export class AuthService {
 
     const promise = (async () => {
       try {
-        const result = await this.refreshFn!(stored.refreshToken);
-        await this.startSession({
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken ?? stored.refreshToken,
-          expiresAt: result.expiresAt,
-        });
-        return result.accessToken;
+        const result = await input.supabase.refresh(stored.refreshToken);
+        await this.applyTokens(result);
+        return result.access_token;
       } catch (err) {
-        // Refresh fail: xoá sạch session.
         await this.logout();
-        const msg = err instanceof Error ? err.message : "refresh failed";
-        throw new AppError("UNAUTHORIZED", `Refresh thất bại: ${msg}`, 401);
+        throw SupabaseAuthClient.normalizeError(err);
       } finally {
         this.refreshInFlight = null;
       }

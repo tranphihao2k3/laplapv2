@@ -22,6 +22,7 @@ import {
 import {
   getCachedAuthService,
   getCachedSettingsService,
+  getCachedSupabaseAuthClient,
 } from "./services/service-locator";
 
 /** Lấy version app đơn giản — không nhận input. */
@@ -35,6 +36,15 @@ const settingsPatchSchema = z.tuple(
 );
 const authGetStatusSchema = z.tuple([]);
 const authLogoutSchema = z.tuple([]);
+
+// APP-005: login bang email + password qua SupabaseAuthClient.
+const authLoginSchema = z.tuple(
+  z.object({
+    email: z.string().email("Email không hợp lệ").max(254),
+    password: z.string().min(1, "Mật khẩu không được để trống").max(256),
+  }),
+);
+const authRefreshSchema = z.tuple([]);
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -103,5 +113,24 @@ export function registerIpcHandlers(): void {
     const svc = getCachedAuthService();
     await svc.logout();
     return { ok: true } as const;
+  });
+  handle(IpcChannel.AuthLogin, authLoginSchema, async ([{ email, password }]) => {
+    const svc = getCachedAuthService();
+    return svc.login({
+      supabase: getCachedSupabaseAuthClient(),
+      email,
+      password,
+    });
+  });
+  handle(IpcChannel.AuthRefresh, authRefreshSchema, async () => {
+    // Refresh chỉ có nghĩa khi đã login — nếu không, loadFromDisk trả
+    // anonymous (UI dùng để hiển thị "đăng nhập lại").
+    const svc = getCachedAuthService();
+    try {
+      await svc.refreshAccessToken({ supabase: getCachedSupabaseAuthClient() });
+    } catch {
+      // Refresh fail → đã được logout() bên trong svc. Tiếp tục trả status mới.
+    }
+    return svc.loadFromDisk();
   });
 }
