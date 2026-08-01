@@ -25,9 +25,18 @@ import type {
   ProductVariantSummary,
   SyncResult,
 } from "../shared/catalog";
+import type { GroupRecord, GroupSetRecord, GroupUpsert } from "../shared/groups";
+import type {
+  FacebookGroupRow,
+  GroupSetRow,
+} from "../shared/db-types";
 import {
   getCachedAuthService,
   getCachedCatalogService,
+  getCachedGroupRepository,
+  getCachedGroupService,
+  getCachedGroupSetRepository,
+  getCachedGroupSetService,
   getCachedImageService,
   getCachedProductRepository,
   getCachedSettingsService,
@@ -74,6 +83,31 @@ const catalogLastSyncSchema = z.tuple([]);
 const mediaDownloadSchema = z.tuple(z.string().url().max(2048));
 const mediaCleanupSchema = z.tuple([]);
 const mediaListSchema = z.tuple([]);
+
+// GRP-001
+const groupsListSchema = z.tuple([]);
+const groupsGetSchema = z.tuple(z.string().uuid());
+const groupsDeleteSchema = z.tuple(z.string().uuid());
+const groupUpsertSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  url: z.string().url().max(2048),
+  enabled: z.boolean().optional(),
+  locale: z.string().max(8).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+  maxImages: z.number().int().min(0).max(50).optional(),
+  allowLink: z.boolean().optional(),
+  postingMode: z.enum(["assisted", "auto"]).optional(),
+});
+const groupsCreateSchema = z.tuple(groupUpsertSchema);
+const groupsUpdateSchema = z.tuple(z.string().uuid(), groupUpsertSchema);
+
+// GRP-002
+const groupSetsListSchema = z.tuple([]);
+const groupSetsCreateSchema = z.tuple(z.string().trim().min(1).max(200));
+const groupSetsDeleteSchema = z.tuple(z.string().uuid());
+const groupSetsMembersSchema = z.tuple(z.string().uuid());
+const groupSetsAddMemberSchema = z.tuple(z.string().uuid(), z.string().uuid());
+const groupSetsRemoveMemberSchema = z.tuple(z.string().uuid(), z.string().uuid());
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -210,6 +244,48 @@ export function registerIpcHandlers(): void {
     const dir = getCachedImageService().mediaDir();
     return readMediaList(dir);
   });
+
+  // GRP-001
+  handle(IpcChannel.GroupsList, groupsListSchema, async () => {
+    return getCachedGroupRepository().listAll().map(adaptGroup);
+  });
+  handle(IpcChannel.GroupsGet, groupsGetSchema, async ([id]) => {
+    const row = getCachedGroupRepository().findById(id);
+    return row ? adaptGroup(row) : null;
+  });
+  handle(IpcChannel.GroupsCreate, groupsCreateSchema, async ([input]) => {
+    return adaptGroup(getCachedGroupService().create(input));
+  });
+  handle(IpcChannel.GroupsUpdate, groupsUpdateSchema, async ([id, patch]) => {
+    return adaptGroup(getCachedGroupService().update(id, patch));
+  });
+  handle(IpcChannel.GroupsDelete, groupsDeleteSchema, async ([id]) => {
+    getCachedGroupService().delete(id);
+    return null;
+  });
+
+  // GRP-002
+  handle(IpcChannel.GroupSetsList, groupSetsListSchema, async () => {
+    return getCachedGroupSetRepository().listSets().map(adaptGroupSet);
+  });
+  handle(IpcChannel.GroupSetsCreate, groupSetsCreateSchema, async ([name]) => {
+    return adaptGroupSet(getCachedGroupSetService().create(name));
+  });
+  handle(IpcChannel.GroupSetsDelete, groupSetsDeleteSchema, async ([id]) => {
+    getCachedGroupSetService().delete(id);
+    return null;
+  });
+  handle(IpcChannel.GroupSetsMembers, groupSetsMembersSchema, async ([id]) => {
+    return getCachedGroupSetRepository().listMembers(id).map(adaptGroup);
+  });
+  handle(IpcChannel.GroupSetsAddMember, groupSetsAddMemberSchema, async ([setId, groupId]) => {
+    getCachedGroupSetService().addMember(setId, groupId);
+    return null;
+  });
+  handle(IpcChannel.GroupSetsRemoveMember, groupSetsRemoveMemberSchema, async ([setId, groupId]) => {
+    getCachedGroupSetService().removeMember(setId, groupId);
+    return null;
+  });
 }
 
 async function readMediaList(dir: string): Promise<import("../shared/media").DownloadedImage[]> {
@@ -284,5 +360,29 @@ function adaptVariantSummary(row: import("../shared/db-types").VariantCacheRow):
     isActive: row.is_active !== 0,
     availableQty: row.available_qty,
     syncedAt: row.synced_at,
+  };
+}
+
+function adaptGroup(row: FacebookGroupRow): GroupRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    enabled: row.enabled !== 0,
+    locale: row.locale,
+    notes: row.notes,
+    maxImages: row.max_images,
+    allowLink: row.allow_link !== 0,
+    postingMode: row.posting_mode,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function adaptGroupSet(row: GroupSetRow): GroupSetRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
   };
 }

@@ -59,6 +59,14 @@ function invokeOneArg<TData>(
   return invoke(channel, z.tuple(schema), arg);
 }
 
+function invokeTuple<TData>(
+  channel: (typeof IpcChannel)[keyof typeof IpcChannel],
+  schema: z.ZodType<unknown[]>,
+  args: unknown[],
+): Promise<IpcResult<TData>> {
+  return invoke(channel, schema, ...args);
+}
+
 const api: PublisherApi = {
   getAppVersion: () => invoke(IpcChannel.AppGetVersion, getAppVersionInputSchema),
 
@@ -130,7 +138,51 @@ const api: PublisherApi = {
     invokeOneArg<DownloadedImage>(IpcChannel.MediaDownload, z.string().url().max(2048), url),
   mediaCleanup: () => invoke<MediaCleanupResult>(IpcChannel.MediaCleanup, z.tuple()),
   mediaList: () => invoke<DownloadedImage[]>(IpcChannel.MediaList, z.tuple()),
+
+  // GRP-001
+  groupsList: () => invoke<GroupRecord[]>(IpcChannel.GroupsList, z.tuple()),
+  groupsGet: (id: unknown) =>
+    invokeOneArg<GroupRecord | null>(IpcChannel.GroupsGet, z.string().uuid(), id),
+  groupsCreate: (input: unknown) => invokeOneArg<GroupRecord>(IpcChannel.GroupsCreate, groupUpsertInputSchema, input),
+  groupsUpdate: (id: unknown, patch: unknown) => {
+    const tuple = z.tuple(z.string().uuid(), groupUpsertInputSchema);
+    return invokeTuple<GroupRecord>(IpcChannel.GroupsUpdate, tuple, [id, patch]);
+  },
+  groupsDelete: (id: unknown) =>
+    invokeOneArg<null>(IpcChannel.GroupsDelete, z.string().uuid(), id),
+
+  // GRP-002
+  groupSetsList: () => invoke<GroupSetRecord[]>(IpcChannel.GroupSetsList, z.tuple()),
+  groupSetsCreate: (name: unknown) =>
+    invokeOneArg<GroupSetRecord>(
+      IpcChannel.GroupSetsCreate,
+      z.string().trim().min(1).max(200),
+      name,
+    ),
+  groupSetsDelete: (id: unknown) =>
+    invokeOneArg<null>(IpcChannel.GroupSetsDelete, z.string().uuid(), id),
+  groupSetsMembers: (id: unknown) =>
+    invokeOneArg<GroupRecord[]>(IpcChannel.GroupSetsMembers, z.string().uuid(), id),
+  groupSetsAddMember: (setId: unknown, groupId: unknown) => {
+    const tuple = z.tuple(z.string().uuid(), z.string().uuid());
+    return invokeTuple<null>(IpcChannel.GroupSetsAddMember, tuple, [setId, groupId]);
+  },
+  groupSetsRemoveMember: (setId: unknown, groupId: unknown) => {
+    const tuple = z.tuple(z.string().uuid(), z.string().uuid());
+    return invokeTuple<null>(IpcChannel.GroupSetsRemoveMember, tuple, [setId, groupId]);
+  },
 };
+
+const groupUpsertInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  url: z.string().url().max(2048),
+  enabled: z.boolean().optional(),
+  locale: z.string().max(8).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+  maxImages: z.number().int().min(0).max(50).optional(),
+  allowLink: z.boolean().optional(),
+  postingMode: z.enum(["assisted", "auto"]).optional(),
+});
 
 try {
   contextBridge.exposeInMainWorld("publisherApi", api);

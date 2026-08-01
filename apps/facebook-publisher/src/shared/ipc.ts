@@ -24,6 +24,17 @@ export const IpcChannel = {
   MediaDownload: "media:download",
   MediaCleanup: "media:cleanup",
   MediaList: "media:list",
+  GroupsList: "groups:list",
+  GroupsGet: "groups:get",
+  GroupsCreate: "groups:create",
+  GroupsUpdate: "groups:update",
+  GroupsDelete: "groups:delete",
+  GroupSetsList: "group-sets:list",
+  GroupSetsCreate: "group-sets:create",
+  GroupSetsDelete: "group-sets:delete",
+  GroupSetsMembers: "group-sets:members",
+  GroupSetsAddMember: "group-sets:add-member",
+  GroupSetsRemoveMember: "group-sets:remove-member",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 

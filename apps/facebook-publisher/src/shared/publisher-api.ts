@@ -15,6 +15,12 @@ import type {
   SyncResult,
 } from "../catalog";
 import type { DownloadedImage, MediaCleanupResult } from "../media";
+import type {
+  GroupRecord,
+  GroupSetRecord,
+  GroupSetWithMembers,
+  GroupUpsert,
+} from "../groups";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
 export type {
@@ -24,6 +30,10 @@ export type {
   SyncResult,
   DownloadedImage,
   MediaCleanupResult,
+  GroupRecord,
+  GroupSetRecord,
+  GroupSetWithMembers,
+  GroupUpsert,
 };
 
 export interface PublisherApi {
@@ -76,4 +86,19 @@ export interface PublisherApi {
   mediaCleanup: () => Promise<IpcResult<MediaCleanupResult>>;
   /** List file media đã tải (cho UI image picker). */
   mediaList: () => Promise<IpcResult<DownloadedImage[]>>;
+
+  // GRP-001 — Facebook groups CRUD
+  groupsList: () => Promise<IpcResult<GroupRecord[]>>;
+  groupsGet: (id: string) => Promise<IpcResult<GroupRecord | null>>;
+  groupsCreate: (input: GroupUpsert) => Promise<IpcResult<GroupRecord>>;
+  groupsUpdate: (id: string, patch: GroupUpsert) => Promise<IpcResult<GroupRecord>>;
+  groupsDelete: (id: string) => Promise<IpcResult<null>>;
+
+  // GRP-002 — Group sets
+  groupSetsList: () => Promise<IpcResult<GroupSetRecord[]>>;
+  groupSetsCreate: (name: string) => Promise<IpcResult<GroupSetRecord>>;
+  groupSetsDelete: (setId: string) => Promise<IpcResult<null>>;
+  groupSetsMembers: (setId: string) => Promise<IpcResult<GroupRecord[]>>;
+  groupSetsAddMember: (setId: string, groupId: string) => Promise<IpcResult<null>>;
+  groupSetsRemoveMember: (setId: string, groupId: string) => Promise<IpcResult<null>>;
 }

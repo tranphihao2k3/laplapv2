@@ -23,6 +23,8 @@ import { SupabaseAuthClient } from "../api/supabase-auth-client";
 import { ProductRepository } from "../db/repositories/products";
 import { CatalogService } from "../services/catalog-service";
 import { ImageService } from "../services/image-service";
+import { GroupService, GroupSetService } from "../services/group-service";
+import { FacebookGroupRepository, GroupSetRepository } from "../db/repositories/facebook-groups";
 import { env } from "../env";
 
 let settingsService: SettingsService | null = null;
@@ -32,6 +34,10 @@ let catalogService: CatalogService | null = null;
 let productRepository: ProductRepository | null = null;
 let imageService: ImageService | null = null;
 let settingsRepository: SettingsRepository | null = null;
+let groupService: GroupService | null = null;
+let groupSetService: GroupSetService | null = null;
+let groupRepository: FacebookGroupRepository | null = null;
+let groupSetRepository: GroupSetRepository | null = null;
 
 export function initServices(db: import("better-sqlite3").Database): void {
   const settingsRepo = new SettingsRepository(db);
@@ -55,6 +61,10 @@ export function initServices(db: import("better-sqlite3").Database): void {
   );
   settingsRepository = settingsRepo;
   imageService = new ImageService(settingsRepo, app.getPath("userData"));
+  groupRepository = new FacebookGroupRepository(db);
+  groupSetRepository = new GroupSetRepository(db);
+  groupService = new GroupService(groupRepository, groupSetRepository);
+  groupSetService = new GroupSetService(groupSetRepository);
 }
 
 export function getCachedSettingsService(): SettingsService {
@@ -121,4 +131,32 @@ export function getCachedImageService(): ImageService {
     );
   }
   return imageService;
+}
+
+export function getCachedGroupService(): GroupService {
+  if (!groupService) {
+    throw new AppError("SERVICE_NOT_READY", "GroupService chưa sẵn sàng", 503);
+  }
+  return groupService;
+}
+
+export function getCachedGroupSetService(): GroupSetService {
+  if (!groupSetService) {
+    throw new AppError("SERVICE_NOT_READY", "GroupSetService chưa sẵn sàng", 503);
+  }
+  return groupSetService;
+}
+
+export function getCachedGroupRepository(): FacebookGroupRepository {
+  if (!groupRepository) {
+    throw new AppError("SERVICE_NOT_READY", "FacebookGroupRepository chưa sẵn sàng", 503);
+  }
+  return groupRepository;
+}
+
+export function getCachedGroupSetRepository(): GroupSetRepository {
+  if (!groupSetRepository) {
+    throw new AppError("SERVICE_NOT_READY", "GroupSetRepository chưa sẵn sàng", 503);
+  }
+  return groupSetRepository;
 }
