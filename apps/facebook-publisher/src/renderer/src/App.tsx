@@ -16,6 +16,7 @@ import { GroupsPage } from "./pages/groups";
 import { TemplatesPage } from "./pages/templates";
 import { SettingsPage } from "./pages/settings";
 import { LoginPage } from "./pages/login";
+import { CampaignPage } from "./pages/campaign";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const status = useAuth();
@@ -47,6 +48,7 @@ export function App() {
           <Route path="/catalog" element={<CatalogPage />} />
           <Route path="/groups" element={<GroupsPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/campaigns" element={<CampaignPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>

@@ -51,6 +51,7 @@ function Sidebar() {
     { to: "/catalog", label: "Sản phẩm" },
     { to: "/groups", label: "Nhóm Facebook" },
     { to: "/templates", label: "Mẫu đăng" },
+    { to: "/campaigns", label: "Chiến dịch" },
     { to: "/settings", label: "Cấu hình" },
   ];
   return (
