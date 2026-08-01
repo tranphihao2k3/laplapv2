@@ -48,6 +48,13 @@ export const IpcChannel = {
   CampaignsDelete: "campaigns:delete",
   CampaignsEnqueue: "campaigns:enqueue",
   CampaignsJobs: "campaigns:jobs",
+  BrowserLaunch: "browser:launch",
+  BrowserClose: "browser:close",
+  BrowserStatus: "browser:status",
+  BrowserSessionHealth: "browser:session-health",
+  BrowserCanAutoSubmit: "browser:can-auto-submit",
+  DiagnosticsSaveScreenshot: "diagnostics:save-screenshot",
+  DiagnosticsCleanup: "diagnostics:cleanup",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 

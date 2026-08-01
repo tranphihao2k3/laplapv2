@@ -34,6 +34,12 @@ import type {
   EnqueueRequest,
   EnqueueResult,
 } from "../campaigns";
+import type {
+  AutoSubmitDecision,
+  BrowserSessionStatus,
+  SavedScreenshot,
+  SessionHealth,
+} from "../browser";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
 export type {
@@ -56,6 +62,10 @@ export type {
   CampaignRecord,
   EnqueueRequest,
   EnqueueResult,
+  AutoSubmitDecision,
+  BrowserSessionStatus,
+  SavedScreenshot,
+  SessionHealth,
 };
 
 export interface PublisherApi {
@@ -140,4 +150,14 @@ export interface PublisherApi {
   campaignsDelete: (id: string) => Promise<IpcResult<null>>;
   campaignsEnqueue: (req: EnqueueRequest) => Promise<IpcResult<EnqueueResult>>;
   campaignsJobs: (campaignId: string) => Promise<IpcResult<CampaignJobSummary[]>>;
+
+  // PW-001 / PW-002 / PW-005 / PW-008
+  browserLaunch: () => Promise<IpcResult<BrowserSessionStatus>>;
+  browserClose: () => Promise<IpcResult<null>>;
+  browserStatus: () => Promise<IpcResult<BrowserSessionStatus>>;
+  browserSessionHealth: () => Promise<IpcResult<SessionHealth>>;
+  browserCanAutoSubmit: (groupId: string) => Promise<IpcResult<AutoSubmitDecision>>;
+  diagnosticsSaveScreenshot: (jobId: string, step: string, data: number[]) =>
+    Promise<IpcResult<SavedScreenshot>>;
+  diagnosticsCleanup: () => Promise<IpcResult<{ removed: number }>>;
 }

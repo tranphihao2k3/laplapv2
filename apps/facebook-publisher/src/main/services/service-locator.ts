@@ -29,6 +29,10 @@ import { TemplateService } from "../services/template-service";
 import { TemplateRepository } from "../db/repositories/templates";
 import { CampaignService } from "../services/campaign-service";
 import { CampaignRepository } from "../db/repositories/campaigns";
+import { BrowserProfileManager } from "../browser/profile-manager";
+import { AutoSubmitGate } from "../browser/auto-submit-gate";
+import { DiagnosticsService } from "../browser/diagnostics-service";
+import { checkSessionHealth } from "../browser/session-health";
 import { env } from "../env";
 
 let settingsService: SettingsService | null = null;
@@ -47,6 +51,9 @@ let templateRepository: TemplateRepository | null = null;
 let campaignService: CampaignService | null = null;
 let campaignRepository: CampaignRepository | null = null;
 let postJobRepository: PostJobRepository | null = null;
+let browserProfileManager: BrowserProfileManager | null = null;
+let autoSubmitGate: AutoSubmitGate | null = null;
+let diagnosticsService: DiagnosticsService | null = null;
 
 export function initServices(db: import("better-sqlite3").Database): void {
   const settingsRepo = new SettingsRepository(db);
@@ -86,6 +93,9 @@ export function initServices(db: import("better-sqlite3").Database): void {
     groupRepository,
     groupSetRepository,
   );
+  browserProfileManager = new BrowserProfileManager();
+  autoSubmitGate = new AutoSubmitGate(settingsRepo);
+  diagnosticsService = new DiagnosticsService(settingsRepo);
 }
 
 export function getCachedSettingsService(): SettingsService {
@@ -215,4 +225,25 @@ export function getCachedPostJobRepository(): PostJobRepository {
     throw new AppError("SERVICE_NOT_READY", "PostJobRepository chưa sẵn sàng", 503);
   }
   return postJobRepository;
+}
+
+export function getCachedBrowserProfileManager(): BrowserProfileManager {
+  if (!browserProfileManager) {
+    throw new AppError("SERVICE_NOT_READY", "BrowserProfileManager chưa sẵn sàng", 503);
+  }
+  return browserProfileManager;
+}
+
+export function getCachedAutoSubmitGate(): AutoSubmitGate {
+  if (!autoSubmitGate) {
+    throw new AppError("SERVICE_NOT_READY", "AutoSubmitGate chưa sẵn sàng", 503);
+  }
+  return autoSubmitGate;
+}
+
+export function getCachedDiagnosticsService(): DiagnosticsService {
+  if (!diagnosticsService) {
+    throw new AppError("SERVICE_NOT_READY", "DiagnosticsService chưa sẵn sàng", 503);
+  }
+  return diagnosticsService;
 }

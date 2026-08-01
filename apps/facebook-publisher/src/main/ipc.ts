@@ -48,9 +48,12 @@ import type {
 } from "../shared/db-types";
 import {
   getCachedAuthService,
+  getCachedAutoSubmitGate,
+  getCachedBrowserProfileManager,
   getCachedCampaignRepository,
   getCachedCampaignService,
   getCachedCatalogService,
+  getCachedDiagnosticsService,
   getCachedGroupRepository,
   getCachedGroupService,
   getCachedGroupSetRepository,
@@ -173,6 +176,19 @@ const enqueueRequestSchema = z.object({
 });
 const campaignsEnqueueSchema = z.tuple(enqueueRequestSchema);
 const campaignsJobsSchema = z.tuple(z.string().uuid());
+
+// PW-001/002/005/008
+const browserLaunchSchema = z.tuple([]);
+const browserCloseSchema = z.tuple([]);
+const browserStatusSchema = z.tuple([]);
+const browserSessionHealthSchema = z.tuple([]);
+const browserCanAutoSubmitSchema = z.tuple(z.string().uuid());
+const diagnosticsSaveScreenshotSchema = z.tuple(
+  z.string().min(1).max(200),
+  z.string().min(1).max(64),
+  z.array(z.number().int().min(0).max(255)),
+);
+const diagnosticsCleanupSchema = z.tuple([]);
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -401,6 +417,44 @@ export function registerIpcHandlers(): void {
   });
   handle(IpcChannel.CampaignsJobs, campaignsJobsSchema, async ([campaignId]) => {
     return getCachedPostJobRepository().listByCampaign(campaignId).map(adaptJob);
+  });
+
+  // PW-001/002/005/008
+  handle(IpcChannel.BrowserLaunch, browserLaunchSchema, async () => {
+    return getCachedBrowserProfileManager().launch();
+  });
+  handle(IpcChannel.BrowserClose, browserCloseSchema, async () => {
+    await getCachedBrowserProfileManager().close();
+    return null;
+  });
+  handle(IpcChannel.BrowserStatus, browserStatusSchema, async () => {
+    return getCachedBrowserProfileManager().status();
+  });
+  handle(IpcChannel.BrowserSessionHealth, browserSessionHealthSchema, async () => {
+    const mgr = getCachedBrowserProfileManager();
+    const ctx = mgr.context();
+    if (!ctx) return { kind: "unknown" };
+    const { checkSessionHealth } = await import("./browser/session-health");
+    return checkSessionHealth(ctx);
+  });
+  handle(IpcChannel.BrowserCanAutoSubmit, browserCanAutoSubmitSchema, async ([groupId]) => {
+    const grp = getCachedGroupRepository().findById(groupId);
+    if (!grp) {
+      return { kind: "blocked", reason: `group not found: ${groupId}` };
+    }
+    return getCachedAutoSubmitGate().canAutoSubmit({
+      groupPostingMode: grp.posting_mode,
+    });
+  });
+  handle(IpcChannel.DiagnosticsSaveScreenshot, diagnosticsSaveScreenshotSchema, async ([jobId, step, data]) => {
+    return getCachedDiagnosticsService().saveScreenshot({
+      jobId,
+      step,
+      data: Buffer.from(data),
+    });
+  });
+  handle(IpcChannel.DiagnosticsCleanup, diagnosticsCleanupSchema, async () => {
+    return getCachedDiagnosticsService().cleanupExpired();
   });
 }
 

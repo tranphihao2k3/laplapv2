@@ -19,6 +19,8 @@ import { IpcChannel } from "../shared/ipc";
 import { SettingsPatchSchema } from "../shared/settings";
 import type {
   AppSettings,
+  AutoSubmitDecision,
+  BrowserSessionStatus,
   CampaignInput,
   CampaignJobSummary,
   CampaignRecord,
@@ -33,6 +35,8 @@ import type {
   ProductSummary,
   ProductVariantSummary,
   PublisherApi,
+  SavedScreenshot,
+  SessionHealth,
   SyncResult,
   TemplateInput,
   TemplatePreviewRequest,
@@ -218,6 +222,25 @@ const api: PublisherApi = {
     invokeOneArg<EnqueueResult>(IpcChannel.CampaignsEnqueue, enqueueRequestSchema, req),
   campaignsJobs: (id: unknown) =>
     invokeOneArg<CampaignJobSummary[]>(IpcChannel.CampaignsJobs, z.string().uuid(), id),
+
+  // PW-001/002/005/008
+  browserLaunch: () => invoke<BrowserSessionStatus>(IpcChannel.BrowserLaunch, z.tuple()),
+  browserClose: () => invoke<null>(IpcChannel.BrowserClose, z.tuple()),
+  browserStatus: () => invoke<BrowserSessionStatus>(IpcChannel.BrowserStatus, z.tuple()),
+  browserSessionHealth: () => invoke<SessionHealth>(IpcChannel.BrowserSessionHealth, z.tuple()),
+  browserCanAutoSubmit: (groupId: unknown) =>
+    invokeOneArg<AutoSubmitDecision>(
+      IpcChannel.BrowserCanAutoSubmit,
+      z.string().uuid(),
+      groupId,
+    ),
+  diagnosticsSaveScreenshot: (jobId: unknown, step: unknown, data: unknown) =>
+    invokeTuple<SavedScreenshot>(
+      IpcChannel.DiagnosticsSaveScreenshot,
+      z.tuple(z.string().min(1).max(200), z.string().min(1).max(64), z.array(z.number().int())),
+      [jobId, step, data],
+    ),
+  diagnosticsCleanup: () => invoke<{ removed: number }>(IpcChannel.DiagnosticsCleanup, z.tuple()),
 };
 
 const groupUpsertInputSchema = z.object({
