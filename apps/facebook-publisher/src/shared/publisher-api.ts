@@ -14,6 +14,7 @@ import type {
   ProductVariantSummary,
   SyncResult,
 } from "../catalog";
+import type { DownloadedImage, MediaCleanupResult } from "../media";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
 export type {
@@ -21,6 +22,8 @@ export type {
   ProductSummary,
   ProductVariantSummary,
   SyncResult,
+  DownloadedImage,
+  MediaCleanupResult,
 };
 
 export interface PublisherApi {
@@ -65,4 +68,12 @@ export interface PublisherApi {
   catalogVariants: (productId: string) => Promise<IpcResult<ProductVariantSummary[]>>;
   /** Tra timestamp last sync (UI indicator). */
   catalogLastSync: () => Promise<IpcResult<string | null>>;
+
+  // MED-001
+  /** Tải 1 ảnh URL về app data/temp/media/<hash>.<ext>. */
+  mediaDownload: (url: string) => Promise<IpcResult<DownloadedImage>>;
+  /** Dọn file cũ hơn diagnostics TTL. */
+  mediaCleanup: () => Promise<IpcResult<MediaCleanupResult>>;
+  /** List file media đã tải (cho UI image picker). */
+  mediaList: () => Promise<IpcResult<DownloadedImage[]>>;
 }

@@ -22,6 +22,7 @@ import { AuthService } from "../services/auth-service";
 import { SupabaseAuthClient } from "../api/supabase-auth-client";
 import { ProductRepository } from "../db/repositories/products";
 import { CatalogService } from "../services/catalog-service";
+import { ImageService } from "../services/image-service";
 import { env } from "../env";
 
 let settingsService: SettingsService | null = null;
@@ -29,6 +30,8 @@ let authService: AuthService | null = null;
 let supabaseAuthClient: SupabaseAuthClient | null = null;
 let catalogService: CatalogService | null = null;
 let productRepository: ProductRepository | null = null;
+let imageService: ImageService | null = null;
+let settingsRepository: SettingsRepository | null = null;
 
 export function initServices(db: import("better-sqlite3").Database): void {
   const settingsRepo = new SettingsRepository(db);
@@ -50,6 +53,8 @@ export function initServices(db: import("better-sqlite3").Database): void {
     () => settingsService?.get().apiBaseUrl ?? env.defaultApiBaseUrl,
     () => authService?.getAccessToken() ?? null,
   );
+  settingsRepository = settingsRepo;
+  imageService = new ImageService(settingsRepo, app.getPath("userData"));
 }
 
 export function getCachedSettingsService(): SettingsService {
@@ -105,4 +110,15 @@ export function getCachedProductRepository(): ProductRepository {
     );
   }
   return productRepository;
+}
+
+export function getCachedImageService(): ImageService {
+  if (!imageService) {
+    throw new AppError(
+      "SERVICE_NOT_READY",
+      "ImageService chưa sẵn sàng — gọi initServices() trước",
+      503,
+    );
+  }
+  return imageService;
 }

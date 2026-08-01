@@ -21,6 +21,9 @@ export const IpcChannel = {
   CatalogGet: "catalog:get",
   CatalogVariants: "catalog:variants",
   CatalogLastSync: "catalog:last-sync",
+  MediaDownload: "media:download",
+  MediaCleanup: "media:cleanup",
+  MediaList: "media:list",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 

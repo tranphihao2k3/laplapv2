@@ -28,6 +28,7 @@ import type {
 import {
   getCachedAuthService,
   getCachedCatalogService,
+  getCachedImageService,
   getCachedProductRepository,
   getCachedSettingsService,
   getCachedSupabaseAuthClient,
@@ -68,6 +69,11 @@ const catalogListSchema = catalogQuerySchema;
 const catalogGetSchema = z.tuple(z.string().uuid());
 const catalogVariantsSchema = z.tuple(z.string().uuid());
 const catalogLastSyncSchema = z.tuple([]);
+
+// MED-001 — media download / cleanup / list
+const mediaDownloadSchema = z.tuple(z.string().url().max(2048));
+const mediaCleanupSchema = z.tuple([]);
+const mediaListSchema = z.tuple([]);
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -191,6 +197,47 @@ export function registerIpcHandlers(): void {
     const repo = getCachedProductRepository();
     return repo.lastSyncedAt(getCurrentOrgId());
   });
+
+  // MED-001 — media
+  handle(IpcChannel.MediaDownload, mediaDownloadSchema, async ([url]) => {
+    return getCachedImageService().download({ url });
+  });
+  handle(IpcChannel.MediaCleanup, mediaCleanupSchema, async () => {
+    return getCachedImageService().cleanupExpired();
+  });
+  handle(IpcChannel.MediaList, mediaListSchema, async () => {
+    // List file trong mediaDir. Service giữ path; ở đây ta quét đơn giản.
+    const dir = getCachedImageService().mediaDir();
+    return readMediaList(dir);
+  });
+}
+
+async function readMediaList(dir: string): Promise<import("../shared/media").DownloadedImage[]> {
+  const fs = await import("node:fs/promises");
+  let entries: import("node:fs").Dirent[] = [];
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw err;
+  }
+  const out: import("../shared/media").DownloadedImage[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (entry.name.endsWith(".tmp")) continue;
+    const full = `${dir}/${entry.name}`;
+    const stat = await fs.stat(full);
+    // Không lưu url trong cache — để UI show "chưa có url gốc" khi list.
+    out.push({
+      url: "",
+      filePath: full,
+      mime: "image/" + (entry.name.split(".").pop() || "bin"),
+      bytes: stat.size,
+      sha256: entry.name.split(".")[0] ?? "",
+      downloadedAt: stat.mtime.toISOString(),
+    });
+  }
+  return out.sort((a, b) => b.downloadedAt.localeCompare(a.downloadedAt));
 }
 
 /** Lấy orgId từ authService user — ở đây dùng placeholder. */

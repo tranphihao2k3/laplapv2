@@ -20,7 +20,9 @@ import { SettingsPatchSchema } from "../shared/settings";
 import type {
   AppSettings,
   CatalogQuery,
+  DownloadedImage,
   IpcResult,
+  MediaCleanupResult,
   ProductSummary,
   ProductVariantSummary,
   PublisherApi,
@@ -122,6 +124,12 @@ const api: PublisherApi = {
       id,
     ),
   catalogLastSync: () => invoke<string | null>(IpcChannel.CatalogLastSync, z.tuple()),
+
+  // MED-001 — media
+  mediaDownload: (url: unknown) =>
+    invokeOneArg<DownloadedImage>(IpcChannel.MediaDownload, z.string().url().max(2048), url),
+  mediaCleanup: () => invoke<MediaCleanupResult>(IpcChannel.MediaCleanup, z.tuple()),
+  mediaList: () => invoke<DownloadedImage[]>(IpcChannel.MediaList, z.tuple()),
 };
 
 try {
