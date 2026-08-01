@@ -112,6 +112,7 @@ export type PostJobRow = {
   post_url: string | null;
   last_error_code: string | null;
   last_error_message: string | null;
+  snapshot_json: string | null;
   created_at: string;
   updated_at: string | null;
 };

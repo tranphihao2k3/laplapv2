@@ -50,8 +50,8 @@ export class PostJobRepository extends BaseRepo {
   constructor(db: Database.Database) {
     super(db);
     this.insertStmt = db.prepare(`
-      INSERT INTO post_jobs (id, campaign_id, group_id, state, fingerprint)
-      VALUES (@id, @campaign_id, @group_id, @state, @fingerprint)
+      INSERT INTO post_jobs (id, campaign_id, group_id, state, fingerprint, snapshot_json)
+      VALUES (@id, @campaign_id, @group_id, @state, @fingerprint, @snapshot_json)
     `);
     this.findByIdStmt = db.prepare(`SELECT * FROM post_jobs WHERE id = ?`);
     this.listByStateStmt = db.prepare(
@@ -88,6 +88,7 @@ export class PostJobRepository extends BaseRepo {
       group_id: input.group_id,
       state: input.state,
       fingerprint: input.fingerprint,
+      snapshot_json: input.snapshot_json ?? null,
     });
   }
 

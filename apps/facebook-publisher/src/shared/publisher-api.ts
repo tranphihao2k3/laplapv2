@@ -27,6 +27,13 @@ import type {
   TemplatePreviewResponse,
   TemplateRecord,
 } from "../templates";
+import type {
+  CampaignInput,
+  CampaignJobSummary,
+  CampaignRecord,
+  EnqueueRequest,
+  EnqueueResult,
+} from "../campaigns";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
 export type {
@@ -44,6 +51,11 @@ export type {
   TemplatePreviewRequest,
   TemplatePreviewResponse,
   TemplateRecord,
+  CampaignInput,
+  CampaignJobSummary,
+  CampaignRecord,
+  EnqueueRequest,
+  EnqueueResult,
 };
 
 export interface PublisherApi {
@@ -119,4 +131,13 @@ export interface PublisherApi {
   templatesUpdate: (id: string, patch: TemplateInput) => Promise<IpcResult<TemplateRecord>>;
   templatesDelete: (id: string) => Promise<IpcResult<null>>;
   templatesPreview: (req: TemplatePreviewRequest) => Promise<IpcResult<TemplatePreviewResponse>>;
+
+  // CMP-001/002/003
+  campaignsList: () => Promise<IpcResult<CampaignRecord[]>>;
+  campaignsGet: (id: string) => Promise<IpcResult<CampaignRecord | null>>;
+  campaignsCreate: (input: CampaignInput) => Promise<IpcResult<CampaignRecord>>;
+  campaignsUpdate: (id: string, patch: CampaignInput) => Promise<IpcResult<CampaignRecord>>;
+  campaignsDelete: (id: string) => Promise<IpcResult<null>>;
+  campaignsEnqueue: (req: EnqueueRequest) => Promise<IpcResult<EnqueueResult>>;
+  campaignsJobs: (campaignId: string) => Promise<IpcResult<CampaignJobSummary[]>>;
 }

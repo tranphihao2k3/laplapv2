@@ -19,8 +19,13 @@ import { IpcChannel } from "../shared/ipc";
 import { SettingsPatchSchema } from "../shared/settings";
 import type {
   AppSettings,
+  CampaignInput,
+  CampaignJobSummary,
+  CampaignRecord,
   CatalogQuery,
   DownloadedImage,
+  EnqueueRequest,
+  EnqueueResult,
   GroupRecord,
   GroupSetRecord,
   IpcResult,
@@ -194,6 +199,25 @@ const api: PublisherApi = {
     invokeOneArg<null>(IpcChannel.TemplatesDelete, z.string().uuid(), id),
   templatesPreview: (req: unknown) =>
     invokeOneArg<TemplatePreviewResponse>(IpcChannel.TemplatesPreview, templatePreviewSchema, req),
+
+  // CMP-001/002/003
+  campaignsList: () => invoke<CampaignRecord[]>(IpcChannel.CampaignsList, z.tuple()),
+  campaignsGet: (id: unknown) =>
+    invokeOneArg<CampaignRecord | null>(IpcChannel.CampaignsGet, z.string().uuid(), id),
+  campaignsCreate: (input: unknown) =>
+    invokeOneArg<CampaignRecord>(IpcChannel.CampaignsCreate, campaignInputSchema, input),
+  campaignsUpdate: (id: unknown, patch: unknown) =>
+    invokeTuple<CampaignRecord>(
+      IpcChannel.CampaignsUpdate,
+      z.tuple(z.string().uuid(), campaignInputSchema),
+      [id, patch],
+    ),
+  campaignsDelete: (id: unknown) =>
+    invokeOneArg<null>(IpcChannel.CampaignsDelete, z.string().uuid(), id),
+  campaignsEnqueue: (req: unknown) =>
+    invokeOneArg<EnqueueResult>(IpcChannel.CampaignsEnqueue, enqueueRequestSchema, req),
+  campaignsJobs: (id: unknown) =>
+    invokeOneArg<CampaignJobSummary[]>(IpcChannel.CampaignsJobs, z.string().uuid(), id),
 };
 
 const groupUpsertInputSchema = z.object({
@@ -219,6 +243,22 @@ const templatePreviewSchema = z.object({
   body: z.string().min(1).max(20_000),
   context: z.record(z.string(), z.unknown()),
   locale: z.string().max(8).optional(),
+});
+
+const campaignInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  productId: z.string().uuid(),
+  variantId: z.string().uuid(),
+  templateId: z.string().uuid(),
+  groupSetId: z.string().uuid().nullable().optional(),
+  imagePaths: z.array(z.string().max(2048)).max(20).optional(),
+  status: z.enum(["draft", "ready", "archived"]).optional(),
+});
+
+const enqueueRequestSchema = z.object({
+  campaignId: z.string().uuid(),
+  imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+  imageSha256s: z.array(z.string().length(64)).max(20).optional(),
 });
 
 try {

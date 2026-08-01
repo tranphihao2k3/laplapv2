@@ -204,4 +204,16 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 7,
+    name: "campaigns snapshot_json + post_jobs snapshot_json",
+    sql: `
+      -- CMP-002: thêm snapshot JSON cho campaign (preview/template body
+      -- tại thời điểm enqueue) và post_jobs (rendered text + product/
+      -- variant fields + image hashes). Sửa template/product sau khi
+      -- enqueue KHÔNG ảnh hưởng job cũ.
+      ALTER TABLE campaigns ADD COLUMN snapshot_json TEXT;
+      ALTER TABLE post_jobs ADD COLUMN snapshot_json TEXT;
+    `,
+  },
 ];

@@ -33,18 +33,30 @@ import type {
   TemplateRecord,
 } from "../shared/templates";
 import type {
+  CampaignInput,
+  CampaignJobSummary,
+  CampaignRecord,
+  EnqueueRequest,
+  EnqueueResult,
+} from "../shared/campaigns";
+import type {
+  CampaignRow,
   FacebookGroupRow,
   GroupSetRow,
+  PostJobRow,
   TemplateRow,
 } from "../shared/db-types";
 import {
   getCachedAuthService,
+  getCachedCampaignRepository,
+  getCachedCampaignService,
   getCachedCatalogService,
   getCachedGroupRepository,
   getCachedGroupService,
   getCachedGroupSetRepository,
   getCachedGroupSetService,
   getCachedImageService,
+  getCachedPostJobRepository,
   getCachedProductRepository,
   getCachedSettingsService,
   getCachedSupabaseAuthClient,
@@ -138,6 +150,29 @@ const templatesPreviewSchema = z.tuple(
     locale: z.string().max(8).optional(),
   }),
 );
+
+// CMP-001/002/003
+const campaignsListSchema = z.tuple([]);
+const campaignsGetSchema = z.tuple(z.string().uuid());
+const campaignsDeleteSchema = z.tuple(z.string().uuid());
+const campaignInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  productId: z.string().uuid(),
+  variantId: z.string().uuid(),
+  templateId: z.string().uuid(),
+  groupSetId: z.string().uuid().nullable().optional(),
+  imagePaths: z.array(z.string().max(2048)).max(20).optional(),
+  status: z.enum(["draft", "ready", "archived"]).optional(),
+});
+const campaignsCreateSchema = z.tuple(campaignInputSchema);
+const campaignsUpdateSchema = z.tuple(z.string().uuid(), campaignInputSchema);
+const enqueueRequestSchema = z.object({
+  campaignId: z.string().uuid(),
+  imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+  imageSha256s: z.array(z.string().length(64)).max(20).optional(),
+});
+const campaignsEnqueueSchema = z.tuple(enqueueRequestSchema);
+const campaignsJobsSchema = z.tuple(z.string().uuid());
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -338,6 +373,73 @@ export function registerIpcHandlers(): void {
   handle(IpcChannel.TemplatesPreview, templatesPreviewSchema, async ([req]) => {
     return { text: getCachedTemplateService().renderPreview(req.body, req.context, req.locale) };
   });
+
+  // CMP-001/002/003
+  handle(IpcChannel.CampaignsList, campaignsListSchema, async () => {
+    return getCachedCampaignRepository().listAll().map(adaptCampaign);
+  });
+  handle(IpcChannel.CampaignsGet, campaignsGetSchema, async ([id]) => {
+    const row = getCachedCampaignRepository().findById(id);
+    return row ? adaptCampaign(row) : null;
+  });
+  handle(IpcChannel.CampaignsCreate, campaignsCreateSchema, async ([input]) => {
+    const created = getCachedCampaignService().createCampaign(input);
+    const row = getCachedCampaignRepository().findById(created.id);
+    return adaptCampaign(row as CampaignRow);
+  });
+  handle(IpcChannel.CampaignsUpdate, campaignsUpdateSchema, async ([id, patch]) => {
+    getCachedCampaignService().updateCampaign(id, patch);
+    const row = getCachedCampaignRepository().findById(id);
+    return adaptCampaign(row as CampaignRow);
+  });
+  handle(IpcChannel.CampaignsDelete, campaignsDeleteSchema, async ([id]) => {
+    getCachedCampaignService().deleteCampaign(id);
+    return null;
+  });
+  handle(IpcChannel.CampaignsEnqueue, campaignsEnqueueSchema, async ([req]) => {
+    return getCachedCampaignService().enqueue(req);
+  });
+  handle(IpcChannel.CampaignsJobs, campaignsJobsSchema, async ([campaignId]) => {
+    return getCachedPostJobRepository().listByCampaign(campaignId).map(adaptJob);
+  });
+}
+
+function adaptCampaign(row: CampaignRow): CampaignRecord {
+  let imagePaths: string[] = [];
+  try {
+    const parsed = JSON.parse(row.image_paths_json);
+    if (Array.isArray(parsed)) {
+      imagePaths = parsed.filter((p): p is string => typeof p === "string");
+    }
+  } catch { /* empty */ }
+  return {
+    id: row.id,
+    name: row.name,
+    productId: row.product_id,
+    variantId: row.variant_id,
+    templateId: row.template_id,
+    groupSetId: row.group_set_id,
+    imagePaths,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function adaptJob(row: PostJobRow): CampaignJobSummary {
+  return {
+    id: row.id,
+    campaignId: row.campaign_id,
+    groupId: row.group_id,
+    state: row.state,
+    fingerprint: row.fingerprint,
+    submitClickedAt: row.submit_clicked_at,
+    postUrl: row.post_url,
+    lastErrorCode: row.last_error_code,
+    lastErrorMessage: row.last_error_message,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 async function readMediaList(dir: string): Promise<import("../shared/media").DownloadedImage[]> {

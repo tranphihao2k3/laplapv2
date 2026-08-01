@@ -27,6 +27,8 @@ import { GroupService, GroupSetService } from "../services/group-service";
 import { FacebookGroupRepository, GroupSetRepository } from "../db/repositories/facebook-groups";
 import { TemplateService } from "../services/template-service";
 import { TemplateRepository } from "../db/repositories/templates";
+import { CampaignService } from "../services/campaign-service";
+import { CampaignRepository } from "../db/repositories/campaigns";
 import { env } from "../env";
 
 let settingsService: SettingsService | null = null;
@@ -42,6 +44,9 @@ let groupRepository: FacebookGroupRepository | null = null;
 let groupSetRepository: GroupSetRepository | null = null;
 let templateService: TemplateService | null = null;
 let templateRepository: TemplateRepository | null = null;
+let campaignService: CampaignService | null = null;
+let campaignRepository: CampaignRepository | null = null;
+let postJobRepository: PostJobRepository | null = null;
 
 export function initServices(db: import("better-sqlite3").Database): void {
   const settingsRepo = new SettingsRepository(db);
@@ -71,6 +76,16 @@ export function initServices(db: import("better-sqlite3").Database): void {
   groupSetService = new GroupSetService(groupSetRepository);
   templateRepository = new TemplateRepository(db);
   templateService = new TemplateService(templateRepository);
+  campaignRepository = new CampaignRepository(db);
+  postJobRepository = new PostJobRepository(db);
+  campaignService = new CampaignService(
+    campaignRepository,
+    postJobRepository,
+    productRepository,
+    templateRepository,
+    groupRepository,
+    groupSetRepository,
+  );
 }
 
 export function getCachedSettingsService(): SettingsService {
@@ -179,4 +194,25 @@ export function getCachedTemplateRepository(): TemplateRepository {
     throw new AppError("SERVICE_NOT_READY", "TemplateRepository chưa sẵn sàng", 503);
   }
   return templateRepository;
+}
+
+export function getCachedCampaignService(): CampaignService {
+  if (!campaignService) {
+    throw new AppError("SERVICE_NOT_READY", "CampaignService chưa sẵn sàng", 503);
+  }
+  return campaignService;
+}
+
+export function getCachedCampaignRepository(): CampaignRepository {
+  if (!campaignRepository) {
+    throw new AppError("SERVICE_NOT_READY", "CampaignRepository chưa sẵn sàng", 503);
+  }
+  return campaignRepository;
+}
+
+export function getCachedPostJobRepository(): PostJobRepository {
+  if (!postJobRepository) {
+    throw new AppError("SERVICE_NOT_READY", "PostJobRepository chưa sẵn sàng", 503);
+  }
+  return postJobRepository;
 }

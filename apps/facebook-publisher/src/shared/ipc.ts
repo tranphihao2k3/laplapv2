@@ -41,6 +41,13 @@ export const IpcChannel = {
   TemplatesUpdate: "templates:update",
   TemplatesDelete: "templates:delete",
   TemplatesPreview: "templates:preview",
+  CampaignsList: "campaigns:list",
+  CampaignsGet: "campaigns:get",
+  CampaignsCreate: "campaigns:create",
+  CampaignsUpdate: "campaigns:update",
+  CampaignsDelete: "campaigns:delete",
+  CampaignsEnqueue: "campaigns:enqueue",
+  CampaignsJobs: "campaigns:jobs",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 
