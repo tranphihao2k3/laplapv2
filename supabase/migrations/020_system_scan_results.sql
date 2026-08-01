@@ -32,6 +32,17 @@ CREATE INDEX IF NOT EXISTS idx_system_scan_results_expires_at
 -- ============================================================
 ALTER TABLE system_scan_results ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow public read system_scan_results"   ON system_scan_results FOR SELECT USING (true);
-CREATE POLICY "Allow public insert system_scan_results" ON system_scan_results FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update system_scan_results" ON system_scan_results FOR UPDATE USING (true);
+-- DROP truoc CREATE: Postgres khong ho tro CREATE POLICY IF NOT EXISTS, nen
+-- chay lai migration lan 2 se bao "policy ... already exists" (42710).
+-- Cung cach lam nhu 017_repair_services.sql -> chay bao nhieu lan cung duoc.
+DROP POLICY IF EXISTS "Allow public read system_scan_results" ON system_scan_results;
+CREATE POLICY "Allow public read system_scan_results"
+  ON system_scan_results FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow public insert system_scan_results" ON system_scan_results;
+CREATE POLICY "Allow public insert system_scan_results"
+  ON system_scan_results FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public update system_scan_results" ON system_scan_results;
+CREATE POLICY "Allow public update system_scan_results"
+  ON system_scan_results FOR UPDATE USING (true);
