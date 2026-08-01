@@ -179,6 +179,10 @@ const PERMISSIONS = [
   { code: "settings.create", description: "Tạo cài đặt" },
   { code: "settings.update", description: "Cập nhật cài đặt" },
   { code: "settings.delete", description: "Xóa cài đặt" },
+  // Facebook Publisher (app desktop) — chỉ ĐỌC sản phẩm qua /api/v1/desktop-posting/*.
+  // Tách riêng khỏi products.read để có thể cấp/thu quyền dùng app desktop mà
+  // không ảnh hưởng quyền xem sản phẩm trên web. Xem docs/FB-PUBLISHER-TASKS.md.
+  { code: "publisher.use", description: "Dùng app Facebook Publisher — /api/v1/desktop-posting/*" },
 ];
 
 const PERMISSION_CODES = PERMISSIONS.map((p) => p.code);
@@ -186,13 +190,15 @@ const PERMISSION_CODES = PERMISSIONS.map((p) => p.code);
 // --- Roles ---
 const ROLES = [
   { code: "admin", name: "Quản trị hệ thống", perms: "all" },
-  { code: "manager", name: "Quản lý cửa hàng", perms: ["products.*", "brands.*", "categories.*", "spec_templates.*", "inventory.*", "stock_levels.*", "inventory_transactions.*", "purchase_orders.*", "purchase_order_items.*", "warehouses.*", "serial_numbers.*", "orders.*", "order_items.*", "payments.*", "pos_sessions.*", "loyalty_transactions.*", "returns.*", "customers.*", "suppliers.*", "warranties.*", "repair_tickets.*", "repair_services.*", "trade_in_requests.*", "shops.*", "settings.*", "audit_logs.*"] },
+  { code: "manager", name: "Quản lý cửa hàng", perms: ["products.*", "brands.*", "categories.*", "spec_templates.*", "inventory.*", "stock_levels.*", "inventory_transactions.*", "purchase_orders.*", "purchase_order_items.*", "warehouses.*", "serial_numbers.*", "orders.*", "order_items.*", "payments.*", "pos_sessions.*", "loyalty_transactions.*", "returns.*", "customers.*", "suppliers.*", "warranties.*", "repair_tickets.*", "repair_services.*", "trade_in_requests.*", "shops.*", "settings.*", "audit_logs.*", "publisher.use"] },
   { code: "staff_sales", name: "Nhân viên bán hàng", perms: ["products.read", "product_variants.read", "categories.read", "brands.read", "orders.read", "orders.create", "order_items.*", "payments.create", "payments.read", "customers.*", "pos_sessions.read", "pos.open_session", "pos.close_session", "loyalty_transactions.read", "loyalty_transactions.create"] },
   { code: "staff_warehouse", name: "Nhân viên kho", perms: ["products.read", "product_variants.read", "inventory.*", "stock_levels.*", "inventory_transactions.*", "purchase_orders.*", "purchase_order_items.*", "warehouses.*", "serial_numbers.*", "serial_numbers.bulk_create"] },
   { code: "staff_repair", name: "Nhân viên kỹ thuật/sửa chữa", perms: ["products.read", "customers.read", "customers.create", "repair_tickets.*", "repair_services.*", "warranties.*"] },
   { code: "accountant", name: "Kế toán", perms: ["orders.read", "payments.*", "returns.*", "purchase_orders.read", "inventory_transactions.read", "reports.read"] },
   { code: "cashier", name: "Thu ngân", perms: ["orders.read", "payments.create", "payments.read", "pos_sessions.read", "pos.open_session", "pos.close_session", "customers.read"] },
-  { code: "marketing", name: "Marketing/CSKH", perms: ["customers.*", "orders.read", "loyalty_transactions.*"] },
+  // publisher.use: marketing là người đăng bài bán hàng lên group Facebook nên
+  // cần products.read + product_variants.read để app desktop lấy được giá/tồn/ảnh.
+  { code: "marketing", name: "Marketing/CSKH", perms: ["customers.*", "orders.read", "loyalty_transactions.*", "products.read", "product_variants.read", "publisher.use"] },
   { code: "viewer", name: "Chỉ xem (báo cáo)", perms: ["products.read", "brands.read", "categories.read", "orders.read", "payments.read", "customers.read", "suppliers.read", "inventory.read", "reports.read", "audit_logs.read"] },
 ];
 

@@ -171,6 +171,9 @@ export const PERMISSION_PRESETS: PermissionPreset[] = [
   { code: "settings.create", description: "Tạo cài đặt — /api/v1/settings (POST)", group: "Hệ thống", apiEnforced: true },
   { code: "settings.update", description: "Cập nhật cài đặt — /api/v1/settings/{id}", group: "Hệ thống", apiEnforced: true },
   { code: "settings.delete", description: "Xóa cài đặt — /api/v1/settings/{id} (DELETE)", group: "Hệ thống", apiEnforced: true },
+
+  // ===== Facebook Publisher (app desktop) =====
+  { code: "publisher.use", description: "Dùng app Facebook Publisher — /api/v1/desktop-posting/*", group: "Facebook Publisher", apiEnforced: true },
 ];
 
 /** Chỉ những mã quyền mà API đang thực sự gọi requirePermission. */
