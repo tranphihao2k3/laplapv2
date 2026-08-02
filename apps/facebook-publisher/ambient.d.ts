@@ -108,6 +108,9 @@ declare module "@vitejs/plugin-react" {
 declare module "vite/client" {}
 declare module "react-router-dom" {
   export const BrowserRouter: any;
+  // HashRouter: snapshot mode load qua file:// nên BrowserRouter không chạy
+  // (xem src/renderer/src/snapshot-main.tsx).
+  export const HashRouter: any;
   export const Routes: any;
   export const Route: any;
   export const Link: any;

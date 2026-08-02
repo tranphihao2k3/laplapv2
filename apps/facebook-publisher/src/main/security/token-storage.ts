@@ -80,8 +80,9 @@ export async function loadRefreshToken(customDir?: string): Promise<StoredTokens
   const file = resolveFile(customDir);
   try {
     const buf = await fs.readFile(file);
+    // safeStorage.decryptString nhận Buffer và trả về string đã giải mã.
     const plaintext = safeStorage.decryptString(buf);
-    const parsed = JSON.parse(plaintext.toString("utf-8")) as Partial<StoredTokens>;
+    const parsed = JSON.parse(plaintext) as Partial<StoredTokens>;
     if (typeof parsed.refreshToken !== "string" || parsed.refreshToken.length === 0) {
       return null;
     }

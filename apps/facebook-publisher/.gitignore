@@ -10,3 +10,16 @@ release/
 .env.local
 .env*.local
 *.tsbuildinfo
+
+# Electron build output ngoài out/ (electron-builder + electron-vite cache).
+.electron-vite/
+
+# Snapshot PNG do scripts/ui-snapshot.ts sinh ra — artifact CI, không phải source.
+# CHỈ ignore output; src/snapshot/index.html là build input của
+# electron.vite.config.snapshot.ts nên phải giữ.
+/snapshot/
+*.snapshot.png
+
+# State cục bộ của Supabase CLI. App desktop không có migration riêng
+# (schema nằm ở supabase/migrations/ của repo root), nên cả thư mục là rác.
+supabase/
