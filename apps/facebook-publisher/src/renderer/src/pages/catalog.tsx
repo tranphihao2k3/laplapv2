@@ -10,7 +10,7 @@
  *  - Error: network/401/403 typed qua SyncResult.status.
  */
 import { useEffect, useState } from "react";
-import type { ProductSummary, SyncResult } from "../../shared/catalog";
+import type { ProductSummary, SyncResult } from "../../../shared/catalog";
 
 type SyncState =
   | { kind: "idle" }

@@ -29,6 +29,7 @@ import { TemplateService } from "../services/template-service";
 import { TemplateRepository } from "../db/repositories/templates";
 import { CampaignService } from "../services/campaign-service";
 import { CampaignRepository } from "../db/repositories/campaigns";
+import { PostJobRepository } from "../db/repositories/post-jobs";
 import { BrowserProfileManager } from "../browser/profile-manager";
 import { AutoSubmitGate } from "../browser/auto-submit-gate";
 import { DiagnosticsService } from "../browser/diagnostics-service";

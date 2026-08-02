@@ -30,11 +30,11 @@ const SCHEMA_MIGRATIONS_TABLE = `
   );
 `;
 
-function ensureMigrationsTable(db: Database.Database): void {
+function ensureMigrationsTable(db: any): void {
   db.exec(SCHEMA_MIGRATIONS_TABLE);
 }
 
-function getAppliedVersions(db: Database.Database): Set<number> {
+function getAppliedVersions(db: any): Set<number> {
   const rows = db.prepare("SELECT version FROM schema_migrations").all() as { version: number }[];
   return new Set(rows.map((r) => r.version));
 }
@@ -46,7 +46,7 @@ function getAppliedVersions(db: Database.Database): Set<number> {
  * (drift) → throw.
  */
 export function runMigrations(
-  db: Database.Database,
+  db: any,
   customMigrations?: Migration[],
 ): {
   applied: number[];

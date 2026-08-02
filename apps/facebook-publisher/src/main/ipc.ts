@@ -76,19 +76,19 @@ const getAppVersionSchema = z.tuple([]);
 const settingsGetSchema = z.tuple([]);
 const settingsResetSchema = z.tuple([]);
 const settingsGetDefaultsSchema = z.tuple([]);
-const settingsPatchSchema = z.tuple(
+const settingsPatchSchema = z.tuple([
   z.record(z.string(), z.unknown()), // patch object — SettingsPatchSchema sẽ validate trong service.
-);
+]);
 const authGetStatusSchema = z.tuple([]);
 const authLogoutSchema = z.tuple([]);
 
 // APP-005: login bang email + password qua SupabaseAuthClient.
-const authLoginSchema = z.tuple(
+const authLoginSchema = z.tuple([
   z.object({
     email: z.string().email("Email không hợp lệ").max(254),
     password: z.string().min(1, "Mật khẩu không được để trống").max(256),
   }),
-);
+]);
 const authRefreshSchema = z.tuple([]);
 
 // CAT-001 — catalog sync + cache read
@@ -102,19 +102,19 @@ const catalogSyncAllSchema = z.object({
   pageSize: z.number().int().min(1).max(100).default(50),
 });
 const catalogListSchema = catalogQuerySchema;
-const catalogGetSchema = z.tuple(z.string().uuid());
-const catalogVariantsSchema = z.tuple(z.string().uuid());
+const catalogGetSchema = z.tuple([z.string().uuid()]);
+const catalogVariantsSchema = z.tuple([z.string().uuid()]);
 const catalogLastSyncSchema = z.tuple([]);
 
 // MED-001 — media download / cleanup / list
-const mediaDownloadSchema = z.tuple(z.string().url().max(2048));
+const mediaDownloadSchema = z.tuple([z.string().url().max(2048)]);
 const mediaCleanupSchema = z.tuple([]);
 const mediaListSchema = z.tuple([]);
 
 // GRP-001
 const groupsListSchema = z.tuple([]);
-const groupsGetSchema = z.tuple(z.string().uuid());
-const groupsDeleteSchema = z.tuple(z.string().uuid());
+const groupsGetSchema = z.tuple([z.string().uuid()]);
+const groupsDeleteSchema = z.tuple([z.string().uuid()]);
 const groupUpsertSchema = z.object({
   name: z.string().trim().min(1).max(200),
   url: z.string().url().max(2048),
@@ -125,21 +125,21 @@ const groupUpsertSchema = z.object({
   allowLink: z.boolean().optional(),
   postingMode: z.enum(["assisted", "auto"]).optional(),
 });
-const groupsCreateSchema = z.tuple(groupUpsertSchema);
-const groupsUpdateSchema = z.tuple(z.string().uuid(), groupUpsertSchema);
+const groupsCreateSchema = z.tuple([groupUpsertSchema]);
+const groupsUpdateSchema = z.tuple([z.string().uuid(), groupUpsertSchema]);
 
 // GRP-002
 const groupSetsListSchema = z.tuple([]);
-const groupSetsCreateSchema = z.tuple(z.string().trim().min(1).max(200));
-const groupSetsDeleteSchema = z.tuple(z.string().uuid());
-const groupSetsMembersSchema = z.tuple(z.string().uuid());
-const groupSetsAddMemberSchema = z.tuple(z.string().uuid(), z.string().uuid());
-const groupSetsRemoveMemberSchema = z.tuple(z.string().uuid(), z.string().uuid());
+const groupSetsCreateSchema = z.tuple([z.string().trim().min(1).max(200)]);
+const groupSetsDeleteSchema = z.tuple([z.string().uuid()]);
+const groupSetsMembersSchema = z.tuple([z.string().uuid()]);
+const groupSetsAddMemberSchema = z.tuple([z.string().uuid(), z.string().uuid()]);
+const groupSetsRemoveMemberSchema = z.tuple([z.string().uuid(), z.string().uuid()]);
 
 // TPL-001 + TPL-002
 const templatesListSchema = z.tuple([]);
-const templatesGetSchema = z.tuple(z.string().uuid());
-const templatesDeleteSchema = z.tuple(z.string().uuid());
+const templatesGetSchema = z.tuple([z.string().uuid()]);
+const templatesDeleteSchema = z.tuple([z.string().uuid()]);
 const templateInputSchema = z.object({
   name: z.string().trim().min(1).max(200),
   body: z.string().min(1).max(20_000),
@@ -147,20 +147,20 @@ const templateInputSchema = z.object({
   previewContext: z.record(z.string(), z.unknown()).optional(),
   previewLocale: z.string().max(8).optional(),
 });
-const templatesCreateSchema = z.tuple(templateInputSchema);
-const templatesUpdateSchema = z.tuple(z.string().uuid(), templateInputSchema);
-const templatesPreviewSchema = z.tuple(
+const templatesCreateSchema = z.tuple([templateInputSchema]);
+const templatesUpdateSchema = z.tuple([z.string().uuid(), templateInputSchema]);
+const templatesPreviewSchema = z.tuple([
   z.object({
     body: z.string().min(1).max(20_000),
     context: z.record(z.string(), z.unknown()),
     locale: z.string().max(8).optional(),
   }),
-);
+]);
 
 // CMP-001/002/003
 const campaignsListSchema = z.tuple([]);
-const campaignsGetSchema = z.tuple(z.string().uuid());
-const campaignsDeleteSchema = z.tuple(z.string().uuid());
+const campaignsGetSchema = z.tuple([z.string().uuid()]);
+const campaignsDeleteSchema = z.tuple([z.string().uuid()]);
 const campaignInputSchema = z.object({
   name: z.string().trim().min(1).max(200),
   productId: z.string().uuid(),
@@ -170,32 +170,32 @@ const campaignInputSchema = z.object({
   imagePaths: z.array(z.string().max(2048)).max(20).optional(),
   status: z.enum(["draft", "ready", "archived"]).optional(),
 });
-const campaignsCreateSchema = z.tuple(campaignInputSchema);
-const campaignsUpdateSchema = z.tuple(z.string().uuid(), campaignInputSchema);
+const campaignsCreateSchema = z.tuple([campaignInputSchema]);
+const campaignsUpdateSchema = z.tuple([z.string().uuid(), campaignInputSchema]);
 const enqueueRequestSchema = z.object({
   campaignId: z.string().uuid(),
   imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
   imageSha256s: z.array(z.string().length(64)).max(20).optional(),
 });
-const campaignsEnqueueSchema = z.tuple(enqueueRequestSchema);
-const campaignsJobsSchema = z.tuple(z.string().uuid());
+const campaignsEnqueueSchema = z.tuple([enqueueRequestSchema]);
+const campaignsJobsSchema = z.tuple([z.string().uuid()]);
 
 // PW-001/002/005/008
 const browserLaunchSchema = z.tuple([]);
 const browserCloseSchema = z.tuple([]);
 const browserStatusSchema = z.tuple([]);
 const browserSessionHealthSchema = z.tuple([]);
-const browserCanAutoSubmitSchema = z.tuple(z.string().uuid());
-const diagnosticsSaveScreenshotSchema = z.tuple(
+const browserCanAutoSubmitSchema = z.tuple([z.string().uuid()]);
+const diagnosticsSaveScreenshotSchema = z.tuple([
   z.string().min(1).max(200),
   z.string().min(1).max(64),
   z.array(z.number().int().min(0).max(255)),
-);
+]);
 const diagnosticsCleanupSchema = z.tuple([]);
 
 // QUE-001/002/003/004/005
 const queueRunRecoverySchema = z.tuple([]);
-const queueTransitionSchema = z.tuple(
+const queueTransitionSchema = z.tuple([
   z.string().uuid(),
   z.enum([
     "draft",
@@ -217,12 +217,12 @@ const queueTransitionSchema = z.tuple(
       errorMessage: z.string().max(2000).optional(),
     })
     .optional(),
-);
-const queueCancelJobSchema = z.tuple(z.string().uuid());
-const queueCancelCampaignSchema = z.tuple(z.string().uuid());
+]);
+const queueCancelJobSchema = z.tuple([z.string().uuid()]);
+const queueCancelCampaignSchema = z.tuple([z.string().uuid()]);
 const queueCountsSchema = z.tuple([]);
-const queueAttemptsSchema = z.tuple(z.string().uuid());
-const queuePreflightSchema = z.tuple(z.string().uuid());
+const queueAttemptsSchema = z.tuple([z.string().uuid()]);
+const queuePreflightSchema = z.tuple([z.string().uuid()]);
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -237,36 +237,27 @@ function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
 }
 
 /** Wrapper chuẩn để đăng ký handler — convert throw → IpcResult. */
-function handle<TArgs extends unknown[], TData>(
+function handle<TData>(
   channel: string,
-  schema: z.ZodType<TArgs>,
-  fn: (event: IpcMainInvokeEvent, ...args: TArgs) => Promise<TData> | TData,
+  schema: z.ZodTypeAny,
+  fn: (args: any[]) => Promise<TData> | TData,
 ): void {
-  ipcMain.handle(channel, async (event, ...rawArgs) => {
-    try {
-      const args = parse(schema, rawArgs, channel);
-      const data = await fn(event, ...args);
-      return { ok: true, data } satisfies IpcResult<TData>;
-    } catch (err) {
-      if (err instanceof AppError) {
-        return { ok: false, error: { code: err.code, message: err.message } } satisfies IpcResult<never>;
-      }
-      if (err instanceof z.ZodError) {
-        return {
-          ok: false,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: err.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; "),
-          },
-        } satisfies IpcResult<never>;
-      }
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error(`[ipc:${channel}]`, err);
-      return {
-        ok: false,
-        error: { code: "INTERNAL_ERROR", message },
-      } satisfies IpcResult<never>;
+  ipcMain.handle(channel, async (_event: IpcMainInvokeEvent, ...rawArgs: any[]) => {
+    let parsedData: unknown[];
+    if (rawArgs.length === 0) {
+      const p = (schema as z.ZodType<unknown[]>).safeParse([]);
+      if (!p.success) throw new z.ZodError(p.error.issues);
+      parsedData = p.data as unknown[];
+    } else if (schema.constructor.name === "ZodObject" && rawArgs.length >= 1) {
+      const p = (schema as z.ZodType<unknown>).safeParse(rawArgs[0]);
+      if (!p.success) throw new z.ZodError(p.error.issues);
+      parsedData = [p.data];
+    } else {
+      const p = (schema as z.ZodType<unknown[]>).safeParse(rawArgs);
+      if (!p.success) throw new z.ZodError(p.error.issues);
+      parsedData = p.data as unknown[];
     }
+    return fn(parsedData);
   });
 }
 
@@ -313,15 +304,15 @@ export function registerIpcHandlers(): void {
   });
 
   // CAT-001 — catalog sync + cache read
-  handle(IpcChannel.CatalogSyncPage, z.tuple(catalogQuerySchema), async ([query]) => {
+  handle(IpcChannel.CatalogSyncPage, z.tuple([catalogQuerySchema]), async ([query]) => {
     const orgId = getCurrentOrgId();
     return getCachedCatalogService().syncPage(orgId, query);
   });
-  handle(IpcChannel.CatalogSyncAll, z.tuple(catalogSyncAllSchema), async ([query]) => {
+  handle(IpcChannel.CatalogSyncAll, z.tuple([catalogSyncAllSchema]), async ([query]) => {
     const orgId = getCurrentOrgId();
     return getCachedCatalogService().syncAll(orgId, query);
   });
-  handle(IpcChannel.CatalogList, z.tuple(catalogListSchema), async ([query]) => {
+  handle(IpcChannel.CatalogList, z.tuple([catalogListSchema]), async ([query]) => {
     const repo = getCachedProductRepository();
     const orgId = getCurrentOrgId();
     const items = query.q

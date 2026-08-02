@@ -146,7 +146,7 @@ export class CampaignService {
     // Build template context từ first group để render text snapshot.
     // (Mỗi job có group riêng — fingerprint phụ thuộc group_id, text giữ
     // nguyên vì text chỉ phụ thuộc product/variant/template).
-    const firstGroup = enabledGroups[0];
+    const firstGroup = enabledGroups[0]!;
 
     let imageUrls = req.imageUrls ?? [];
     let imageSha256s = req.imageSha256s ?? [];
@@ -214,6 +214,7 @@ export class CampaignService {
           inStock: variant.available_qty > 0,
         },
         variant: {
+          productId: variant.product_id,
           variantId: variant.variant_id,
           sku: variant.sku,
           name: variant.name,

@@ -5,47 +5,47 @@
  * Implementation thực sự nằm ở preload/index.ts và chỉ expose object
  * `publisherApi` qua contextBridge — không có require/electron ngoài.
  */
-import type { IpcResult } from "../ipc";
-import type { AppSettings, SettingsPatch } from "../settings";
-import type { AuthStatus } from "../auth";
+import type { IpcResult } from "./ipc";
+import type { AppSettings, SettingsPatch } from "./settings";
+import type { AuthStatus } from "./auth";
 import type {
   CatalogQuery,
   ProductSummary,
   ProductVariantSummary,
   SyncResult,
-} from "../catalog";
-import type { DownloadedImage, MediaCleanupResult } from "../media";
+} from "./catalog";
+import type { DownloadedImage, MediaCleanupResult } from "./media";
 import type {
   GroupRecord,
   GroupSetRecord,
   GroupSetWithMembers,
   GroupUpsert,
-} from "../groups";
+} from "./groups";
 import type {
   TemplateInput,
   TemplatePreviewRequest,
   TemplatePreviewResponse,
   TemplateRecord,
-} from "../templates";
+} from "./templates";
 import type {
   CampaignInput,
   CampaignJobSummary,
   CampaignRecord,
   EnqueueRequest,
   EnqueueResult,
-} from "../campaigns";
+} from "./campaigns";
 import type {
   AutoSubmitDecision,
   BrowserSessionStatus,
   SavedScreenshot,
   SessionHealth,
-} from "../browser";
+} from "./browser";
 import type {
   JobAttemptRecord,
   PreflightResult,
   QueueCount,
   RecoveryReport,
-} from "../queue";
+} from "./queue";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
 export type {

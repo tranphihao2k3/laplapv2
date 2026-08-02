@@ -23,10 +23,10 @@ import {
 const SETTINGS_KEY = "app";
 
 export class SettingsRepository extends BaseRepo {
-  private readonly readStmt: Database.Statement;
-  private readonly upsertStmt: Database.Statement;
+  private readonly readStmt: any;
+  private readonly upsertStmt: any;
 
-  constructor(db: Database.Database) {
+  constructor(db: any) {
     super(db);
     this.readStmt = db.prepare(`SELECT value_json, updated_at FROM settings WHERE key = ?`);
     this.upsertStmt = db.prepare(`

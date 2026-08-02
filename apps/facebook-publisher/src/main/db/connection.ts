@@ -19,7 +19,7 @@ import { AppError } from "../../shared/errors";
 
 const DB_FILE_NAME = "laplap-publisher.db";
 
-export type DB = Database.Database;
+export type DB = any;
 
 let cached: DB | null = null;
 

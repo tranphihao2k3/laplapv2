@@ -7,7 +7,7 @@
  *
  * Login thật sẽ thuộc APP-005 — file này chỉ đặt type + IPC contract.
  */
-import type { IpcResult } from "../ipc";
+import type { IpcResult } from "./ipc";
 
 export type AuthStatus =
   | { kind: "anonymous" }

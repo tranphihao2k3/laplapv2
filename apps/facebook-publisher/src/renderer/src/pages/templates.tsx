@@ -7,7 +7,7 @@
  *   {{product.name}}, {{variant.price}}, ... (UI không cần catalog sync).
  */
 import { useEffect, useMemo, useState } from "react";
-import type { TemplateRecord } from "../../shared/templates";
+import type { TemplateRecord } from "../../../shared/templates";
 
 const SAMPLE_VARIABLES: Record<string, unknown> = {
   "product.name": "Laptop LapLap Air 13",
@@ -171,7 +171,7 @@ function TemplateForm(props: {
     const out = new Set<string>();
     let m: RegExpExecArray | null;
     while ((m = re.exec(body))) {
-      out.add(m[1]);
+      if (m[1]) out.add(m[1]);
     }
     return Array.from(out);
   }, [body]);
@@ -223,7 +223,7 @@ function TemplateForm(props: {
   }
 
   function insertVar(v: string) {
-    setBody((prev) => `${prev}{{${v}}}`);
+    setBody((prev: string) => `${prev}{{${v}}}`);
   }
 
   return (

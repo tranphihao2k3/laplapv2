@@ -8,7 +8,7 @@
  * - Sets: create / rename / addMember / removeMember / delete set.
  */
 import { useEffect, useState } from "react";
-import type { GroupRecord, GroupSetRecord, PostingMode } from "../../shared/groups";
+import type { GroupRecord, GroupSetRecord, PostingMode } from "../../../shared/groups";
 
 type Tab = "groups" | "sets";
 

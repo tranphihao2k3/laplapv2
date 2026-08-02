@@ -17,7 +17,7 @@ import type {
   ProductSummary,
   ProductVariantSummary,
   TemplateRecord,
-} from "../../shared";
+} from "../../../shared/publisher-api";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -314,8 +314,8 @@ function Step1(props: {
           className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5 text-sm"
           value={props.productId ?? ""}
           onChange={(e) => {
-            props.setProductId(e.target.value || null);
-            props.setVariantId(null);
+            props.setProductId(e.target.value || "");
+            props.setVariantId("");
           }}
         >
           <option value="">-- Chọn sản phẩm --</option>
@@ -332,7 +332,7 @@ function Step1(props: {
           className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5 text-sm"
           value={props.variantId ?? ""}
           disabled={!props.productId}
-          onChange={(e) => props.setVariantId(e.target.value || null)}
+          onChange={(e) => props.setVariantId(e.target.value || "")}
         >
           <option value="">-- Chọn biến thể --</option>
           {variants.map((v) => (
@@ -385,7 +385,7 @@ function Step2(props: {
       <select
         className="block w-full rounded border border-muted-100 px-2 py-1.5 text-sm"
         value={props.templateId ?? ""}
-        onChange={(e) => props.setTemplateId(e.target.value || null)}
+        onChange={(e) => props.setTemplateId(e.target.value || "")}
       >
         <option value="">-- Chọn mẫu --</option>
         {templates.map((t) => (

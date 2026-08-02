@@ -9,14 +9,14 @@ import { BaseRepo } from "./base";
 import type { TemplateRow } from "../../../shared/db-types";
 
 export class TemplateRepository extends BaseRepo {
-  private readonly insertStmt: Database.Statement;
-  private readonly updateStmt: Database.Statement;
-  private readonly deleteStmt: Database.Statement;
-  private readonly findByIdStmt: Database.Statement;
-  private readonly findByNameStmt: Database.Statement;
-  private readonly listAllStmt: Database.Statement;
+  private readonly insertStmt: any;
+  private readonly updateStmt: any;
+  private readonly deleteStmt: any;
+  private readonly findByIdStmt: any;
+  private readonly findByNameStmt: any;
+  private readonly listAllStmt: any;
 
-  constructor(db: Database.Database) {
+  constructor(db: any) {
     super(db);
     this.insertStmt = db.prepare(`
       INSERT INTO templates (id, name, body, allowlisted_variables_json, content_text)

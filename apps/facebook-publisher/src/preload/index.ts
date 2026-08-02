@@ -19,6 +19,7 @@ import { IpcChannel } from "../shared/ipc";
 import { SettingsPatchSchema } from "../shared/settings";
 import type {
   AppSettings,
+  AuthStatus,
   AutoSubmitDecision,
   BrowserSessionStatus,
   CampaignInput,
@@ -50,12 +51,23 @@ import type {
 
 const getAppVersionInputSchema = z.tuple([]);
 
-function invoke<TArgs extends unknown[], TData>(
+const EMPTY_TUPLE = z.tuple([]) as unknown as z.ZodType<unknown[]>;
+
+function invoke<TData>(
   channel: (typeof IpcChannel)[keyof typeof IpcChannel],
-  schema: z.ZodType<TArgs>,
-  ...args: TArgs
+  schemaOrEmpty: z.ZodTypeAny | z.ZodTuple<[]>,
+  ...args: any[]
 ): Promise<IpcResult<TData>> {
-  const parsed = schema.safeParse(args);
+  // Accept cả `EMPTY_TUPLE` rỗng lẫn `z.tuple([...])` / `z.object(...)`.
+  const tuple =
+    args.length === 0
+      ? z.tuple([])
+      : args.length === 1
+        ? z.tuple([schemaOrEmpty as z.ZodTypeAny])
+        : z
+            .tuple([schemaOrEmpty as z.ZodTypeAny, z.unknown()])
+            .rest(z.unknown());
+  const parsed = tuple.safeParse(args);
   if (!parsed.success) {
     return Promise.resolve({
       ok: false,
@@ -75,7 +87,7 @@ function invokeOneArg<TData>(
   schema: z.ZodType<unknown>,
   arg: unknown,
 ): Promise<IpcResult<TData>> {
-  return invoke(channel, z.tuple(schema), arg);
+  return invoke<TData>(channel, schema, arg);
 }
 
 function invokeTuple<TData>(
@@ -89,24 +101,24 @@ function invokeTuple<TData>(
 const api: PublisherApi = {
   getAppVersion: () => invoke(IpcChannel.AppGetVersion, getAppVersionInputSchema),
 
-  settingsGet: () => invoke(IpcChannel.SettingsGet, z.tuple()),
-  settingsGetDefaults: () => invoke(IpcChannel.SettingsGetDefaults, z.tuple()),
-  settingsReset: () => invoke(IpcChannel.SettingsReset, z.tuple()),
+  settingsGet: () => invoke(IpcChannel.SettingsGet, EMPTY_TUPLE),
+  settingsGetDefaults: () => invoke(IpcChannel.SettingsGetDefaults, EMPTY_TUPLE),
+  settingsReset: () => invoke(IpcChannel.SettingsReset, EMPTY_TUPLE),
   settingsPatch: (patch: unknown) =>
     invokeOneArg<AppSettings>(IpcChannel.SettingsPatch, SettingsPatchSchema, patch),
 
   // Auth — renderer KHÔNG BAO GIỜ nhận được access/refresh token.
   // Chỉ authGetStatus (boolean + metadata), authLogin (email+password),
   // authLogout, authRefresh.
-  authGetStatus: () => invoke(IpcChannel.AuthGetStatus, z.tuple()),
-  authLogout: () => invoke(IpcChannel.AuthLogout, z.tuple()),
+  authGetStatus: () => invoke(IpcChannel.AuthGetStatus, EMPTY_TUPLE),
+  authLogout: () => invoke(IpcChannel.AuthLogout, EMPTY_TUPLE),
   authLogin: (input: unknown) =>
     invokeOneArg<AuthStatus>(
       IpcChannel.AuthLogin,
       z.object({ email: z.string().email().max(254), password: z.string().min(1).max(256) }),
       input,
     ),
-  authRefresh: () => invoke(IpcChannel.AuthRefresh, z.tuple()),
+  authRefresh: () => invoke(IpcChannel.AuthRefresh, EMPTY_TUPLE),
 
   // CAT-001 — catalog sync + cache read
   catalogSyncPage: (q: unknown) =>
@@ -150,28 +162,28 @@ const api: PublisherApi = {
       z.string().uuid(),
       id,
     ),
-  catalogLastSync: () => invoke<string | null>(IpcChannel.CatalogLastSync, z.tuple()),
+  catalogLastSync: () => invoke<string | null>(IpcChannel.CatalogLastSync, EMPTY_TUPLE),
 
   // MED-001 — media
   mediaDownload: (url: unknown) =>
     invokeOneArg<DownloadedImage>(IpcChannel.MediaDownload, z.string().url().max(2048), url),
-  mediaCleanup: () => invoke<MediaCleanupResult>(IpcChannel.MediaCleanup, z.tuple()),
-  mediaList: () => invoke<DownloadedImage[]>(IpcChannel.MediaList, z.tuple()),
+  mediaCleanup: () => invoke<MediaCleanupResult>(IpcChannel.MediaCleanup, EMPTY_TUPLE),
+  mediaList: () => invoke<DownloadedImage[]>(IpcChannel.MediaList, EMPTY_TUPLE),
 
   // GRP-001
-  groupsList: () => invoke<GroupRecord[]>(IpcChannel.GroupsList, z.tuple()),
+  groupsList: () => invoke<GroupRecord[]>(IpcChannel.GroupsList, EMPTY_TUPLE),
   groupsGet: (id: unknown) =>
     invokeOneArg<GroupRecord | null>(IpcChannel.GroupsGet, z.string().uuid(), id),
   groupsCreate: (input: unknown) => invokeOneArg<GroupRecord>(IpcChannel.GroupsCreate, groupUpsertInputSchema, input),
   groupsUpdate: (id: unknown, patch: unknown) => {
-    const tuple = z.tuple(z.string().uuid(), groupUpsertInputSchema);
+    const tuple = z.tuple([z.string().uuid(), groupUpsertInputSchema]);
     return invokeTuple<GroupRecord>(IpcChannel.GroupsUpdate, tuple, [id, patch]);
   },
   groupsDelete: (id: unknown) =>
     invokeOneArg<null>(IpcChannel.GroupsDelete, z.string().uuid(), id),
 
   // GRP-002
-  groupSetsList: () => invoke<GroupSetRecord[]>(IpcChannel.GroupSetsList, z.tuple()),
+  groupSetsList: () => invoke<GroupSetRecord[]>(IpcChannel.GroupSetsList, EMPTY_TUPLE),
   groupSetsCreate: (name: unknown) =>
     invokeOneArg<GroupSetRecord>(
       IpcChannel.GroupSetsCreate,
@@ -183,16 +195,16 @@ const api: PublisherApi = {
   groupSetsMembers: (id: unknown) =>
     invokeOneArg<GroupRecord[]>(IpcChannel.GroupSetsMembers, z.string().uuid(), id),
   groupSetsAddMember: (setId: unknown, groupId: unknown) => {
-    const tuple = z.tuple(z.string().uuid(), z.string().uuid());
+    const tuple = z.tuple([z.string().uuid(), z.string().uuid()]);
     return invokeTuple<null>(IpcChannel.GroupSetsAddMember, tuple, [setId, groupId]);
   },
   groupSetsRemoveMember: (setId: unknown, groupId: unknown) => {
-    const tuple = z.tuple(z.string().uuid(), z.string().uuid());
+    const tuple = z.tuple([z.string().uuid(), z.string().uuid()]);
     return invokeTuple<null>(IpcChannel.GroupSetsRemoveMember, tuple, [setId, groupId]);
   },
 
   // TPL-001 + TPL-002
-  templatesList: () => invoke<TemplateRecord[]>(IpcChannel.TemplatesList, z.tuple()),
+  templatesList: () => invoke<TemplateRecord[]>(IpcChannel.TemplatesList, EMPTY_TUPLE),
   templatesGet: (id: unknown) =>
     invokeOneArg<TemplateRecord | null>(IpcChannel.TemplatesGet, z.string().uuid(), id),
   templatesCreate: (input: unknown) =>
@@ -200,7 +212,7 @@ const api: PublisherApi = {
   templatesUpdate: (id: unknown, patch: unknown) =>
     invokeTuple<TemplateRecord>(
       IpcChannel.TemplatesUpdate,
-      z.tuple(z.string().uuid(), templateInputSchema),
+      z.tuple([z.string().uuid(), templateInputSchema]),
       [id, patch],
     ),
   templatesDelete: (id: unknown) =>
@@ -209,7 +221,7 @@ const api: PublisherApi = {
     invokeOneArg<TemplatePreviewResponse>(IpcChannel.TemplatesPreview, templatePreviewSchema, req),
 
   // CMP-001/002/003
-  campaignsList: () => invoke<CampaignRecord[]>(IpcChannel.CampaignsList, z.tuple()),
+  campaignsList: () => invoke<CampaignRecord[]>(IpcChannel.CampaignsList, EMPTY_TUPLE),
   campaignsGet: (id: unknown) =>
     invokeOneArg<CampaignRecord | null>(IpcChannel.CampaignsGet, z.string().uuid(), id),
   campaignsCreate: (input: unknown) =>
@@ -217,7 +229,7 @@ const api: PublisherApi = {
   campaignsUpdate: (id: unknown, patch: unknown) =>
     invokeTuple<CampaignRecord>(
       IpcChannel.CampaignsUpdate,
-      z.tuple(z.string().uuid(), campaignInputSchema),
+      z.tuple([z.string().uuid(), campaignInputSchema]),
       [id, patch],
     ),
   campaignsDelete: (id: unknown) =>
@@ -228,10 +240,10 @@ const api: PublisherApi = {
     invokeOneArg<CampaignJobSummary[]>(IpcChannel.CampaignsJobs, z.string().uuid(), id),
 
   // PW-001/002/005/008
-  browserLaunch: () => invoke<BrowserSessionStatus>(IpcChannel.BrowserLaunch, z.tuple()),
-  browserClose: () => invoke<null>(IpcChannel.BrowserClose, z.tuple()),
-  browserStatus: () => invoke<BrowserSessionStatus>(IpcChannel.BrowserStatus, z.tuple()),
-  browserSessionHealth: () => invoke<SessionHealth>(IpcChannel.BrowserSessionHealth, z.tuple()),
+  browserLaunch: () => invoke<BrowserSessionStatus>(IpcChannel.BrowserLaunch, EMPTY_TUPLE),
+  browserClose: () => invoke<null>(IpcChannel.BrowserClose, EMPTY_TUPLE),
+  browserStatus: () => invoke<BrowserSessionStatus>(IpcChannel.BrowserStatus, EMPTY_TUPLE),
+  browserSessionHealth: () => invoke<SessionHealth>(IpcChannel.BrowserSessionHealth, EMPTY_TUPLE),
   browserCanAutoSubmit: (groupId: unknown) =>
     invokeOneArg<AutoSubmitDecision>(
       IpcChannel.BrowserCanAutoSubmit,
@@ -241,38 +253,40 @@ const api: PublisherApi = {
   diagnosticsSaveScreenshot: (jobId: unknown, step: unknown, data: unknown) =>
     invokeTuple<SavedScreenshot>(
       IpcChannel.DiagnosticsSaveScreenshot,
-      z.tuple(z.string().min(1).max(200), z.string().min(1).max(64), z.array(z.number().int())),
+      z.tuple([z.string().min(1).max(200), z.string().min(1).max(64), z.array(z.number().int())]),
       [jobId, step, data],
     ),
-  diagnosticsCleanup: () => invoke<{ removed: number }>(IpcChannel.DiagnosticsCleanup, z.tuple()),
+  diagnosticsCleanup: () => invoke<{ removed: number }>(IpcChannel.DiagnosticsCleanup, EMPTY_TUPLE),
 
   // QUE-001/002/003/004/005
-  queueRunRecovery: () => invoke<RecoveryReport>(IpcChannel.QueueRunRecovery, z.tuple()),
+  queueRunRecovery: () => invoke<RecoveryReport>(IpcChannel.QueueRunRecovery, EMPTY_TUPLE),
   queueTransition: (id: unknown, toState: unknown, opts?: unknown) =>
     invokeTuple<{ attemptNumber: number }>(
       IpcChannel.QueueTransition,
       z.tuple(
-        z.string().uuid(),
-        z.enum([
-          "draft",
-          "queued",
-          "preflight",
-          "posting",
-          "awaiting_confirmation",
-          "published",
-          "pending_approval",
-          "unverified",
-          "needs_action",
-          "failed",
-          "skipped",
-          "cancelled",
-        ]),
-        z
-          .object({
-            errorCode: z.string().max(80).optional(),
-            errorMessage: z.string().max(2000).optional(),
-          })
-          .optional(),
+        [
+          z.string().uuid(),
+          z.enum([
+            "draft",
+            "queued",
+            "preflight",
+            "posting",
+            "awaiting_confirmation",
+            "published",
+            "pending_approval",
+            "unverified",
+            "needs_action",
+            "failed",
+            "skipped",
+            "cancelled",
+          ]),
+          z
+            .object({
+              errorCode: z.string().max(80).optional(),
+              errorMessage: z.string().max(2000).optional(),
+            })
+            .optional(),
+        ],
       ),
       [id, toState, opts],
     ),
@@ -284,7 +298,7 @@ const api: PublisherApi = {
       z.string().uuid(),
       id,
     ),
-  queueCounts: () => invoke<QueueCount[]>(IpcChannel.QueueCounts, z.tuple()),
+  queueCounts: () => invoke<QueueCount[]>(IpcChannel.QueueCounts, EMPTY_TUPLE),
   queueAttempts: (id: unknown) =>
     invokeOneArg<JobAttemptRecord[]>(IpcChannel.QueueAttempts, z.string().uuid(), id),
   queuePreflight: (id: unknown) =>

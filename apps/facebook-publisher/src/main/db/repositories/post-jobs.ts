@@ -40,15 +40,15 @@ const VALID_TRANSITIONS: ReadonlyArray<readonly [JobState, JobState]> = [
 ];
 
 export class PostJobRepository extends BaseRepo {
-  private readonly insertStmt: Database.Statement;
-  private readonly findByIdStmt: Database.Statement;
-  private readonly listByStateStmt: Database.Statement;
-  private readonly listByCampaignStmt: Database.Statement;
-  private readonly countAttemptsStmt: Database.Statement;
-  private readonly updateStateStmt: Database.Statement;
-  private readonly insertAttemptStmt: Database.Statement;
+  private readonly insertStmt: any;
+  private readonly findByIdStmt: any;
+  private readonly listByStateStmt: any;
+  private readonly listByCampaignStmt: any;
+  private readonly countAttemptsStmt: any;
+  private readonly updateStateStmt: any;
+  private readonly insertAttemptStmt: any;
 
-  constructor(db: Database.Database) {
+  constructor(db: any) {
     super(db);
     this.insertStmt = db.prepare(`
       INSERT INTO post_jobs (id, campaign_id, group_id, state, fingerprint, snapshot_json)

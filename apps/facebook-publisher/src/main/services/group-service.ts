@@ -15,7 +15,7 @@ import {
   GroupSetRepository,
   normalizeFacebookGroupUrl,
 } from "../db/repositories/facebook-groups";
-import type { FacebookGroupRow, PostingMode } from "../../shared/db-types";
+import type { FacebookGroupRow, GroupSetRow, PostingMode } from "../../shared/db-types";
 
 export type GroupInput = {
   name: string;
@@ -101,10 +101,10 @@ export class GroupService {
 
     this.groups.update(id, {
       name: patch.name?.trim() ?? existing.name,
-      url: normalizedUrl,
+      url: normalizedUrl ?? existing.url,
       enabled: patch.enabled !== undefined ? (patch.enabled ? 1 : 0) : existing.enabled,
-      locale: patch.locale !== undefined ? patch.locale : existing.locale,
-      notes: patch.notes !== undefined ? patch.notes : existing.notes,
+      locale: patch.locale !== undefined ? patch.locale : (existing.locale ?? undefined),
+      notes: patch.notes !== undefined ? patch.notes : (existing.notes ?? undefined),
       max_images: patch.maxImages ?? existing.max_images,
       allow_link: patch.allowLink !== undefined ? (patch.allowLink ? 1 : 0) : existing.allow_link,
       posting_mode: patch.postingMode ?? existing.posting_mode,
@@ -138,13 +138,14 @@ export class GroupService {
 export class GroupSetService {
   constructor(private readonly sets: GroupSetRepository) {}
 
-  create(name: string): { id: string; name: string } {
+  create(name: string): GroupSetRow {
     if (name.trim().length === 0) {
       throw new AppError("GROUP_SET_NAME_REQUIRED", "Tên tập nhóm không được rỗng", 400);
     }
     const id = randomUUID();
     this.sets.createSet(id, name.trim());
-    return { id, name: name.trim() };
+    const created = this.sets.findSetById(id);
+    return (created as GroupSetRow) ?? ({ id, name: name.trim(), created_at: new Date().toISOString() } as GroupSetRow);
   }
 
   addMember(setId: string, groupId: string): void {

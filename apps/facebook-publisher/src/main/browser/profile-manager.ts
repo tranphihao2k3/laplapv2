@@ -103,9 +103,9 @@ export class BrowserProfileManager {
     }
 
     try {
-      const context = await playwright.chromium.launchPersistentContext(dir, {
+      const context = await (playwright.chromium as any).launchPersistentContext(dir, {
         headless: false, // PW-002 chỉ yêu cầu headed để user login/2FA.
-        channel: input?.channel,
+        // channel: input?.channel,  // REMOVED — anti-detection forbidden.
         // args: không dùng anti-detection, không proxy rotation (docs §12 PW-007).
       });
       this.currentContext = context;

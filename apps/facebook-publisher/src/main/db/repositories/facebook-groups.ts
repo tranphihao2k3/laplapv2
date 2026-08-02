@@ -13,14 +13,14 @@ import type {
 } from "../../../shared/db-types";
 
 export class FacebookGroupRepository extends BaseRepo {
-  private readonly insertStmt: Database.Statement;
-  private readonly updateStmt: Database.Statement;
-  private readonly deleteStmt: Database.Statement;
-  private readonly findByIdStmt: Database.Statement;
-  private readonly listAllStmt: Database.Statement;
-  private readonly listEnabledStmt: Database.Statement;
+  private readonly insertStmt: any;
+  private readonly updateStmt: any;
+  private readonly deleteStmt: any;
+  private readonly findByIdStmt: any;
+  private readonly listAllStmt: any;
+  private readonly listEnabledStmt: any;
 
-  constructor(db: Database.Database) {
+  constructor(db: any) {
     super(db);
     this.insertStmt = db.prepare(`
       INSERT INTO facebook_groups
@@ -96,14 +96,15 @@ export class FacebookGroupRepository extends BaseRepo {
 
 /** Repository cho group_sets + group_set_groups. */
 export class GroupSetRepository extends BaseRepo {
-  private readonly insertSetStmt: Database.Statement;
-  private readonly addLinkStmt: Database.Statement;
-  private readonly removeLinkStmt: Database.Statement;
-  private readonly listSetStmt: Database.Statement;
-  private readonly listMembersStmt: Database.Statement;
-  private readonly deleteSetStmt: Database.Statement;
+  private readonly insertSetStmt: any;
+  private readonly addLinkStmt: any;
+  private readonly removeLinkStmt: any;
+  private readonly listSetStmt: any;
+  private readonly listMembersStmt: any;
+  private readonly deleteSetStmt: any;
+  private readonly findSetByIdStmt: any;
 
-  constructor(db: Database.Database) {
+  constructor(db: any) {
     super(db);
     this.insertSetStmt = db.prepare(`INSERT INTO group_sets (id, name) VALUES (?, ?)`);
     this.addLinkStmt = db.prepare(
@@ -120,6 +121,7 @@ export class GroupSetRepository extends BaseRepo {
       ORDER BY g.name ASC
     `);
     this.deleteSetStmt = db.prepare(`DELETE FROM group_sets WHERE id = ?`);
+    this.findSetByIdStmt = db.prepare(`SELECT * FROM group_sets WHERE id = ?`);
   }
 
   createSet(id: string, name: string): void {
@@ -145,6 +147,10 @@ export class GroupSetRepository extends BaseRepo {
   deleteSet(id: string): void {
     // FK ON DELETE CASCADE tự xoá group_set_groups.
     this.deleteSetStmt.run(id);
+  }
+
+  findSetById(id: string): GroupSetRow | undefined {
+    return this.findSetByIdStmt.get(id) as GroupSetRow | undefined;
   }
 }
 

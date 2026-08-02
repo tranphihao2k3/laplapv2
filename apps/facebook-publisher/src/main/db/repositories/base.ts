@@ -16,7 +16,7 @@
 import type Database from "better-sqlite3";
 
 export abstract class BaseRepo {
-  constructor(protected readonly db: Database.Database) {}
+  constructor(protected readonly db: any) {}
 
   /**
    * Chạy `fn` trong transaction. Nếu fn throw → ROLLBACK nguyên, không

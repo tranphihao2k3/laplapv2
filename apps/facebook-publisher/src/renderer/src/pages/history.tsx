@@ -7,8 +7,8 @@
  * - Có nút "Xem lại" cho unverified để user xác nhận.
  */
 import { useEffect, useState } from "react";
-import type { CampaignJobSummary } from "../../shared/campaigns";
-import type { JobAttemptRecord } from "../../shared/queue";
+import type { CampaignJobSummary } from "../../../shared/campaigns";
+import type { JobAttemptRecord } from "../../../shared/queue";
 
 export function HistoryPage() {
   const [items, setItems] = useState<CampaignJobSummary[]>([]);

@@ -34,8 +34,8 @@ const FB_LOGIN_HOSTS = new Set([
 
 export async function checkSessionHealth(context: BrowserContext): Promise<SessionHealth> {
   const cookies = await context.cookies();
-  const cUser = cookies.find((c) => c.name === "c_user");
-  const fbCookie = cookies.find((c) =>
+  const cUser = cookies.find((c: any) => c.name === "c_user");
+  const fbCookie = cookies.find((c: any) =>
     FB_LOGIN_HOSTS.has(new URL(c.domain).hostname) || c.domain.endsWith(".facebook.com"),
   );
 
@@ -68,6 +68,6 @@ export async function checkSessionHealth(context: BrowserContext): Promise<Sessi
 
   return {
     kind: "logged_in",
-    cookies: cookies.filter((c) => c.domain.endsWith("facebook.com")).map((c) => c.name),
+    cookies: cookies.filter((c: any) => c.domain.endsWith("facebook.com")).map((c: any) => c.name),
   };
 }

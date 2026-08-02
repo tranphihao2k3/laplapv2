@@ -12,8 +12,8 @@
  *  - Renderer UI subscribe qua hook `useAuth` / `useSettings`.
  */
 import { create } from "zustand";
-import type { AuthStatus } from "../../shared/auth";
-import type { AppSettings, SettingsPatch } from "../../shared/settings";
+import type { AuthStatus } from "../../../shared/auth";
+import type { AppSettings, SettingsPatch } from "../../../shared/settings";
 
 type AuthState = {
   status: AuthStatus | null;

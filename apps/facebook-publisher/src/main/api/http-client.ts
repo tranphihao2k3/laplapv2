@@ -12,7 +12,7 @@
  *   - Repo root web đã có `fetch` wrapper riêng — không dùng chung vì
  *     desktop main process không có Next.js runtime.
  */
-import { env } from "../shared/env";
+import { env } from "../env";
 
 const APP_USER_AGENT = "LapLap-FB-Publisher/0.1 (+desktop; electron)";
 

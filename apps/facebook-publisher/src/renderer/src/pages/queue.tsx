@@ -10,7 +10,7 @@
  * - Needs action highlight đỏ.
  */
 import { useEffect, useState } from "react";
-import type { QueueCount, JobState } from "../../shared/queue";
+import type { QueueCount, JobState } from "../../../shared/queue";
 
 export function QueuePage() {
   const [counts, setCounts] = useState<QueueCount[]>([]);

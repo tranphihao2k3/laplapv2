@@ -14,9 +14,10 @@
     "noImplicitOverride": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "types": []
   },
   "include": [
+    "ambient.d.ts",
     "src/renderer/**/*.ts",
     "src/renderer/**/*.tsx",
     "src/shared/**/*.ts"

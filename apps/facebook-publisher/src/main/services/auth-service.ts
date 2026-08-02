@@ -21,7 +21,8 @@ import {
   saveRefreshToken,
   type AccessTokenHolder,
 } from "../security/token-storage";
-import type { SupabaseAuthClient, SupabaseTokensResponse } from "../api/supabase-auth-client";
+import { SupabaseAuthClient } from "../api/supabase-auth-client";
+import type { SupabaseTokensResponse } from "../api/supabase-auth-client";
 
 export type AuthStatus =
   | { kind: "anonymous" }

@@ -38,15 +38,15 @@ export type VariantUpsert = {
 };
 
 export class ProductRepository extends BaseRepo {
-  private readonly upsertProductStmt: Database.Statement;
-  private readonly upsertVariantStmt: Database.Statement;
-  private readonly listByOrgStmt: Database.Statement;
-  private readonly findProductStmt: Database.Statement;
-  private readonly listVariantsStmt: Database.Statement;
-  private readonly countActiveStmt: Database.Statement;
-  private readonly maxSyncedAtStmt: Database.Statement;
+  private readonly upsertProductStmt: any;
+  private readonly upsertVariantStmt: any;
+  private readonly listByOrgStmt: any;
+  private readonly findProductStmt: any;
+  private readonly listVariantsStmt: any;
+  private readonly countActiveStmt: any;
+  private readonly maxSyncedAtStmt: any;
 
-  constructor(db: Database.Database) {
+  constructor(db: any) {
     super(db);
     this.upsertProductStmt = db.prepare(`
       INSERT INTO product_cache

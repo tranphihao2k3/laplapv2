@@ -63,7 +63,7 @@ function Sidebar() {
           <li key={item.to}>
             <NavLink
               to={item.to}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 `block rounded px-3 py-2 hover:bg-muted-50 ${
                   isActive ? "bg-primary-50 text-primary-700" : "text-muted-900"
                 }`

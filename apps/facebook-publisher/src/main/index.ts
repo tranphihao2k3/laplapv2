@@ -45,7 +45,7 @@ function isRendererAllowedUrl(url: string): boolean {
   return false;
 }
 
-function createMainWindow(): BrowserWindow {
+function createMainWindow(): InstanceType<typeof BrowserWindow> {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -67,7 +67,7 @@ function createMainWindow(): BrowserWindow {
 
   win.once("ready-to-show", () => win.show());
 
-  win.webContents.on("will-navigate", (event, url) => {
+  win.webContents.on("will-navigate", (event: any, url: string) => {
     if (!isRendererAllowedUrl(url)) {
       event.preventDefault();
       console.warn(`[main] blocked navigation to ${url}`);
@@ -77,7 +77,7 @@ function createMainWindow(): BrowserWindow {
     }
   });
 
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
     console.warn(`[main] blocked window.open for ${url}`);
     if (url.startsWith("https://")) {
       void shell.openExternal(url).catch(() => undefined);
@@ -95,7 +95,7 @@ function createMainWindow(): BrowserWindow {
 }
 
 function configureSession(): void {
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+  session.defaultSession.webRequest.onHeadersReceived((details: any, callback: (response: any) => void) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
