@@ -47,6 +47,7 @@ import type {
   TemplatePreviewRequest,
   TemplatePreviewResponse,
   TemplateRecord,
+  WorkerStatus,
 } from "../shared/publisher-api";
 
 const getAppVersionInputSchema = z.tuple([]);
@@ -303,6 +304,14 @@ const api: PublisherApi = {
     invokeOneArg<JobAttemptRecord[]>(IpcChannel.QueueAttempts, z.string().uuid(), id),
   queuePreflight: (id: unknown) =>
     invokeOneArg<PreflightResult>(IpcChannel.QueuePreflight, z.string().uuid(), id),
+
+  // QUE-002 — Worker controls
+  workerStart: () => invoke<WorkerStatus>(IpcChannel.WorkerStart, EMPTY_TUPLE),
+  workerPause: () => invoke<WorkerStatus>(IpcChannel.WorkerPause, EMPTY_TUPLE),
+  workerResume: () => invoke<WorkerStatus>(IpcChannel.WorkerResume, EMPTY_TUPLE),
+  workerStop: () =>
+    invoke<{ paused: boolean; cancelled: number }>(IpcChannel.WorkerStop, EMPTY_TUPLE),
+  workerStatus: () => invoke<WorkerStatus>(IpcChannel.WorkerStatus, EMPTY_TUPLE),
 };
 
 const groupUpsertInputSchema = z.object({

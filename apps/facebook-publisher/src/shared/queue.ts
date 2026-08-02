@@ -34,3 +34,14 @@ export type QueueCount = {
   state: JobState;
   count: number;
 };
+
+export type WorkerStatus = {
+  running: boolean;
+  paused: boolean;
+  emergencyStop: boolean;
+  currentJobId: string | null;
+  totalProcessed: number;
+  totalSucceeded: number;
+  totalFailed: number;
+  totalSkipped: number;
+};

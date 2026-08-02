@@ -62,6 +62,11 @@ export const IpcChannel = {
   QueueCounts: "queue:counts",
   QueueAttempts: "queue:attempts",
   QueuePreflight: "queue:preflight",
+  WorkerStart: "worker:start",
+  WorkerPause: "worker:pause",
+  WorkerResume: "worker:resume",
+  WorkerStop: "worker:emergency-stop",
+  WorkerStatus: "worker:status",
 } as const;
 export type IpcChannelValue = (typeof IpcChannel)[keyof typeof IpcChannel];
 

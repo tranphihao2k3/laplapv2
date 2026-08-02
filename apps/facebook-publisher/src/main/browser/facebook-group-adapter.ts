@@ -165,4 +165,74 @@ export class FacebookGroupAdapter {
   }
 }
 
+/**
+ * PW-006 — Phân loại kết quả sau khi click Submit.
+ *
+ * - Nếu URL hiện tại có `/posts/permalink...` → published, lưu postUrl.
+ * - Nếu URL chứa `/checkpoint` hoặc `/captcha` → needs_action.
+ * - Nếu marker `pending-approval` xuất hiện trong DOM → pending_approval.
+ * - Nếu marker `needs-action` xuất hiện → needs_action.
+ * - Nếu caller truyền `postUrlHint` (vd. lấy từ nút "Bài viết của tôi") → published.
+ * - Mặc định: unverified (KHÔNG auto retry, chờ user kiểm tra).
+ */
+export type PostResult =
+  | { kind: "published"; postUrl: string }
+  | { kind: "pending_approval" }
+  | { kind: "needs_action" }
+  | { kind: "unverified"; reason: string };
+
+export function classifyPostResult(input: {
+  page: Page;
+  postUrlHint: string;
+}): PostResult {
+  const url = (input.page.url() ?? "").toString();
+
+  if (/\/(posts|permalink|photos\/a)\//.test(url)) {
+    return { kind: "published", postUrl: url };
+  }
+  if (/\/checkpoint|\/captcha/.test(url)) {
+    return { kind: "needs_action" };
+  }
+  // postUrlHint từ caller — nguồn đáng tin.
+  if (input.postUrlHint && /\/posts\/|\/permalink\//.test(input.postUrlHint)) {
+    return { kind: "published", postUrl: input.postUrlHint };
+  }
+
+  // DOM marker inspection: dùng evaluateSync (Playwright hỗ trợ sẵn).
+  const page = input.page as any;
+  if (typeof page.evaluateSync === "function") {
+    const sync = page.evaluateSync(
+      "() => !!document.querySelector('[data-pending-approval]')",
+    );
+    if (sync) return { kind: "pending_approval" };
+  }
+
+  // Default: unverified (do NOT auto-classify published).
+  return { kind: "unverified", reason: "no post URL / marker found after submit" };
+}
+
+export function classifyPostResultAsync(input: {
+  page: Page;
+  postUrlHint: string;
+}): Promise<PostResult> {
+  return (async () => {
+    const r = classifyPostResult(input);
+    if (r.kind !== "unverified") return r;
+    // Check DOM marker async — eval trong page context (page có document).
+    try {
+      const hasPending = await (input.page as any).evaluate(
+        "() => !!document.querySelector('[data-pending-approval]')",
+      );
+      if (hasPending) return { kind: "pending_approval" };
+      const hasNeeds = await (input.page as any).evaluate(
+        "() => !!document.querySelector('[data-needs-action]')",
+      );
+      if (hasNeeds) return { kind: "needs_action" };
+    } catch {
+      // ignore
+    }
+    return r;
+  })();
+}
+
 export { AppError };

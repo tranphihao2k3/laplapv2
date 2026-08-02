@@ -36,6 +36,7 @@ type AppStore = AuthState &
     login: (input: { email: string; password: string }) => Promise<AuthStatus>;
     logout: () => Promise<void>;
     patchSettings: (patch: SettingsPatch) => Promise<void>;
+    resetSettings: () => Promise<void>;
   };
 
 const initial: AuthState & SettingsState = {
@@ -121,6 +122,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       throw new Error(result.error.message);
     }
     set({ data: result.data, loading: false });
+  },
+
+  async resetSettings() {
+    const api = window.publisherApi;
+    if (!api) return;
+    const result = await api.settingsReset();
+    if (result.ok) set({ data: result.data });
   },
 }));
 

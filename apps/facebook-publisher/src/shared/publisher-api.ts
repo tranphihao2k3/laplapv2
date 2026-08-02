@@ -45,6 +45,7 @@ import type {
   PreflightResult,
   QueueCount,
   RecoveryReport,
+  WorkerStatus,
 } from "./queue";
 
 export type { IpcResult, AppSettings, SettingsPatch, AuthStatus };
@@ -76,6 +77,7 @@ export type {
   PreflightResult,
   QueueCount,
   RecoveryReport,
+  WorkerStatus,
 };
 
 export interface PublisherApi {
@@ -180,4 +182,11 @@ export interface PublisherApi {
   queueCounts: () => Promise<IpcResult<QueueCount[]>>;
   queueAttempts: (jobId: string) => Promise<IpcResult<JobAttemptRecord[]>>;
   queuePreflight: (jobId: string) => Promise<IpcResult<PreflightResult>>;
+
+  // QUE-002 — Worker controls.
+  workerStart: () => Promise<IpcResult<WorkerStatus>>;
+  workerPause: () => Promise<IpcResult<WorkerStatus>>;
+  workerResume: () => Promise<IpcResult<WorkerStatus>>;
+  workerStop: () => Promise<IpcResult<{ paused: boolean; cancelled: number }>>;
+  workerStatus: () => Promise<IpcResult<WorkerStatus>>;
 }

@@ -37,6 +37,7 @@ import { checkSessionHealth } from "../browser/session-health";
 import { QueueService } from "../services/queue-service";
 import { RecoveryService } from "../services/recovery-service";
 import { PreflightService } from "../services/preflight-service";
+import { SerialWorker } from "../services/serial-worker";
 import { env } from "../env";
 
 let settingsService: SettingsService | null = null;
@@ -61,6 +62,7 @@ let diagnosticsService: DiagnosticsService | null = null;
 let queueService: QueueService | null = null;
 let recoveryService: RecoveryService | null = null;
 let preflightService: PreflightService | null = null;
+let serialWorker: SerialWorker | null = null;
 
 export function initServices(db: import("better-sqlite3").Database): void {
   const settingsRepo = new SettingsRepository(db);
@@ -106,6 +108,13 @@ export function initServices(db: import("better-sqlite3").Database): void {
   queueService = new QueueService(postJobRepository);
   recoveryService = new RecoveryService(postJobRepository, queueService);
   preflightService = new PreflightService(postJobRepository, settingsRepo);
+  // SerialWorker (QUE-002) — runner thật được wire trong main/index.ts sau khi
+  // các service khác đã sẵn sàng (cần FacebookGroupAdapter, BrowserProfileManager).
+  // Ở đây tạo placeholder runner chỉ để type-check; main process sẽ replace.
+  serialWorker = new SerialWorker(postJobRepository, queueService, async (job) => {
+    void job;
+    return { toState: "skipped", errorCode: "WORKER_NOT_WIRED" };
+  });
 }
 
 export function getCachedSettingsService(): SettingsService {
@@ -277,4 +286,11 @@ export function getCachedPreflightService(): PreflightService {
     throw new AppError("SERVICE_NOT_READY", "PreflightService chưa sẵn sàng", 503);
   }
   return preflightService;
+}
+
+export function getCachedSerialWorker(): SerialWorker {
+  if (!serialWorker) {
+    throw new AppError("SERVICE_NOT_READY", "SerialWorker chưa sẵn sàng", 503);
+  }
+  return serialWorker;
 }

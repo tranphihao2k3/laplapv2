@@ -64,6 +64,7 @@ import {
   getCachedProductRepository,
   getCachedQueueService,
   getCachedRecoveryService,
+  getCachedSerialWorker,
   getCachedSettingsService,
   getCachedSupabaseAuthClient,
   getCachedTemplateRepository,
@@ -223,6 +224,9 @@ const queueCancelCampaignSchema = z.tuple([z.string().uuid()]);
 const queueCountsSchema = z.tuple([]);
 const queueAttemptsSchema = z.tuple([z.string().uuid()]);
 const queuePreflightSchema = z.tuple([z.string().uuid()]);
+
+// QUE-002
+const EMPTY_TUPLE = z.tuple([]);
 
 /** Validate payload theo schema; throw AppError nếu fail. */
 function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
@@ -544,6 +548,29 @@ export function registerIpcHandlers(): void {
       apiBaseUrl: settings.get().apiBaseUrl,
       accessToken,
     });
+  });
+
+  // QUE-002 — Worker controls.
+  handle(IpcChannel.WorkerStart, EMPTY_TUPLE, async () => {
+    const w = getCachedSerialWorker();
+    w.start();
+    return w.getStatus();
+  });
+  handle(IpcChannel.WorkerPause, EMPTY_TUPLE, async () => {
+    const w = getCachedSerialWorker();
+    w.pause();
+    return w.getStatus();
+  });
+  handle(IpcChannel.WorkerResume, EMPTY_TUPLE, async () => {
+    const w = getCachedSerialWorker();
+    w.resume();
+    return w.getStatus();
+  });
+  handle(IpcChannel.WorkerStop, EMPTY_TUPLE, async () => {
+    return getCachedSerialWorker().emergencyStop();
+  });
+  handle(IpcChannel.WorkerStatus, EMPTY_TUPLE, async () => {
+    return getCachedSerialWorker().getStatus();
   });
 }
 

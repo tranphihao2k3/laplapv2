@@ -43,6 +43,8 @@ export class PostJobRepository extends BaseRepo {
   private readonly insertStmt: any;
   private readonly findByIdStmt: any;
   private readonly listByStateStmt: any;
+  private readonly listByStatesStmt: any;
+  private readonly findNextQueuedStmt: any;
   private readonly listByCampaignStmt: any;
   private readonly countAttemptsStmt: any;
   private readonly updateStateStmt: any;
@@ -57,6 +59,12 @@ export class PostJobRepository extends BaseRepo {
     this.findByIdStmt = db.prepare(`SELECT * FROM post_jobs WHERE id = ?`);
     this.listByStateStmt = db.prepare(
       `SELECT * FROM post_jobs WHERE state = ? ORDER BY created_at ASC`,
+    );
+    this.listByStatesStmt = db.prepare(
+      `SELECT * FROM post_jobs WHERE state IN (?, ?) ORDER BY created_at ASC`,
+    );
+    this.findNextQueuedStmt = db.prepare(
+      `SELECT * FROM post_jobs WHERE state = 'queued' ORDER BY created_at ASC LIMIT 1`,
     );
     this.listByCampaignStmt = db.prepare(
       `SELECT * FROM post_jobs WHERE campaign_id = ? ORDER BY created_at ASC`,
@@ -102,6 +110,18 @@ export class PostJobRepository extends BaseRepo {
 
   listByState(state: JobState): PostJobRow[] {
     return this.listByStateStmt.all(state) as PostJobRow[];
+  }
+
+  /** Lấy các job có state ∈ [a, b]. Hữu ích cho cancel pending. */
+  listByStates(states: JobState[]): PostJobRow[] {
+    if (states.length === 0) return [];
+    if (states.length === 1) return this.listByState(states[0] as JobState);
+    return this.listByStatesStmt.all(states[0], states[1]) as PostJobRow[];
+  }
+
+  /** Job queued tiếp theo (FIFO theo created_at). */
+  findNextQueued(): PostJobRow | undefined {
+    return this.findNextQueuedStmt.get() as PostJobRow | undefined;
   }
 
   listByCampaign(campaignId: string): PostJobRow[] {
