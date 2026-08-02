@@ -3,7 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+    <!--
+      CSP: dev mode cần 'unsafe-inline' + 'unsafe-eval' cho Vite HMR (@react-refresh,
+      @vite/client inject inline module). Production build nhúng bundle self-contained
+      nên chỉ cần 'self' — main process onHeadersReceived sẽ override CSP header
+      cho response thật (chính sách cứng hơn).
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: http://localhost:5173 http://localhost:5174 https://*.supabase.co;" />
     <title>LapLap Facebook Publisher</title>
   </head>
   <body>

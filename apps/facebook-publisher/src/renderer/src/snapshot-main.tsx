@@ -1,16 +1,19 @@
 /**
- * App root — Router + bootstrap.
+ * Snapshot entry — giống renderer/src/main.tsx nhưng dùng HashRouter.
  *
- * Mount trong main.tsx. Bootstrap gọi publisherApi.authGetStatus +
- * settingsGet song song → render Layout với auth guard tuỳ route.
+ * BrowserRouter không hoạt động với file:// scheme (Electron load snapshot
+ * HTML qua file://). HashRouter đọc hash từ window.location.hash — match
+ * đúng với URL `file:///path/index.html#/catalog` mà snapshot script tạo ra.
  *
- * Trong M3, các route /catalog, /groups, /templates là placeholder —
- * CAT-001 / GRP-001 / TPL-001 sẽ gắn vào sau.
+ * Boot giống production main.tsx (load CSS, expose store, set bypass flag
+ * từ localStorage), nhưng KHÔNG gọi publisherApi.authGetStatus — snapshot
+ * mode set status qua main process executeJavaScript sau khi mount.
  */
-import { useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import "./styles.css";
+import { createRoot } from "react-dom/client";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/layout";
-import { useAppStore, useAuth } from "./store/app-store";
+import { useAppStore } from "./store/app-store";
 import { CatalogPage } from "./pages/catalog";
 import { GroupsPage } from "./pages/groups";
 import { TemplatesPage } from "./pages/templates";
@@ -21,39 +24,29 @@ import { QueuePage } from "./pages/queue";
 import { HistoryPage } from "./pages/history";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const status = useAuth();
-  // Snapshot mode bypass (CI/headless): cho phép render để chụp các trang protected
-  // mà không cần gọi auth IPC thật. Set bởi main process hoặc snapshot HTML script
-  // trước khi React mount (xem scripts/ui-snapshot.ts + src/snapshot/index.html).
-  // Check cả window flag và localStorage — localStorage chắc chắn persist giữa
-  // page loads khi snapshot script navigate qua các hash route khác nhau.
+  const status = useAppStore((s) => s.status);
+  // Snapshot mode luôn bypass — set qua window flag bởi snapshot/index.html
+  // hoặc qua localStorage nếu page reload.
   if (typeof window !== "undefined") {
     const wFlag = (window as unknown as { __SNAPSHOT_BYPASS__?: boolean }).__SNAPSHOT_BYPASS__;
     let lsFlag = false;
     try {
       lsFlag = localStorage.getItem("__SNAPSHOT_BYPASS__") === "1";
     } catch {
-      // localStorage có thể block trong một số context.
+      // ignore
     }
     if (wFlag || lsFlag) {
       return <>{children}</>;
     }
   }
-  // status null = chưa bootstrap; hiển thị loading ngắn.
   if (status === null) return <p className="text-sm text-muted-500">Đang tải…</p>;
   if (status.kind !== "authenticated") return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
-export function App() {
-  const bootstrap = useAppStore((s) => s.bootstrap);
-
-  useEffect(() => {
-    void bootstrap();
-  }, [bootstrap]);
-
+function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route
@@ -73,6 +66,29 @@ export function App() {
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
+}
+
+const container = document.getElementById("root");
+if (!container) throw new Error("Missing #root container in snapshot/index.html");
+
+(window as unknown as { __APP_STORE__: typeof useAppStore }).__APP_STORE__ = useAppStore;
+try {
+  if (localStorage.getItem("__SNAPSHOT_BYPASS__") === "1") {
+    (window as unknown as { __SNAPSHOT_BYPASS__: boolean }).__SNAPSHOT_BYPASS__ = true;
+  }
+} catch {
+  // ignore
+}
+
+createRoot(container).render(<App />);
+
+// Báo cho main process biết mount OK.
+try {
+  if ((window as unknown as { __SNAPSHOT_BYPASS__?: boolean }).__SNAPSHOT_BYPASS__) {
+    (window as unknown as { __SNAPSHOT_MOUNTED__: boolean }).__SNAPSHOT_MOUNTED__ = true;
+  }
+} catch {
+  // ignore
 }

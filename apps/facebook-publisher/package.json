@@ -23,6 +23,8 @@
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-builder install-app-deps",
     "smoke": "tsx scripts/smoke.ts",
+    "snapshot:build": "vite build --config electron.vite.config.snapshot.ts",
+    "snapshot": "npm run snapshot:build && tsx scripts/ui-snapshot.ts",
     "clean": "rimraf out dist release .electron-vite"
   },
   "dependencies": {

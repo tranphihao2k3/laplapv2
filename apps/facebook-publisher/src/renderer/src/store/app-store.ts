@@ -73,7 +73,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
         loading: false,
       });
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : String(err), loading: false });
+      // Bug fix: nếu chỉ settings fail nhưng auth vẫn trả anonymous,
+      // vẫn phải set status để RequireAuth thoát khỏi "Đang tải…" mãi.
+      // Strategy: set status về anonymous + defaults để UI vẫn render được.
+      const api = window.publisherApi;
+      let fallbackStatus: AuthStatus | null = null;
+      try {
+        const r = await api?.authGetStatus();
+        if (r && r.ok) fallbackStatus = r.data;
+      } catch {
+        // ignore
+      }
+      set({
+        status: fallbackStatus ?? { kind: "anonymous" as const },
+        error: err instanceof Error ? err.message : String(err),
+        loading: false,
+      });
     }
   },
 

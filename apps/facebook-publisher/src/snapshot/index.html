@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co;" />
+    <title>LapLap Facebook Publisher — Snapshot</title>
+    <script>
+      // Snapshot mode: set bypass auth flag trước khi React bundle load.
+      // Main process (scripts/ui-snapshot.ts) spawn Electron với env này;
+      // đồng thời còn inject mock store qua executeJavaScript sau khi page load.
+      // Capture errors + console để main process đọc qua executeJavaScript.
+      window.__SNAPSHOT_ERRORS__ = [];
+      window.addEventListener("error", (e) => {
+        window.__SNAPSHOT_ERRORS__.push(`error: ${e.message} @ ${e.filename}:${e.lineno}`);
+      });
+      window.addEventListener("unhandledrejection", (e) => {
+        window.__SNAPSHOT_ERRORS__.push(`reject: ${e.reason}`);
+      });
+      try {
+        localStorage.setItem('__SNAPSHOT_BYPASS__', '1');
+        window.__SNAPSHOT_BYPASS__ = true;
+      } catch (e) {
+        window.__SNAPSHOT_ERRORS__.push(`setItem fail: ${e}`);
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      Snapshot entry: re-bundle renderer app từ main.tsx. Tách riêng khỏi
+      renderer/index.html để (1) tránh leak 'unsafe-inline' CSP vào production
+      build, (2) inject bypass flag trước khi React mount.
+    -->
+    <script type="module" src="../renderer/src/snapshot-main.tsx"></script>
+  </body>
+</html>
