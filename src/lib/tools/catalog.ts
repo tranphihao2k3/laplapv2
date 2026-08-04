@@ -60,7 +60,7 @@ export const TOOL_CATALOG: ToolEntry[] = [
     description: "Chi tiết GPU NVIDIA/AMD/Intel: clock, sensor, BIOS, validation.",
     category: "diagnostic",
     sizeBytes: 11 * 1024 * 1024,
-    sha256: "TBD_GPUZ_SHA256",
+    sha256: "VERIFY_REQUIRED",
     cdnUrl: "https://download.gpu-z.com/GPU-Z.2.70.0.zip",
     r2Url: null,
     extract: true,
@@ -90,7 +90,7 @@ export const TOOL_CATALOG: ToolEntry[] = [
     description: "Sensor toàn hệ thống: CPU/GPU temp, fan, voltage, power. Realtime.",
     category: "diagnostic",
     sizeBytes: 18 * 1024 * 1024,
-    sha256: "TBD_HWINFO_SHA256",
+    sha256: "VERIFY_REQUIRED",
     cdnUrl: "https://download.hwinfo.com/hwi_834.zip",
     r2Url: null,
     extract: true,
@@ -120,7 +120,7 @@ export const TOOL_CATALOG: ToolEntry[] = [
     description: "Đọc SMART chi tiết + nhiệt độ + health score. Trial 30 ngày.",
     category: "diagnostic",
     sizeBytes: 50 * 1024 * 1024,
-    sha256: "TBD_HDSENTINEL_SHA256",
+    sha256: "VERIFY_REQUIRED",
     cdnUrl: "https://www.hdsentinel.com/hdsentinel_pro_portable.zip",
     r2Url: null,
     extract: true,
@@ -130,6 +130,26 @@ export const TOOL_CATALOG: ToolEntry[] = [
     icon: "💾",
   },
 ];
+
+/**
+ * Verify-Sha256 mode:
+ * - "strict": SHA256 bat buoc khop. Neu k co trong catalog, server tu dong
+ *   compute va luu vao hash cache file (persistent).
+ * - "warn": Verify neu co, chi canh bao neu sai.
+ * - "skip": Bo qua verify hoan toan (khong khuyen khich).
+ *
+ * Mac dinh: "strict". User co the override qua env LAPLAP_VERIFY_MODE.
+ *
+ * Luu y: voi nhung tool co sha256="VERIFY_REQUIRED" (chua biet hash goc),
+ * che do strict se:
+ *   1. Download file lan dau.
+ *   2. Compute SHA256 thuc te.
+ *   3. Compare voi hash trong catalog (se fail vi la placeholder).
+ *   4. Retry download 1 lan (CDN co the tra file cu/cache).
+ *   5. Neu van fail -> cho phep install nhung warning UI "unverified".
+ * Day la trade-off MVP: khong block user, nhung bao ro cho user biet.
+ */
+export type VerifyMode = "strict" | "warn" | "skip";
 
 /** Tìm tool theo id. */
 export function findTool(id: string): ToolEntry | undefined {

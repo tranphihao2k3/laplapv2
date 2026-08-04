@@ -976,6 +976,26 @@ interface ToolInfo {
   icon: string;
   requiresAdmin: boolean;
   downloadEndpoint: string;
+  sha256: string;
+  verifyMode: "verified" | "required" | "skip";
+}
+
+type Stage =
+  | "idle"
+  | "downloading"
+  | "verifying"
+  | "extracting"
+  | "launching"
+  | "done"
+  | "error";
+
+interface ProgressInfo {
+  stage: Stage;
+  percent: number;
+  message: string;
+  actualSha256?: string;
+  verifyStatus?: "ok" | "mismatch" | "skipped" | "unverified";
+  issuedAt: number;
 }
 
 function ToolsPanel({ token }: { token: string }) {
@@ -983,7 +1003,12 @@ function ToolsPanel({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [recentlyLaunched, setRecentlyLaunched] = useState<string | null>(null);
+  // Progress theo toolId: luu stage + percent + message + verify.
+  const [progressMap, setProgressMap] = useState<Record<string, ProgressInfo>>({});
+  // SHA256 verify result (separate de highlight UI).
+  const [verifyMap, setVerifyMap] = useState<Record<string, "ok" | "mismatch" | "unverified" | "skipped" | null>>({});
 
+  // Load catalog 1 lan khi mount.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1003,6 +1028,66 @@ function ToolsPanel({ token }: { token: string }) {
       cancelled = true;
     };
   }, []);
+
+  // Poll progress moi 1.5s khi co it nhat 1 tool dang pending hoac vua launch.
+  // Ngung poll sau khi stage="done" hoac "error" va reset 30s sau.
+  useEffect(() => {
+    if (!token) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let active = true;
+
+    const tick = async () => {
+      if (!active) return;
+      try {
+        const res = await fetch(
+          `/api/v1/system-scan/progress?token=${encodeURIComponent(token)}`,
+        );
+        const json = await res.json();
+        const cur = json?.data?.current;
+        if (cur && active) {
+          setProgressMap((prev) => ({
+            ...prev,
+            [cur.toolId]: {
+              stage: cur.stage as Stage,
+              percent: cur.percent ?? 0,
+              message: cur.message ?? "",
+              actualSha256: cur.actualSha256,
+              verifyStatus: cur.verifyStatus,
+              issuedAt: cur.issuedAt ?? Date.now(),
+            },
+          }));
+          // Track verify result.
+          if (cur.verifyStatus) {
+            setVerifyMap((prev) => ({ ...prev, [cur.toolId]: cur.verifyStatus }));
+          }
+          // Auto-stop polling sau khi done/error + 5s grace.
+          if (cur.stage === "done" || cur.stage === "error") {
+            setTimeout(() => {
+              setProgressMap((prev) => {
+                const next = { ...prev };
+                delete next[cur.toolId];
+                return next;
+              });
+            }, 5000);
+            return; // stop loop
+          }
+        }
+      } catch (e) {
+        // Silent
+      }
+      if (active) timer = setTimeout(tick, 1500);
+    };
+
+    // Chi poll khi co progress dang theo doi (recentlyLaunched != null).
+    if (recentlyLaunched) {
+      tick();
+    }
+
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [token, recentlyLaunched]);
 
   const handleLaunch = async (tool: ToolInfo) => {
     if (!token) {
@@ -1089,14 +1174,21 @@ function ToolsPanel({ token }: { token: string }) {
           {tools.map((t) => {
             const isPending = pending.has(t.id);
             const isRecent = recentlyLaunched === t.id;
+            const progress = progressMap[t.id];
+            const verifyState = verifyMap[t.id];
+            const stage = progress?.stage;
+            const percent = progress?.percent ?? 0;
+
+            // Card border theo state.
+            let cardClass = "border-zinc-200 bg-white hover:border-zinc-400";
+            if (stage === "error") cardClass = "border-red-300 bg-red-50";
+            else if (isRecent && stage === "done") cardClass = "border-green-300 bg-green-50";
+            else if (isRecent) cardClass = "border-blue-300 bg-blue-50";
+
             return (
               <div
                 key={t.id}
-                className={`group rounded-lg border p-3 transition ${
-                  isRecent
-                    ? "border-green-300 bg-green-50"
-                    : "border-zinc-200 bg-white hover:border-zinc-400"
-                }`}
+                className={`group rounded-lg border p-3 transition ${cardClass}`}
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -1116,18 +1208,71 @@ function ToolsPanel({ token }: { token: string }) {
                       </p>
                     </div>
                   </div>
+                  {/* Verify badge: hien thi trang thai verify SHA256 */}
+                  {t.verifyMode === "verified" && (
+                    <Badge variant="outline" className="border-green-300 px-1.5 py-0 text-[10px] text-green-700">
+                      Verified
+                    </Badge>
+                  )}
+                  {t.verifyMode === "required" && verifyState == null && (
+                    <Badge variant="outline" className="border-amber-300 px-1.5 py-0 text-[10px] text-amber-700">
+                      Unverified
+                    </Badge>
+                  )}
                 </div>
                 <p className="mb-3 line-clamp-2 text-xs text-zinc-600">
                   {t.description}
                 </p>
+
+                {/* Progress bar + status neu dang trong qua trinh */}
+                {isRecent && progress && stage !== "idle" && stage !== "done" && (
+                  <div className="mb-2">
+                    <div className="mb-1 flex items-center justify-between text-[11px]">
+                      <span className="text-zinc-600">
+                        {progress.message || stage}
+                      </span>
+                      <span className="font-mono text-zinc-500">{percent}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
+                      <div
+                        className={`h-full transition-all ${
+                          stage === "error"
+                            ? "bg-red-500"
+                            : stage === "verifying"
+                              ? "bg-amber-500"
+                              : "bg-blue-500"
+                        }`}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Verify result message (sau khi hoan tat). */}
+                {isRecent && stage === "done" && verifyState === "ok" && (
+                  <p className="mb-2 text-[11px] text-green-700">✓ SHA256 verified</p>
+                )}
+                {isRecent && stage === "done" && verifyState === "unverified" && (
+                  <p className="mb-2 text-[11px] text-amber-700">
+                    ⚠ File chua co hash chuan trong catalog (nhma tinh nhuan)
+                  </p>
+                )}
+                {isRecent && stage === "error" && (
+                  <p className="mb-2 text-[11px] text-red-700">
+                    ✗ Loi: {progress?.message || "khong ro"}
+                  </p>
+                )}
+
                 <Button
                   onClick={() => handleLaunch(t)}
                   disabled={isPending}
                   size="sm"
                   className={`w-full ${
-                    isRecent
+                    isRecent && stage === "done"
                       ? "bg-green-600 hover:bg-green-700"
-                      : "bg-zinc-900 hover:bg-zinc-700"
+                      : isRecent
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "bg-zinc-900 hover:bg-zinc-700"
                   } text-white`}
                 >
                   {isPending ? (
@@ -1135,10 +1280,35 @@ function ToolsPanel({ token }: { token: string }) {
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                       Dang gui lenh...
                     </>
-                  ) : isRecent ? (
+                  ) : isRecent && stage === "downloading" ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Dang tai... {percent}%
+                    </>
+                  ) : isRecent && stage === "verifying" ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Verify SHA256...
+                    </>
+                  ) : isRecent && stage === "extracting" ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Giai nen...
+                    </>
+                  ) : isRecent && stage === "launching" ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Dang mo...
+                    </>
+                  ) : isRecent && stage === "done" ? (
                     <>
                       <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                      Da gui - cho mo
+                      Da mo!
+                    </>
+                  ) : isRecent && stage === "error" ? (
+                    <>
+                      <AlertCircle className="mr-1.5 h-3.5 w-3.5" />
+                      Loi - thu lai
                     </>
                   ) : (
                     <>

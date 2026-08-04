@@ -460,6 +460,51 @@ function Test-ToolInstalled {
     return [bool]$extracted
 }
 
+function Send-Progress {
+    # Gui progress len server de UI hien thi.
+    # Su dung REST API nhe, khong block download chinh.
+    param(
+        [string]$ToolId,
+        [string]$Stage,
+        [int]$Percent = 0,
+        [string]$Message = "",
+        [string]$ActualSha256 = "",
+        [string]$VerifyStatus = ""
+    )
+    try {
+        $body = @{
+            toolId = $ToolId
+            stage = $Stage
+            percent = $Percent
+            message = $Message
+        }
+        if ($ActualSha256) { $body.actualSha256 = $ActualSha256 }
+        if ($VerifyStatus) { $body.verifyStatus = $VerifyStatus }
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes(($body | ConvertTo-Json -Compress))
+        Invoke-RestMethod -Uri "$ApiBase/api/v1/system-scan/progress?token=$ScanToken" -Method Post -Body $bytes -ContentType "application/json; charset=utf-8" -TimeoutSec 5 | Out-Null
+    } catch {
+        # Silent - progress loi khong can fail.
+    }
+}
+
+function Get-FileSha256 {
+    # Compute SHA256 cua file. Dung .NET de nhanh (PS native rat cham).
+    param([string]$Path)
+    try {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $stream = [System.IO.File]::OpenRead($Path)
+        try {
+            $hashBytes = $sha.ComputeHash($stream)
+        } finally {
+            $stream.Close()
+            $sha.Dispose()
+        }
+        return ([BitConverter]::ToString($hashBytes) -replace "-", "").ToLowerInvariant()
+    } catch {
+        return $null
+    }
+}
+
 function Invoke-ToolDownload {
     param(
         [string]$ToolId,
@@ -475,12 +520,14 @@ function Invoke-ToolDownload {
     # Neu da install roi (extract) va exec con ton tai -> chi can launch.
     if ($Extract -and (Test-ToolInstalled $ToolId $ExecName)) {
         Write-OK "$ToolName da san sang, khoi dong..."
+        Send-Progress -ToolId $ToolId -Stage "launching" -Percent 95 -Message "Da cai san, khoi dong..."
         $exe = (Get-ChildItem -Path $dir -Recurse -Filter $ExecName -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         if ($LaunchArgs -and $LaunchArgs.Count -gt 0) {
             Start-Process -FilePath $exe -ArgumentList $LaunchArgs -WorkingDirectory (Split-Path $exe -Parent)
         } else {
             Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe -Parent)
         }
+        Send-Progress -ToolId $ToolId -Stage "done" -Percent 100 -Message "Da mo $ToolName"
         return
     }
 
@@ -489,29 +536,118 @@ function Invoke-ToolDownload {
     $ext = if ($Extract) { "zip" } else { "exe" }
     $zipPath = Join-Path $dir "$ToolId.$ext"
 
+    Send-Progress -ToolId $ToolId -Stage "downloading" -Percent 0 -Message "Bat dau tai $ToolName..."
+
     Write-Step "Dang tai $ToolName tu server..."
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop
+
+        # Dung HttpClient + stream de co the bao progress % (Invoke-WebRequest
+        # ProgressBar cu chi hien thi tren console, khong hook vao duoc).
+        $wc = New-Object System.Net.WebClient
+        $wc.Headers.Add("User-Agent", "LapLap-Toolcheck-Mini/1.0")
+
+        # Hook event de bao progress len server moi 5%.
+        $lastReported = -1
+        Register-ObjectEvent -InputObject $wc -EventName DownloadProgressChanged -Action {
+            $pct = $EventArgs.ProgressPercentage
+            if ($pct - $script:lastReported -ge 5 -or $pct -eq 100) {
+                $script:lastReported = $pct
+                Send-Progress -ToolId $using:ToolId -Stage "downloading" -Percent $pct -Message "Dang tai $using:ToolName... $pct%"
+            }
+        } | Out-Null
+
+        $wc.DownloadFile($url, $zipPath)
+        $wc.Dispose()
+        Unregister-Event -SourceIdentifier $wc.DownloadProgressChanged.Name -ErrorAction SilentlyContinue
     } catch {
-        Write-Fail "Tai $ToolName that bai: $($_.Exception.Message)"
+        $msg = $_.Exception.Message
+        Write-Fail "Tai $ToolName that bai: $msg"
+        Send-Progress -ToolId $ToolId -Stage "error" -Percent 0 -Message "Loi tai: $msg"
         return
     }
 
     if (-not (Test-Path $zipPath)) {
         Write-Fail "File tai ve khong ton tai."
+        Send-Progress -ToolId $ToolId -Stage "error" -Percent 0 -Message "File khong ton tai sau tai"
         return
+    }
+
+    # === SHA256 VERIFY ===
+    # Server tra X-Tool-Sha256 qua header response. Voi Invoke-WebRequest co
+    # the lay headers tu response, voi HttpClient thi phai gui 1 request
+    # HEAD rieng. Don gian nhat: gui 1 GET request voi Range 0-0 chi de lay
+    # headers, sau do download file that.
+    #
+    # Tuy nhien vi PS native lay headers tu DownloadFile kho, ta lam theo
+    # cach thu cong: tai file, compute SHA256, verify voi expected hash.
+    # Expected hash = catalog metadata (ta hardcode trong $ExpectedSha256Map).
+    #
+    # Hash catalog (phai khop voi src/lib/tools/catalog.ts):
+    $ExpectedSha256Map = @{
+        "cpu-z"            = "320e073a6f387464ac3faac5f010b5fe70e31fab30745883d023c8372e80f3c5"
+        "furmark"          = "27ab2e723e2e65df720bcafea681d2104744eda4a1e0a0374d7e61eaa820e63b"
+        "crystaldiskmark"  = "386f1d2f05a2f8c0a1a0b7d8deda63b8fd594ad9e90a2c4e75812348398dfa53"
+        "gpu-z"            = "VERIFY_REQUIRED"
+        "hwinfo"           = "VERIFY_REQUIRED"
+        "hdsentinel"       = "VERIFY_REQUIRED"
+    }
+    $expectedHash = $ExpectedSha256Map[$ToolId]
+
+    Send-Progress -ToolId $ToolId -Stage "verifying" -Percent 75 -Message "Dang verify SHA256..."
+
+    $actualHash = Get-FileSha256 -Path $zipPath
+    if (-not $actualHash) {
+        Write-Warn "Khong the tinh SHA256, bo qua verify."
+        Send-Progress -ToolId $ToolId -Stage "verifying" -Percent 75 -Message "Bo qua verify (file read error)" -VerifyStatus "skipped"
+    } elseif ($expectedHash -eq "VERIFY_REQUIRED") {
+        # Hash chua biet -> tin tuong file nhung log de admin sau nay verify.
+        Write-Warn "Hash chua co trong catalog (VERIFY_REQUIRED). File da tai, SHA256=$actualHash"
+        Write-Host "  (Hash that: $actualHash)" -ForegroundColor DarkGray
+        Send-Progress -ToolId $ToolId -Stage "verifying" -Percent 75 -Message "Unverified (hash chua co trong catalog)" -ActualSha256 $actualHash -VerifyStatus "unverified"
+    } elseif ($actualHash -ne $expectedHash) {
+        Write-Fail "SHA256 KHONG KHOP!"
+        Write-Host "  Expected: $expectedHash" -ForegroundColor Red
+        Write-Host "  Actual:   $actualHash" -ForegroundColor Red
+        Write-Warn "File co the bi hong hoac bi CDN cache version cu. Thu download lai 1 lan..."
+
+        Send-Progress -ToolId $ToolId -Stage "error" -Percent 50 -Message "SHA256 mismatch, retry..." -ActualSha256 $actualHash -VerifyStatus "mismatch"
+
+        # Retry 1 lan (CDN co the tra file cu).
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            (New-Object System.Net.WebClient).DownloadFile($url, $zipPath)
+        } catch {
+            Write-Fail "Retry that bai."
+            Send-Progress -ToolId $ToolId -Stage "error" -Percent 0 -Message "Retry download that bai"
+            Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            return
+        }
+
+        $actualHash2 = Get-FileSha256 -Path $zipPath
+        if ($actualHash2 -ne $expectedHash) {
+            Write-Fail "SHA256 van khong khop sau retry. Huy."
+            Send-Progress -ToolId $ToolId -Stage "error" -Percent 0 -Message "SHA256 mismatch sau retry" -ActualSha256 $actualHash2 -VerifyStatus "mismatch"
+            Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            return
+        }
+        Write-OK "SHA256 da khop sau retry."
+        Send-Progress -ToolId $ToolId -Stage "verifying" -Percent 75 -Message "Verify OK (sau retry)" -ActualSha256 $actualHash2 -VerifyStatus "ok"
+    } else {
+        Write-OK "SHA256 verified."
+        Send-Progress -ToolId $ToolId -Stage "verifying" -Percent 75 -Message "Verify OK" -ActualSha256 $actualHash -VerifyStatus "ok"
     }
 
     # Extract neu la zip.
     if ($Extract) {
+        Send-Progress -ToolId $ToolId -Stage "extracting" -Percent 85 -Message "Dang giai nen..."
         Write-Step "Dang giai nen..."
         try {
             Expand-Archive -Path $zipPath -DestinationPath $dir -Force -ErrorAction Stop
-            # Xoa zip sau khi extract thanh cong de tiet kiem disk.
             Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
         } catch {
             Write-Warn "Giai nen that bai, giu zip de debug."
+            Send-Progress -ToolId $ToolId -Stage "error" -Percent 90 -Message "Giai nen that bai: $($_.Exception.Message)"
         }
     }
 
@@ -524,17 +660,20 @@ function Invoke-ToolDownload {
 
     if (-not $exe -or -not (Test-Path $exe)) {
         Write-Fail "Khong tim thay file thuc thi $ExecName trong $dir."
+        Send-Progress -ToolId $ToolId -Stage "error" -Percent 90 -Message "Khong tim thay $ExecName"
         Write-Host "  Noi dung:" -ForegroundColor DarkGray
         Get-ChildItem -Path $dir -Recurse | Select-Object FullName | ForEach-Object { Write-Host "    $($_.FullName)" -ForegroundColor DarkGray }
         return
     }
 
+    Send-Progress -ToolId $ToolId -Stage "launching" -Percent 95 -Message "Khoi dong $ToolName..."
     Write-OK "Khoi dong $ToolName..."
     if ($LaunchArgs -and $LaunchArgs.Count -gt 0) {
         Start-Process -FilePath $exe -ArgumentList $LaunchArgs -WorkingDirectory (Split-Path $exe -Parent)
     } else {
         Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe -Parent)
     }
+    Send-Progress -ToolId $ToolId -Stage "done" -Percent 100 -Message "Da mo $ToolName"
 }
 
 function Start-CommandPoller {

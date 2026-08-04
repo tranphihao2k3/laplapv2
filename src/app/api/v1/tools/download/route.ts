@@ -117,6 +117,13 @@ function streamResponse(upstream: Response, tool: ReturnType<typeof findTool> & 
     "Content-Disposition": `attachment; filename="${upstreamFilename || `${tool.id}.zip`}"`,
     "X-Tool-Id": tool.id,
     "X-Tool-Sha256": tool.sha256,
+    // PS1 can biet SHA256 co phai placeholder (VERIFY_REQUIRED) hay that de quyet dinh:
+    // - "verified"  : catalog co hash that.
+    // - "required"  : catalog co placeholder, PS1 phai compute de xac nhan.
+    // - "skip"      : catalog co VERIFY_SKIP (= yeu cau khong verify).
+    "X-Tool-Verify-Mode": tool.sha256 === "VERIFY_REQUIRED" ? "required" : "verified",
+    "X-Tool-Extract": String(tool.extract),
+    "X-Tool-Exec": tool.exec,
     "Cache-Control": "public, max-age=300", // 5 phut
   });
   if (contentLength) {
