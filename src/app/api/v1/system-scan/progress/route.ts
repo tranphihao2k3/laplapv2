@@ -23,7 +23,7 @@ import { z } from "zod";
 import { ok, fail } from "@/lib/api/response";
 import { progressQueue, progressHistory, MAX_HISTORY } from "@/lib/tools/progress-queue";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const Body = z.object({
   toolId: z.string().min(1).max(64),

@@ -13,7 +13,7 @@ import { ok, fail } from "@/lib/api/response";
 import { findTool } from "@/lib/tools/catalog";
 import { commandQueue } from "@/lib/tools/command-queue";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const Body = z.object({
   action: z.enum(["launch-tool", "stop-tool"]),

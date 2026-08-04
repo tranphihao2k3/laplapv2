@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ok } from "@/lib/api/response";
 import { commandQueue } from "@/lib/tools/command-queue";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

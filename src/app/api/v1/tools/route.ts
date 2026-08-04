@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { TOOL_CATALOG, formatBytes } from "@/lib/tools/catalog";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET() {
   const tools = TOOL_CATALOG.map((t) => ({

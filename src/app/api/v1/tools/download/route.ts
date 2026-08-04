@@ -20,10 +20,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findTool } from "@/lib/tools/catalog";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 // Edge runtime max execution: ~30s cho streaming.
-// Tools lon (50MB) co the can hon. Can doi sang nodejs runtime neu worker dat gioi han.
-// Mac dinh dung edge de nhanh + free.
+// Tools lon (50MB) co the can hon. Dung nodejs runtime de khong bi gioi han.
+// OpenNext build cung yeu cau cac edge runtime functions phai o file rieng
+// (xem open-next config). Vi ta chi can stream binh thuong, nodejs la du.
 
 async function fetchTool(
   url: string,
