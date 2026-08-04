@@ -1,14 +1,14 @@
 /**
  * GET /api/v1/system-scan/command-poll?token=X
  *
- * Scanner goi moi 3s de lay command pending tu server.
- * Neu co command -> tra ve va xoa khoi queue.
- * Neu khong co -> tra 204 No Content (giong long-poll ngan).
+ * Scanner goi moi 3s de lay command pending tu shared queue.
+ * Neu co command -> tra ve va xoa khoi queue (atomic).
+ * Neu khong co -> tra 204 No Content.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { ok } from "@/lib/api/response";
-import { commandQueue } from "../command/route";
+import { commandQueue } from "@/lib/tools/command-queue";
 
 export const runtime = "edge";
 

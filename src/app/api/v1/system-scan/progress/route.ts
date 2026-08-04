@@ -1,14 +1,14 @@
 /**
  * POST /api/v1/system-scan/progress?token=X
- * Body: { toolId, stage, percent?, message? }
+ * Body: { toolId, stage, percent?, message?, actualSha256?, verifyStatus? }
  *
  * Scanner PS1 gui progress trong luc download/extract/launch tool.
- * Server luu vao in-memory queue (theo token) cho UI poll.
+ * Server luu vao shared queue (xem lib/tools/progress-queue) cho UI poll.
  *
  * UI goi GET /api/v1/system-scan/progress?token=X de lay progress moi nhat.
  *
- * Luu y: stage co cac gia tri sau:
- *   - "downloading" (voi percent 0-100)
+ * Stage co cac gia tri:
+ *   - "downloading"  (voi percent 0-100)
  *   - "verifying"
  *   - "extracting"
  *   - "launching"
@@ -21,6 +21,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, fail } from "@/lib/api/response";
+import { progressQueue, progressHistory, MAX_HISTORY } from "@/lib/tools/progress-queue";
 
 export const runtime = "edge";
 
@@ -36,28 +37,9 @@ const Body = z.object({
   ]),
   percent: z.number().int().min(0).max(100).optional(),
   message: z.string().max(500).optional(),
-  // SHA256 thuc te cua file sau khi verify (de UI audit).
   actualSha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
-  // Verify status: "ok" | "mismatch" | "skipped" | "unverified"
   verifyStatus: z.enum(["ok", "mismatch", "skipped", "unverified"]).optional(),
 });
-
-export interface ProgressEntry {
-  toolId: string;
-  stage: string;
-  percent: number;
-  message: string;
-  actualSha256?: string;
-  verifyStatus?: string;
-  issuedAt: number;
-}
-
-// In-memory queue. Moi token co 1 entry progress moi nhat.
-const progressQueue = new Map<string, ProgressEntry>();
-
-// Giu lai logs cuoi cung (max 50) de UI xem log stream.
-const progressHistory = new Map<string, ProgressEntry[]>();
-const MAX_HISTORY = 50;
 
 export async function POST(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -76,7 +58,7 @@ export async function POST(req: NextRequest) {
     return fail("INVALID_BODY", parsed.error.message, 400);
   }
 
-  const entry: ProgressEntry = {
+  const entry = {
     toolId: parsed.data.toolId,
     stage: parsed.data.stage,
     percent: parsed.data.percent ?? 0,
@@ -121,6 +103,3 @@ export async function DELETE(req: NextRequest) {
   progressHistory.delete(token);
   return ok({ cleared: true });
 }
-
-// Export de cac route khac co the reference (testing).
-export { progressQueue, progressHistory };
