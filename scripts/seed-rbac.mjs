@@ -42,7 +42,17 @@ function die(label, error) {
   process.exit(1);
 }
 
-// --- Danh sách quyền (khớp với rbac-presets.ts) ---
+// --- Danh sách quyền ---
+// CẢNH BÁO: danh sách này bị TRÙNG LẶP với PERMISSION_PRESETS trong
+// src/lib/rbac-presets.ts (script .mjs không import trực tiếp file .ts được).
+// Thêm quyền mới PHẢI sửa CẢ HAI chỗ.
+//
+// Vì sao quan trọng: role admin có perms "all", nhưng "all" được so khớp với
+// PERMISSION_CODES sinh ra từ CHÍNH danh sách dưới đây (xem bước 5). Nếu quyền
+// mới chỉ có trong rbac-presets.ts (hoặc chỉ được INSERT bằng migration) thì
+// script này không biết → KHÔNG gán vào role nào → requirePermission() và RLS
+// luôn chặn, dù quyền đã tồn tại trong bảng permissions.
+// Kiểm tra sau khi seed: node scripts/verify-tools-setup.mjs
 const PERMISSIONS = [
   // API yêu cầu
   { code: "orders.create", description: "Tạo đơn hàng / checkout — /api/v1/checkout" },
@@ -175,6 +185,7 @@ const PERMISSIONS = [
   { code: "reports.read", description: "Xem báo cáo" },
   // Quản trị
   { code: "admin.manage_users", description: "Tạo / quản lý tài khoản người dùng" },
+  { code: "admin.manage_tools", description: "Upload/sửa/xóa công cụ kiểm tra — /api/v1/admin/tools/*" },
   { code: "settings.read", description: "Xem cài đặt hệ thống" },
   { code: "settings.create", description: "Tạo cài đặt" },
   { code: "settings.update", description: "Cập nhật cài đặt" },
