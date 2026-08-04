@@ -1,46 +1,30 @@
 /**
  * GET /api/v1/tools/download?toolId=cpu-z
  *
- * Server proxy stream file tool tu CDN/R2 ve client.
+ * Server proxy stream file tool tu R2 ve client.
  *
- * Ly do can server proxy (khong cho client goi truc tiep):
- * 1. R2 private URL can signature -> moi lan phai ky moi signature.
- *    Neu client goi truc tiep, URL se expire sau 1h -> user download fail.
- * 2. CDN goc co the redirect, block bot, hoac thay doi URL khong kip.
- *    Server lay fresh URL moi request -> on dinh hon.
- * 3. Tracking: biet tool nao dang duoc tai nhieu nhat.
- *
- * Luong:
+ * LUONG:
  * 1. Validate toolId.
- * 2. Neu co R2 binding (TOOLS_BUCKET), thi thu lay tu R2 truoc.
- * 3. Neu R2 fail hoac khong co, fallback CDN.
- * 4. Stream response ve client.
+ * 2. Query DB `tools` -> lay r2_key, sha256, exec_name, extract.
+ * 3. Head R2 object (check ton tai).
+ * 4. Stream body ve client kem metadata headers.
+ *
+ * Metadata headers (PS1 can de verify SHA256 / extract / launch):
+ *   - X-Tool-Id
+ *   - X-Tool-Sha256         (placeholder 'VERIFY_REQUIRED' = can compute runtime)
+ *   - X-Tool-Verify-Mode    'verified' | 'required' | 'skip'
+ *   - X-Tool-Extract        'true' | 'false'
+ *   - X-Tool-Exec           ten file exe chinh
+ *   - X-Tool-Args           JSON array string args
+ *   - Content-Disposition   filename goc
+ *   - Content-Length        size bytes
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { findTool } from "@/lib/tools/catalog";
+import { findToolById, verifyModeOf } from "@/lib/tools/repository";
+import { getToolFile } from "@/lib/tools/r2";
 
 export const runtime = "nodejs";
-// Edge runtime max execution: ~30s cho streaming.
-// Tools lon (50MB) co the can hon. Dung nodejs runtime de khong bi gioi han.
-// OpenNext build cung yeu cau cac edge runtime functions phai o file rieng
-// (xem open-next config). Vi ta chi can stream binh thuong, nodejs la du.
-
-async function fetchTool(
-  url: string,
-  userAgent: string,
-): Promise<Response> {
-  // Gia lap User-Agent trinh duyet pho bien de tranh mot so CDN block unknown bot.
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": userAgent,
-      Accept: "*/*",
-    },
-    // Cloudflare Workers fetch se tu dong stream response body neu khong doc.
-    redirect: "follow",
-  });
-  return res;
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -53,7 +37,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const tool = findTool(toolId);
+  const tool = await findToolById(toolId);
   if (!tool) {
     return NextResponse.json(
       { ok: false, error: `Tool not found: ${toolId}` },
@@ -61,78 +45,56 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // User-Agent pho bien de tranh bi CDN block.
-  const ua =
-    req.headers.get("user-agent") ||
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
-
-  // Thu R2 truoc neu co (admin da upload).
-  if (tool.r2Url) {
-    try {
-      const r2Res = await fetchTool(tool.r2Url, ua);
-      if (r2Res.ok) {
-        return streamResponse(r2Res, tool);
-      }
-      console.warn(
-        `[tools/download] R2 fetch failed for ${toolId}: ${r2Res.status}, fallback CDN`,
-      );
-    } catch (e) {
-      console.warn(`[tools/download] R2 fetch error for ${toolId}:`, e);
-    }
+  if (tool.status === "disabled") {
+    return NextResponse.json(
+      { ok: false, error: "Tool disabled" },
+      { status: 403 },
+    );
   }
 
-  // Fallback CDN.
+  // Lay object tu R2.
+  let obj;
   try {
-    const cdnRes = await fetchTool(tool.cdnUrl, ua);
-    if (!cdnRes.ok) {
-      return NextResponse.json(
-        { ok: false, error: `Upstream ${cdnRes.status} ${cdnRes.statusText}` },
-        { status: 502 },
-      );
-    }
-    return streamResponse(cdnRes, tool);
+    obj = await getToolFile(tool.r2_key);
   } catch (e) {
-    console.error(`[tools/download] CDN fetch error for ${toolId}:`, e);
+    console.error(`[tools/download] R2 get failed for ${toolId}:`, e);
     return NextResponse.json(
-      { ok: false, error: "Failed to fetch tool from upstream" },
+      { ok: false, error: "Storage unavailable" },
       { status: 502 },
     );
   }
-}
 
-function streamResponse(upstream: Response, tool: ReturnType<typeof findTool> & object): Response {
-  // Lay content-type tu upstream neu co, mac dinh application/octet-stream.
-  const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+  if (!obj) {
+    return NextResponse.json(
+      { ok: false, error: "File missing in R2" },
+      { status: 404 },
+    );
+  }
 
-  // Lay content-length neu co (dung hien thi % download o UI).
-  const contentLength = upstream.headers.get("content-length");
-
-  // Lay filename goc tu upstream neu co, fallback dung tool.exec + .zip.
-  const upstreamFilename = upstream.headers
-    .get("content-disposition")
-    ?.match(/filename="?([^"]+)"?/)?.[1];
+  // Lay filename tu r2_key (vd tools/cpu-z/2.20.2/cpu-z_2.20.2-en.zip ->
+  // cpu-z_2.20.2-en.zip).
+  const filename = tool.r2_key.split("/").pop() || `${tool.id}.zip`;
 
   // Build headers.
   const headers = new Headers({
-    "Content-Type": contentType,
-    "Content-Disposition": `attachment; filename="${upstreamFilename || `${tool.id}.zip`}"`,
+    "Content-Type":
+      obj.httpMetadata?.contentType || "application/octet-stream",
+    "Content-Disposition": `attachment; filename="${filename}"`,
     "X-Tool-Id": tool.id,
     "X-Tool-Sha256": tool.sha256,
-    // PS1 can biet SHA256 co phai placeholder (VERIFY_REQUIRED) hay that de quyet dinh:
-    // - "verified"  : catalog co hash that.
-    // - "required"  : catalog co placeholder, PS1 phai compute de xac nhan.
-    // - "skip"      : catalog co VERIFY_SKIP (= yeu cau khong verify).
-    "X-Tool-Verify-Mode": tool.sha256 === "VERIFY_REQUIRED" ? "required" : "verified",
+    "X-Tool-Verify-Mode": verifyModeOf(tool.sha256),
     "X-Tool-Extract": String(tool.extract),
-    "X-Tool-Exec": tool.exec,
-    "Cache-Control": "public, max-age=300", // 5 phut
+    "X-Tool-Exec": tool.exec_name,
+    "X-Tool-Args": JSON.stringify(tool.launch_args),
+    "X-Tool-Requires-Admin": String(tool.requires_admin),
+    "Cache-Control": "public, max-age=300",
   });
-  if (contentLength) {
-    headers.set("Content-Length", contentLength);
+  if (obj.size) {
+    headers.set("Content-Length", String(obj.size));
   }
 
-  // Stream body ve client (edge runtime tu dong optimize).
-  return new Response(upstream.body, {
+  // Stream body.
+  return new Response(obj.body, {
     status: 200,
     headers,
   });

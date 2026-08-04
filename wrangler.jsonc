@@ -44,6 +44,15 @@
       // Cờ này buộc binding đi ra bucket thật ngay cả khi dev local.
       // Cần đăng nhập trước: npx wrangler login
       "remote": true
+    },
+    {
+      "binding": "TOOLS_BUCKET",
+      "bucket_name": "laplap-tools",
+      // Bucket chứa file tool (.exe/.zip) upload bởi admin qua
+      // /dashboard/tools. Admin page stream multipart upload qua worker.
+      // Client (scanner PS1) download qua /api/v1/tools/download -> server stream
+      // từ R2 — KHÔNG lộ R2 public URL.
+      "remote": true
     }
   ],
 
