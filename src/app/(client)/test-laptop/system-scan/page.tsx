@@ -101,16 +101,31 @@ export default function SystemScanPage() {
   const [status, setStatus] = useState<"idle" | "downloading" | "waiting" | "connected" | "scanning" | "complete">("idle");
   const [log, setLog] = useState<string[]>([]);
   const [token, setToken] = useState<string>("");
+  // Thong tin cache de canh bao "du lieu cu"
+  const [cachedSavedAt, setCachedSavedAt] = useState<number | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const savedInfo = localStorage.getItem("laptop-test-system-info");
-    if (savedInfo) {
+    // Load cache tu localStorage nhung KHONG tu dong setStatus("complete").
+    // Ly do: neu user F5 ngay khi dang quet may khac, hoac may moi so huu
+    // khac may cu (serial khac), localStorage dang giu data may cu ->
+    // setStatus("complete") ngay se "lua" UI hien thi data cu nhu moi.
+    //
+    // Cache chi duoc dung lam fallback UI (nen xam) khi chua co scan moi.
+    // User phai nhan "Quet lai" hoac "Tai trinh quet" de tao token moi
+    // va lay data that tu server.
+    const saved = localStorage.getItem("laptop-test-system-info");
+    if (saved) {
       try {
-        setInfo(JSON.parse(savedInfo));
-        setStatus("complete");
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.info) {
+          setInfo(parsed.info);
+          setCachedSavedAt(parsed.savedAt ?? null);
+          // Khong setStatus("complete") - giu trang thai idle de user scan moi.
+        }
       } catch (e) {
         console.error("Failed to parse saved info", e);
+        localStorage.removeItem("laptop-test-system-info");
       }
     }
   }, []);
@@ -131,6 +146,10 @@ export default function SystemScanPage() {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
     }
+    // Luu token hien tai vao ref de polling callback kiem tra stale response.
+    // Neu server tra data cua token khac (do bug upstream hoac race condition),
+    // ta se ignore de tranh "lot" data cu vao UI.
+    const activeTokenRef = { value: scanToken };
 
     pollingRef.current = setInterval(async () => {
       try {
@@ -151,10 +170,27 @@ export default function SystemScanPage() {
         }
 
         if (payload.status === "complete" && payload.data) {
-          clearInterval(pollingRef.current!);
-          setStatus("complete");
+          // Kiem tra token trong payload (neu server co tra ve) khop voi scan hien tai.
+          // Mot so server khong tra token -> van tin tuong absolute timestamp
+          // moi hon cache.
+          const payloadToken = payload.token ?? payload.data?.token;
+          if (payloadToken && payloadToken !== activeTokenRef.value) {
+            console.warn("Stale poll response - token mismatch");
+            return;
+          }
           setInfo(payload.data);
-          localStorage.setItem("laptop-test-system-info", JSON.stringify(payload.data));
+          setCachedSavedAt(Date.now());
+          try {
+            localStorage.setItem(
+              "laptop-test-system-info",
+              JSON.stringify({ info: payload.data, savedAt: Date.now() }),
+            );
+          } catch (e) {
+            console.error("Failed to save info", e);
+          }
+          setStatus("complete");
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          pollingRef.current = null;
           addLog("✅ Nhận dữ liệu thành công!");
           toast.success("Quét hệ thống hoàn tất!");
         }
@@ -169,6 +205,13 @@ export default function SystemScanPage() {
   };
 
   const generateAgent = async () => {
+    // QUAN TRONG: clear cache cu TRUOC khi start polling moi.
+    // Neu user moi chay scanner tren may khac ma localStorage van giu data may cu,
+    // thi trong khoang thoi gian cho (cho scanner chay xong), UI se hien thi
+    // data may cu lam user tuong "scan xong nhung gia tri van cu".
+    // Fix: set info=null ngay khi bat dau tao token moi.
+    setInfo(null);
+    setCachedSavedAt(null);
     setStatus("downloading");
     addLog("Đang tạo trình quét...");
 
@@ -394,12 +437,18 @@ exit
   const resetScan = () => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
+      pollingRef.current = null;
     }
     setInfo(null);
+    setCachedSavedAt(null);
     setStatus("idle");
     setLog([]);
     setToken("");
-    localStorage.removeItem("laptop-test-system-info");
+    try {
+      localStorage.removeItem("laptop-test-system-info");
+    } catch (e) {
+      console.error("Failed to clear cache", e);
+    }
   };
 
   const getStatusInfo = () => {
@@ -478,7 +527,7 @@ exit
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {status === "complete" ? (
+            {status === "complete" || (status === "idle" && info) ? (
               <Button variant="outline" onClick={resetScan}>
                 <RefreshCw className="mr-2 h-4 w-4" /> Quét lại
               </Button>
@@ -609,6 +658,39 @@ exit
             </div>
           )}
 
+          {/* Canh bao: co data cu trong localStorage tu lan scan truoc.
+              Trang thai "idle" (chua scan moi) nhung info != null -> data hien
+              thi la CACHE, co the KHONG con chinh xac (user doi may / doi pin /
+              nang cap RAM...). Hien banner vang de user biet can quet lai. */}
+          {status === "idle" && info && cachedSavedAt && (() => {
+            const ageMs = Date.now() - cachedSavedAt;
+            const ageMin = Math.floor(ageMs / 60000);
+            const ageLabel = ageMin < 1
+              ? "vừa xong"
+              : ageMin < 60
+                ? `${ageMin} phút trước`
+                : `${Math.floor(ageMin / 60)} giờ trước`;
+            return (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-900">
+                      Đang hiển thị dữ liệu cũ (lưu {ageLabel})
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      Thông tin bên dưới là kết quả của lần quét trước, có thể
+                      không còn chính xác nếu máy đã thay đổi phần cứng (RAM,
+                      ổ cứng, pin) hoặc cập nhật hệ thống. Nhấn{" "}
+                      <strong>"Quét lại"</strong> để lấy dữ liệu mới nhất từ máy
+                      đang kết nối.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Live Log */}
           {(status === "downloading" || status === "waiting" || status === "connected" || status === "scanning") && (
             <div className="mb-6 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950 p-4 font-mono text-xs">
@@ -642,7 +724,7 @@ exit
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className={status === "idle" ? "space-y-3 opacity-60" : "space-y-3"}>
               {/* Tên máy + serial - 1 dòng gọn */}
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg bg-zinc-50 px-3 py-2 text-sm">
                 <span className="font-medium">{show(info.system.name)}</span>
