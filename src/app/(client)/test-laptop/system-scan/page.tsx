@@ -23,6 +23,8 @@ import {
   Monitor,
   MonitorCog,
   ArrowLeft,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 
 type Scalar = string | number | null;
@@ -944,6 +946,217 @@ exit
           )}
         </CardContent>
       </Card>
+
+      {/* === TOOLS PANEL (Phase 3) === */}
+      {/* Chi hien thi khi da scan xong (status=complete). User co the nhan
+          tool de server proxy stream file ve client, luu local va yeu cau
+          scanner (PS1 background) download + extract + launch. */}
+      {status === "complete" && token && (
+        <ToolsPanel token={token} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * ToolsPanel: hien thi danh sach tools (catalog tu server), moi tool co
+ * button "Tai va mo". Khi nhan:
+ *  1. POST /api/v1/system-scan/command?token=X -> server queue command.
+ *  2. Scanner (PS1 background) poll command-poll, nhan command, download file,
+ *     extract zip, launch .exe.
+ *  3. UI khong can quan ly download truc tiep - scanner lam het.
+ */
+interface ToolInfo {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  sizeBytes: number;
+  sizeLabel: string;
+  icon: string;
+  requiresAdmin: boolean;
+  downloadEndpoint: string;
+}
+
+function ToolsPanel({ token }: { token: string }) {
+  const [tools, setTools] = useState<ToolInfo[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState<Set<string>>(new Set());
+  const [recentlyLaunched, setRecentlyLaunched] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/v1/tools");
+        const json = await res.json();
+        const list = json?.data ?? json;
+        if (!cancelled && Array.isArray(list)) setTools(list);
+      } catch (e) {
+        console.error("Failed to load tools", e);
+        toast.error("Khong the tai danh sach cong cu.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleLaunch = async (tool: ToolInfo) => {
+    if (!token) {
+      toast.error("Can quet xong truoc khi su dung cong cu.");
+      return;
+    }
+    if (pending.has(tool.id)) return;
+
+    setPending((prev) => new Set(prev).add(tool.id));
+
+    try {
+      // 1. Queue command cho scanner PS1.
+      const res = await fetch(
+        `/api/v1/system-scan/command?token=${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "launch-tool", toolId: tool.id }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error?.message || `HTTP ${res.status}`);
+      }
+      toast.success(
+        `Dang tai ${tool.name}... Scanner se tu dong mo sau 5-30 giay.`,
+        { duration: 4000 },
+      );
+      setRecentlyLaunched(tool.id);
+
+      // 2. Reset "recently launched" sau 30s de user co the nhan lai neu can.
+      setTimeout(() => {
+        setRecentlyLaunched((cur) => (cur === tool.id ? null : cur));
+      }, 30000);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      toast.error(`Khong the yeu cau ${tool.name}: ${msg}`);
+    } finally {
+      setPending((prev) => {
+        const next = new Set(prev);
+        next.delete(tool.id);
+        return next;
+      });
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-900">
+            <Download className="h-4 w-4" /> Cong cu kiem tra them
+          </h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Nhan tool de tai ve may va mo tu dong. File luu tai{" "}
+            <code className="rounded bg-zinc-100 px-1 py-0.5 text-[11px]">%LOCALAPPDATA%\LapLap\Tools\</code>{" "}
+            - lan sau khong can tai lai.
+          </p>
+        </div>
+        <a
+          href="/api/v1/tools"
+          target="_blank"
+          rel="noopener"
+          className="text-xs text-zinc-400 hover:text-zinc-700"
+          title="API endpoint"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-32 animate-pulse rounded-lg border border-zinc-200 bg-zinc-50"
+            />
+          ))}
+        </div>
+      ) : !tools || tools.length === 0 ? (
+        <p className="text-sm text-zinc-500">Khong co cong cu nao trong catalog.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {tools.map((t) => {
+            const isPending = pending.has(t.id);
+            const isRecent = recentlyLaunched === t.id;
+            return (
+              <div
+                key={t.id}
+                className={`group rounded-lg border p-3 transition ${
+                  isRecent
+                    ? "border-green-300 bg-green-50"
+                    : "border-zinc-200 bg-white hover:border-zinc-400"
+                }`}
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl" aria-hidden>
+                      {t.icon}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-900">{t.name}</p>
+                      <p className="text-[11px] text-zinc-500">
+                        {t.sizeLabel}
+                        {t.requiresAdmin && (
+                          <>
+                            {" "}
+                            <span className="text-amber-600">• can Admin</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <p className="mb-3 line-clamp-2 text-xs text-zinc-600">
+                  {t.description}
+                </p>
+                <Button
+                  onClick={() => handleLaunch(t)}
+                  disabled={isPending}
+                  size="sm"
+                  className={`w-full ${
+                    isRecent
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-zinc-900 hover:bg-zinc-700"
+                  } text-white`}
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Dang gui lenh...
+                    </>
+                  ) : isRecent ? (
+                    <>
+                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                      Da gui - cho mo
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-1.5 h-3.5 w-3.5" />
+                      Tai va mo
+                    </>
+                  )}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="mt-4 text-[11px] text-zinc-400">
+        Scanner (PowerShell) phai dang chay de nhan lenh. Neu cua so PowerShell da dong,
+        hay chay lai LapLap-Scanner.bat va scan lai.
+      </p>
     </div>
   );
 }

@@ -437,8 +437,200 @@ function Show-ToolMenu {
     }
 }
 
+# === TOOLS LAZY DOWNLOADER (Phase 2) ===
+# Server command-poll se goi khi user nhan tool tren UI.
+# Khi nhan command launch-tool:<id>: PS1 download file zip/exe tu server
+# luu vao %LOCALAPPDATA%\LapLap\Tools\<id>\<file>
+# Verify SHA256 -> extract neu la zip -> launch .exe.
+$Global:ToolsRoot = Join-Path $env:LOCALAPPDATA "LapLap\Tools"
+if (-not (Test-Path $Global:ToolsRoot)) {
+    New-Item -ItemType Directory -Path $Global:ToolsRoot -Force | Out-Null
+}
+
+function Get-LocalToolPath {
+    param([string]$ToolId)
+    return Join-Path $Global:ToolsRoot $ToolId
+}
+
+function Test-ToolInstalled {
+    param([string]$ToolId, [string]$ExecName)
+    $dir = Get-LocalToolPath $ToolId
+    # Kiem tra exec co ton tai (extract roi) hoac file exe truc tiep da tai.
+    $extracted = Get-ChildItem -Path $dir -Recurse -Filter $ExecName -ErrorAction SilentlyContinue | Select-Object -First 1
+    return [bool]$extracted
+}
+
+function Invoke-ToolDownload {
+    param(
+        [string]$ToolId,
+        [string]$ToolName,
+        [string]$ExecName,
+        [bool]$Extract,
+        [string[]]$LaunchArgs
+    )
+
+    $dir = Get-LocalToolPath $ToolId
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+
+    # Neu da install roi (extract) va exec con ton tai -> chi can launch.
+    if ($Extract -and (Test-ToolInstalled $ToolId $ExecName)) {
+        Write-OK "$ToolName da san sang, khoi dong..."
+        $exe = (Get-ChildItem -Path $dir -Recurse -Filter $ExecName -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if ($LaunchArgs -and $LaunchArgs.Count -gt 0) {
+            Start-Process -FilePath $exe -ArgumentList $LaunchArgs -WorkingDirectory (Split-Path $exe -Parent)
+        } else {
+            Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe -Parent)
+        }
+        return
+    }
+
+    # Tai file zip/exe tu server.
+    $url = "$ApiBase/api/v1/tools/download?toolId=$ToolId"
+    $ext = if ($Extract) { "zip" } else { "exe" }
+    $zipPath = Join-Path $dir "$ToolId.$ext"
+
+    Write-Step "Dang tai $ToolName tu server..."
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop
+    } catch {
+        Write-Fail "Tai $ToolName that bai: $($_.Exception.Message)"
+        return
+    }
+
+    if (-not (Test-Path $zipPath)) {
+        Write-Fail "File tai ve khong ton tai."
+        return
+    }
+
+    # Extract neu la zip.
+    if ($Extract) {
+        Write-Step "Dang giai nen..."
+        try {
+            Expand-Archive -Path $zipPath -DestinationPath $dir -Force -ErrorAction Stop
+            # Xoa zip sau khi extract thanh cong de tiet kiem disk.
+            Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        } catch {
+            Write-Warn "Giai nen that bai, giu zip de debug."
+        }
+    }
+
+    # Launch.
+    if ($Extract) {
+        $exe = (Get-ChildItem -Path $dir -Recurse -Filter $ExecName -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+    } else {
+        $exe = $zipPath
+    }
+
+    if (-not $exe -or -not (Test-Path $exe)) {
+        Write-Fail "Khong tim thay file thuc thi $ExecName trong $dir."
+        Write-Host "  Noi dung:" -ForegroundColor DarkGray
+        Get-ChildItem -Path $dir -Recurse | Select-Object FullName | ForEach-Object { Write-Host "    $($_.FullName)" -ForegroundColor DarkGray }
+        return
+    }
+
+    Write-OK "Khoi dong $ToolName..."
+    if ($LaunchArgs -and $LaunchArgs.Count -gt 0) {
+        Start-Process -FilePath $exe -ArgumentList $LaunchArgs -WorkingDirectory (Split-Path $exe -Parent)
+    } else {
+        Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe -Parent)
+    }
+}
+
+function Start-CommandPoller {
+    # Background loop poll server moi 3s de nhan command launch tool.
+    # Chay song song voi menu, khong block menu input.
+    $pollUrl = "$ApiBase/api/v1/system-scan/command-poll?token=$ScanToken"
+    $running = $true
+
+    while ($running) {
+        try {
+            $resp = Invoke-RestMethod -Uri $pollUrl -Method Get -TimeoutSec 5 -ErrorAction Stop
+            if ($resp -and $resp.ok -and $resp.data -and $resp.data.command) {
+                $cmd = $resp.data.command
+                Write-Host ""
+                Write-Host "  [REMOTE] Server yeu cau: $($cmd.action) $($cmd.toolName)" -ForegroundColor Magenta
+                if ($cmd.action -eq "launch-tool") {
+                    $extract = [bool]$cmd.extract
+                    $args = if ($cmd.args) { $cmd.args } else { @() }
+                    Invoke-ToolDownload -ToolId $cmd.toolId -ToolName $cmd.toolName -ExecName $cmd.exec -Extract $extract -LaunchArgs $args
+                }
+            }
+        } catch {
+            # Silent - poll loi khong can thong bao.
+        }
+        Start-Sleep -Seconds 3
+    }
+}
+
+# Khoi dong command poller o background job (chay song song, khong block menu).
+# Start-Job spawn process moi, de main thread xu ly menu input.
+$pollerJob = Start-Job -ScriptBlock {
+    param($Url)
+    while ($true) {
+        try {
+            $r = Invoke-RestMethod -Uri $Url -Method Get -TimeoutSec 5 -ErrorAction Stop
+            if ($r -and $r.ok -and $r.data -and $r.data.command) {
+                # Job khong the Start-Process truc tiep -> gui command ve main thread
+                # qua file intermediate. Main thread se poll file nay.
+                $cmdJson = $r.data.command | ConvertTo-Json -Compress
+                $cmdFile = Join-Path $env:LOCALAPPDATA "LapLap\pending-cmd.json"
+                [System.IO.File]::WriteAllText($cmdFile, $cmdJson, [System.Text.Encoding]::UTF8)
+            }
+        } catch {}
+        Start-Sleep -Seconds 3
+    }
+} -ArgumentList "$ApiBase/api/v1/system-scan/command-poll?token=$ScanToken"
+
+# Main thread: trong menu loop, kiem tra file pending-cmd.json moi vong lap.
+# Neu co -> dispatch command -> xoa file.
+$pendingCmdPath = Join-Path $env:LOCALAPPDATA "LapLap\pending-cmd.json"
+
+# Tao wrapper loop: cho scan xong, sau do vua hien menu vua check command.
+function Invoke-WatcherLoop {
+    Write-Host ""
+    Write-Host "  [REMOTE-WATCHER] Dang cho lenh tu server..." -ForegroundColor DarkGray
+    Write-Host "  Nhan phim 'q' de thoat." -ForegroundColor DarkGray
+    while ($true) {
+        # Kiem tra pending command.
+        if (Test-Path $pendingCmdPath) {
+            try {
+                $cmdJson = Get-Content -Path $pendingCmdPath -Raw -Encoding UTF8
+                Remove-Item $pendingCmdPath -Force -ErrorAction SilentlyContinue
+                $cmd = $cmdJson | ConvertFrom-Json
+                Write-Host ""
+                Write-Host "  [REMOTE] Server yeu cau: $($cmd.action) $($cmd.toolName)" -ForegroundColor Magenta
+                if ($cmd.action -eq "launch-tool") {
+                    $extract = [bool]$cmd.extract
+                    $args = @()
+                    if ($cmd.args) {
+                        $args = @($cmd.args)
+                    }
+                    Invoke-ToolDownload -ToolId $cmd.toolId -ToolName $cmd.toolName -ExecName $cmd.exec -Extract $extract -LaunchArgs $args
+                }
+            } catch {
+                Write-Warn "Lenh tu server loi: $($_.Exception.Message)"
+            }
+        }
+
+        # Kiem tra phim q de thoat (non-blocking).
+        if ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            if ($key.KeyChar -eq 'q' -or $key.KeyChar -eq 'Q') {
+                Write-Host ""
+                Write-Host "  Dang dong watcher..." -ForegroundColor DarkGray
+                Stop-Job -Job $pollerJob -ErrorAction SilentlyContinue
+                Remove-Job -Job $pollerJob -Force -ErrorAction SilentlyContinue
+                return
+            }
+        }
+
+        Start-Sleep -Milliseconds 500
+    }
+}
+
 Invoke-SystemScan
-Show-ToolMenu
+Invoke-WatcherLoop
 `;
 
 // BAT kich hoat scanner - khi user double-click se mo PowerShell, doi 1-2 giay
