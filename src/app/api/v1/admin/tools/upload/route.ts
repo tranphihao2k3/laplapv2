@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
       user.id,
     );
 
-    return ok({ data: tool }, { status: 201 });
+    return ok(tool, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     if (msg.includes("permission") || msg.includes("quyền")) return fail("FORBIDDEN", msg, 403);

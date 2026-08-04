@@ -99,7 +99,9 @@ export default function AdminToolsPage() {
       const res = await fetch("/api/v1/admin/tools");
       const json = await res.json();
       if (!res.ok || !json?.ok) throw new Error(json?.error?.message || "Load failed");
-      setTools(json.data ?? []);
+      // Guard Array: neu API doi shape thi hien danh sach rong thay vi
+      // crash ca trang bang "tools.map is not a function".
+      setTools(Array.isArray(json.data) ? json.data : []);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Load failed");
     } finally {

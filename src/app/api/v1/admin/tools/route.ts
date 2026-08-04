@@ -16,13 +16,15 @@ export async function GET() {
   try {
     await requirePermission("admin.manage_tools");
     const tools = await listAllTools();
-    return ok({
-      data: tools.map((t) => ({
+    // ok() da tu boc { ok: true, data } — KHONG boc them { data } o day,
+    // neu khong client se nhan json.data la object thay vi array.
+    return ok(
+      tools.map((t) => ({
         ...t,
         sizeLabel: formatBytes(t.size_bytes),
         verifyMode: verifyModeOf(t.sha256),
       })),
-    });
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return fail("INTERNAL", msg, 500);
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
       user.id,
     );
 
-    return ok({ data: tool }, { status: 201 });
+    return ok(tool, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return fail("INTERNAL", msg, 500);

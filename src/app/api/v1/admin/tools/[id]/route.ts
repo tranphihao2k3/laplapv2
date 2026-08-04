@@ -6,8 +6,8 @@
 import { NextRequest } from "next/server";
 import { ok, fail } from "@/lib/api/response";
 import { requirePermission } from "@/lib/api/guard";
-import { updateTool, deleteTool } from "@/lib/tools/repository";
-import { deleteToolFile, getToolFile } from "@/lib/tools/r2";
+import { updateTool, deleteTool, findToolById } from "@/lib/tools/repository";
+import { deleteToolFile } from "@/lib/tools/r2";
 
 export const runtime = "nodejs";
 
@@ -37,7 +37,7 @@ export async function PATCH(
     if (typeof body.sort_order === "number") patch.sort_order = body.sort_order;
 
     const tool = await updateTool(id, patch);
-    return ok({ data: tool });
+    return ok(tool);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return fail("INTERNAL", msg, 500);
@@ -52,17 +52,10 @@ export async function DELETE(
     await requirePermission("admin.manage_tools");
     const { id } = await params;
 
-    // Truoc khi xoa DB, lay R2 key (neu can xoa file).
-    let r2Key: string | null = null;
-    const obj = await getToolFile.bind(null);
-    void obj; // de khong warning unused
-
-    // Query R2 key via repository (cheat: insert tracking).
-    // Lay tool de biet r2_key truoc khi xoa.
-    const { findToolById } = await import("@/lib/tools/repository");
+    // Lay r2_key truoc khi xoa row DB (sau khi xoa thi khong con tra cuu duoc).
     const tool = await findToolById(id);
     if (!tool) return fail("NOT_FOUND", "Tool not found", 404);
-    r2Key = tool.r2_key;
+    const r2Key = tool.r2_key;
 
     // Xoa R2 file (ignore neu 404).
     try {
