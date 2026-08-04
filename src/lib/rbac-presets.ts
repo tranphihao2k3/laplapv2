@@ -167,6 +167,7 @@ export const PERMISSION_PRESETS: PermissionPreset[] = [
 
   // ===== Quản trị (Admin) =====
   { code: "admin.manage_users", description: "Tạo / quản lý tài khoản người dùng — /api/v1/admin/users", group: "Quản trị", apiEnforced: true },
+  { code: "admin.manage_tools", description: "Upload/sửa/xóa công cụ kiểm tra — /api/v1/admin/tools/*", group: "Quản trị", apiEnforced: true },
   { code: "settings.read", description: "Xem cài đặt hệ thống — /api/v1/settings", group: "Hệ thống", apiEnforced: true },
   { code: "settings.create", description: "Tạo cài đặt — /api/v1/settings (POST)", group: "Hệ thống", apiEnforced: true },
   { code: "settings.update", description: "Cập nhật cài đặt — /api/v1/settings/{id}", group: "Hệ thống", apiEnforced: true },

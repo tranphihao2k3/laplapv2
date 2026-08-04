@@ -109,7 +109,13 @@ CREATE POLICY "Allow admin manage tools"
 
 -- ============================================================
 -- Permission: 'admin.manage_tools'
+--
+-- Bảng `permissions` chỉ có (code, description) — KHÔNG có cột `name`.
+-- Nguồn chuẩn của danh mục quyền là src/lib/rbac-presets.ts, seed bằng
+-- `node scripts/seed-rbac.mjs` (script đó cũng gán quyền cho các role).
+-- Insert ở đây chỉ để migration tự đủ; role admin có perms: "all" nên
+-- seed-rbac sẽ tự gán quyền này vào role admin.
 -- ============================================================
-INSERT INTO permissions (code, name, description)
-VALUES ('admin.manage_tools', 'Quản lý công cụ kiểm tra', 'Upload/edit/delete tools trong R2 + catalog')
+INSERT INTO permissions (code, description)
+VALUES ('admin.manage_tools', 'Upload/sửa/xóa công cụ kiểm tra trong R2 + catalog — /api/v1/admin/tools')
 ON CONFLICT (code) DO NOTHING;
