@@ -78,20 +78,27 @@ export function initServices(db: import("better-sqlite3").Database): void {
 
   const productRepo = new ProductRepository(db);
   productRepository = productRepo;
+  settingsRepository = settingsRepo;
+  imageService = new ImageService(settingsRepo, app.getPath("userData"));
   catalogService = new CatalogService(
     productRepo,
     settingsRepo,
+    imageService,
     () => settingsService?.get().apiBaseUrl ?? env.defaultApiBaseUrl,
     () => authService?.getAccessToken() ?? null,
   );
-  settingsRepository = settingsRepo;
-  imageService = new ImageService(settingsRepo, app.getPath("userData"));
   groupRepository = new FacebookGroupRepository(db);
   groupSetRepository = new GroupSetRepository(db);
   groupService = new GroupService(groupRepository, groupSetRepository);
   groupSetService = new GroupSetService(groupSetRepository);
   templateRepository = new TemplateRepository(db);
   templateService = new TemplateService(templateRepository);
+  // Seed preset nếu user mới — không throw nếu fail, chỉ log.
+  try {
+    templateService.seedPresetsIfEmpty();
+  } catch (err) {
+    console.warn("[service-locator] seed presets skipped:", err);
+  }
   campaignRepository = new CampaignRepository(db);
   postJobRepository = new PostJobRepository(db);
   campaignService = new CampaignService(
@@ -101,6 +108,7 @@ export function initServices(db: import("better-sqlite3").Database): void {
     templateRepository,
     groupRepository,
     groupSetRepository,
+    catalogService,
   );
   browserProfileManager = new BrowserProfileManager();
   autoSubmitGate = new AutoSubmitGate(settingsRepo);

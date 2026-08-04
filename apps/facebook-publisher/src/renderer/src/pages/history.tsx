@@ -1,44 +1,86 @@
 /**
  * History page — UI-002.
  *
- * - List job done (state ∈ {published, pending_approval, unverified,
- *   failed, skipped, cancelled}) với attempts + last error.
- * - Click vào job → chi tiết attempts.
- * - Có nút "Xem lại" cho unverified để user xác nhận.
+ * - Master/detail: danh sách jobs done bên trái + attempts bên phải.
+ * - Polling tự động 5s.
+ * - Card item thay vì <tr> để dễ đọc.
  */
 import { useEffect, useState } from "react";
-import type { CampaignJobSummary } from "../../../shared/campaigns";
+import type { CampaignJobSummary, JobState } from "../../../shared/campaigns";
 import type { JobAttemptRecord } from "../../../shared/queue";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Spinner,
+} from "../components/ui";
+import {
+  IconHistory,
+  IconRefresh,
+  IconTrash,
+} from "../components/ui/icons";
+
+const DONE_STATES: JobState[] = [
+  "published",
+  "pending_approval",
+  "unverified",
+  "failed",
+  "skipped",
+  "cancelled",
+];
+
+const STATE_VARIANT: Record<string, "neutral" | "primary" | "success" | "warning" | "danger"> = {
+  published: "success",
+  pending_approval: "warning",
+  unverified: "warning",
+  failed: "danger",
+  skipped: "neutral",
+  cancelled: "neutral",
+  needs_action: "warning",
+};
+
+const STATE_LABEL: Record<string, string> = {
+  published: "Đã đăng",
+  pending_approval: "Chờ duyệt",
+  unverified: "Chưa xác minh",
+  failed: "Thất bại",
+  skipped: "Bỏ qua",
+  cancelled: "Đã huỷ",
+  needs_action: "Cần xử lý",
+};
 
 export function HistoryPage() {
   const [items, setItems] = useState<CampaignJobSummary[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [attempts, setAttempts] = useState<JobAttemptRecord[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
     const api = window.publisherApi;
     if (!api) return;
-    // Lấy tất cả campaign rồi collect jobs done.
     const r = await api.campaignsList();
-    if (!r.ok) return;
+    if (!r.ok) {
+      setError(r.error.message);
+      setLoading(false);
+      return;
+    }
     const allJobs: CampaignJobSummary[] = [];
     for (const c of r.data) {
       const jr = await api.campaignsJobs(c.id);
       if (jr.ok) allJobs.push(...jr.data);
     }
-    const DONE_STATES = new Set([
-      "published",
-      "pending_approval",
-      "unverified",
-      "failed",
-      "skipped",
-      "cancelled",
-    ]);
-    setItems(allJobs.filter((j) => DONE_STATES.has(j.state)));
+    setItems(allJobs.filter((j) => DONE_STATES.includes(j.state)));
+    setLoading(false);
   }
 
   useEffect(() => {
     void load();
+    const id = setInterval(load, 5000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -57,111 +99,125 @@ export function HistoryPage() {
   }
 
   return (
-    <section>
-      <header className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Lịch sử</h1>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="rounded border border-muted-100 px-3 py-1 text-sm hover:bg-muted-50"
-        >
-          Tải lại
-        </button>
-      </header>
+    <section className="space-y-5">
+      <PageHeader
+        title="Lịch sử"
+        subtitle={
+          loading
+            ? "Đang tải…"
+            : `${items.length} job hoàn thành · cập nhật mỗi 5s`
+        }
+        actions={
+          <Button
+            variant="secondary"
+            size="md"
+            icon={<IconRefresh size={14} />}
+            onClick={() => void load()}
+          >
+            Tải lại
+          </Button>
+        }
+      />
 
-      <div className="mt-4 grid grid-cols-2 gap-4">
-        <div className="overflow-hidden rounded border border-muted-100 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-muted-50 text-left text-xs uppercase text-muted-500">
-              <tr>
-                <th className="px-3 py-2">State</th>
-                <th className="px-3 py-2">Group</th>
-                <th className="px-3 py-2">Cập nhật</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-muted-500">
-                    Chưa có job nào kết thúc.
-                  </td>
-                </tr>
-              )}
-              {items.map((j) => (
-                <tr
-                  key={j.id}
-                  className={`cursor-pointer border-t border-muted-100 ${
-                    activeJobId === j.id ? "bg-primary-50" : ""
-                  }`}
-                  onClick={() => setActiveJobId(j.id)}
-                >
-                  <td className="px-3 py-2">
-                    <StateBadge state={j.state} />
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-500">{j.groupId.slice(0, 8)}…</td>
-                  <td className="px-3 py-2 text-xs text-muted-500">
+      {error && (
+        <Alert variant="danger" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr,1fr]">
+        {/* Job list */}
+        <div className="space-y-2">
+          {loading ? (
+            <Card padding="lg">
+              <div className="flex items-center justify-center gap-3 py-4 text-muted-500">
+                <Spinner size="sm" />
+                <span className="text-sm">Đang tải…</span>
+              </div>
+            </Card>
+          ) : items.length === 0 ? (
+            <Card padding="none">
+              <EmptyState
+                icon={<IconHistory size={22} />}
+                title="Chưa có job nào kết thúc"
+                description="Job sẽ xuất hiện ở đây sau khi worker xử lý xong."
+              />
+            </Card>
+          ) : (
+            items.map((j) => (
+              <button
+                key={j.id}
+                type="button"
+                onClick={() => setActiveJobId(j.id)}
+                className={[
+                  "flex w-full items-center gap-3 rounded-lg border bg-white p-3 text-left transition",
+                  activeJobId === j.id
+                    ? "border-primary-300 bg-primary-50/50 shadow-sm"
+                    : "border-muted-100 hover:border-muted-200 hover:shadow-sm",
+                ].join(" ")}
+              >
+                <Badge variant={STATE_VARIANT[j.state] ?? "neutral"} size="sm" dot>
+                  {STATE_LABEL[j.state] ?? j.state}
+                </Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-mono text-xs text-muted-700">
+                    {j.groupId.slice(0, 12)}…
+                  </p>
+                  <p className="text-[11px] text-muted-500">
                     {j.updatedAt ? new Date(j.updatedAt).toLocaleString("vi-VN") : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {(j.state === "failed" || j.state === "needs_action") && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void cancel(j.id);
-                        }}
-                        className="rounded border border-danger-500 px-2 py-0.5 text-xs text-danger-600 hover:bg-danger-50"
-                      >
-                        Huỷ
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </p>
+                </div>
+                {(j.state === "failed" || j.state === "needs_action") && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    icon={<IconTrash size={12} />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void cancel(j.id);
+                    }}
+                  >
+                    Huỷ
+                  </Button>
+                )}
+              </button>
+            ))
+          )}
         </div>
 
-        <div className="rounded border border-muted-100 bg-white p-3">
-          <h3 className="text-sm font-medium">Chi tiết attempts</h3>
-          {!activeJobId && (
-            <p className="mt-2 text-sm text-muted-500">Chọn một job bên trái.</p>
-          )}
-          {activeJobId && (
-            <ol className="mt-2 space-y-1 text-xs">
-              {attempts.length === 0 && <li className="text-muted-500">Không có attempt.</li>}
+        {/* Detail */}
+        <Card padding="md" className="self-start lg:sticky lg:top-20">
+          <h3 className="text-sm font-semibold text-muted-900">Chi tiết attempts</h3>
+          {!activeJobId ? (
+            <p className="mt-3 text-sm text-muted-500">Chọn một job bên trái.</p>
+          ) : (
+            <ol className="mt-3 space-y-2">
+              {attempts.length === 0 && (
+                <li className="text-sm text-muted-500">Không có attempt.</li>
+              )}
               {attempts.map((a) => (
-                <li key={a.id} className="rounded border border-muted-100 p-2">
-                  <div>
-                    <strong>#{a.attemptNumber}</strong> {a.fromState ?? "(none)"} → {a.toState}
+                <li
+                  key={a.id}
+                  className="rounded-md border border-muted-100 bg-muted-50/30 p-2.5 text-xs"
+                >
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-mono text-muted-500">#{a.attemptNumber}</span>
+                    <span className="text-[10px] text-muted-500">{a.startedAt}</span>
                   </div>
+                  <p className="mt-1 text-muted-800">
+                    {a.fromState ?? "(none)"} → <strong>{a.toState}</strong>
+                  </p>
                   {a.errorCode && (
-                    <div className="text-danger-600">
+                    <p className="mt-0.5 text-danger-600">
                       {a.errorCode}: {a.errorMessage ?? ""}
-                    </div>
+                    </p>
                   )}
-                  <div className="text-muted-500">{a.startedAt}</div>
                 </li>
               ))}
             </ol>
           )}
-        </div>
+        </Card>
       </div>
     </section>
   );
-}
-
-function StateBadge({ state }: { state: string }) {
-  const color =
-    state === "published"
-      ? "bg-success-50 text-success-600"
-      : state === "pending_approval"
-        ? "bg-warning-50 text-warning-600"
-        : state === "unverified"
-          ? "bg-warning-50 text-warning-600"
-          : state === "failed"
-            ? "bg-danger-50 text-danger-600"
-            : "bg-muted-50 text-muted-500";
-  return <span className={`rounded px-1.5 py-0.5 text-xs ${color}`}>{state}</span>;
 }

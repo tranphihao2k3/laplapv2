@@ -15,18 +15,29 @@
  *  - error state: AuthError typed tra ve qua IPC cho UI hien thi.
  */
 import { AppError } from "../../shared/errors";
+import { safeStorage } from "electron";
 import {
   clearTokens,
   loadRefreshToken,
   saveRefreshToken,
   type AccessTokenHolder,
+  type StoredTokens,
 } from "../security/token-storage";
 import { SupabaseAuthClient } from "../api/supabase-auth-client";
 import type { SupabaseTokensResponse } from "../api/supabase-auth-client";
 
 export type AuthStatus =
   | { kind: "anonymous" }
-  | { kind: "authenticated"; refreshExpiresAt: string | null; loggedInAt: string };
+  | {
+      kind: "authenticated";
+      email: string | null;
+      refreshExpiresAt: string | null;
+      loggedInAt: string;
+      rememberMe: boolean;
+      /** True khi safeStorage.encryptString KHÔNG khả dụng — file token
+       *  không được mã hoá. UI nên warn user. */
+      secureStorageUnavailable: boolean;
+    };
 
 export class AuthService {
   private readonly holder: AccessTokenHolder = { accessToken: null, obtainedAt: null };
@@ -38,19 +49,27 @@ export class AuthService {
   /**
    * APP-005: Login bang email + password qua Supabase auth.
    * Luu refresh + set access in-memory. Tra AppError neu that bai.
+   *
+   * `rememberMe`:
+   *  - true (default): persist refresh token đã mã hoá xuống local → auto
+   *    refresh on boot, không phải đăng nhập lại.
+   *  - false: chỉ giữ access token trong session hiện tại; logout khi đóng
+   *    app. Phù hợp máy dùng chung.
    */
-  async login(input: { supabase: SupabaseAuthClient; email: string; password: string }): Promise<AuthStatus> {
+  async login(input: {
+    supabase: SupabaseAuthClient;
+    email: string;
+    password: string;
+    rememberMe?: boolean;
+  }): Promise<AuthStatus> {
+    const remember = input.rememberMe ?? true;
     try {
       const result = await input.supabase.signInWithPassword({
         email: input.email,
         password: input.password,
       });
-      await this.applyTokens(result);
-      return {
-        kind: "authenticated",
-        refreshExpiresAt: this.expiryIsoFromUnix(result.expires_at),
-        loggedInAt: new Date().toISOString(),
-      };
+      await this.applyTokens(result, remember);
+      return this.statusFromHolder(result.user.email);
     } catch (err) {
       throw SupabaseAuthClient.normalizeError(err);
     }
@@ -77,25 +96,90 @@ export class AuthService {
    * App startup: đọc refresh token đã persist. Trả AuthStatus để UI biết
    * nên resume session hay đẩy login. KHÔNG tự động refresh — để UI điều
    * khiển để tránh silent network call.
+   *
+   * Lưu ý: nếu muốn auto-refresh (để có access token ngay khi mở app),
+   * dùng `bootstrap()` thay thế (gọi loadFromDiskAndMaybeRefresh internally).
    */
   async loadFromDisk(): Promise<AuthStatus> {
     const stored = await loadRefreshToken(this.userDataDir);
     if (!stored) return { kind: "anonymous" };
-    return {
-      kind: "authenticated",
-      refreshExpiresAt: stored.expiresAt,
-      loggedInAt: stored.loggedInAt,
-    };
+    return this.statusFromStored(stored);
+  }
+
+  /**
+   * Bootstrap session khi app mount: load token + auto-refresh nếu user
+   * đã tick "Ghi nhớ đăng nhập". Đây là entry point chính cho UI.
+   *  - Không có token → anonymous.
+   *  - rememberMe=false → chỉ đọc metadata, không gọi network.
+   *  - rememberMe=true + supabase OK → refresh → có access token ngay.
+   *  - Refresh fail → đã clearTokens bên trong; caller nhận anonymous
+   *    (UI đẩy login lại).
+   */
+  async bootstrap(input: { supabase: SupabaseAuthClient }): Promise<AuthStatus> {
+    return this.loadFromDiskAndMaybeRefresh(input);
+  }
+
+  /**
+   * Variant của loadFromDisk — nếu stored.rememberMe=true VÀ có supabase
+   * callback, tự gọi refresh để có access token sẵn sàng cho queue worker.
+   * Nếu rememberMe=false hoặc refresh fail → trả AuthStatus (KHÔNG throw).
+   */
+  async loadFromDiskAndMaybeRefresh(input: {
+    supabase: SupabaseAuthClient;
+  }): Promise<AuthStatus> {
+    const stored = await loadRefreshToken(this.userDataDir);
+    if (!stored) return { kind: "anonymous" };
+    if (!stored.rememberMe) return this.statusFromStored(stored);
+
+    try {
+      await this.refreshAccessToken({ supabase: input.supabase });
+    } catch {
+      // Refresh fail → caller vẫn nhận AuthStatus authenticated (đã xoá
+      // token trong refreshAccessToken). UI sẽ đẩy login lại.
+      return this.loadFromDisk();
+    }
+    // Refresh OK → lấy status mới từ holder.
+    return this.statusFromStored(stored);
   }
 
   /**
    * Áp tokens vừa nhận (login hoặc refresh) → cập nhật holder + persist
-   * refresh xuống file encrypted.
+   * refresh xuống file encrypted (nếu rememberMe=true).
    */
-  private async applyTokens(t: SupabaseTokensResponse): Promise<void> {
+  private async applyTokens(t: SupabaseTokensResponse, rememberMe: boolean): Promise<void> {
     this.holder.accessToken = t.access_token;
     this.holder.obtainedAt = new Date().toISOString();
-    await saveRefreshToken(t.refresh_token, this.expiryIsoFromUnix(t.expires_at), this.userDataDir);
+    if (rememberMe) {
+      await saveRefreshToken(
+        t.refresh_token,
+        t.user.email,
+        this.expiryIsoFromUnix(t.expires_at),
+        rememberMe,
+        this.userDataDir,
+      );
+    }
+  }
+
+  private statusFromStored(stored: StoredTokens): AuthStatus {
+    return {
+      kind: "authenticated",
+      email: stored.email,
+      refreshExpiresAt: stored.expiresAt,
+      loggedInAt: stored.loggedInAt,
+      rememberMe: stored.rememberMe,
+      secureStorageUnavailable: !safeStorage.isEncryptionAvailable(),
+    };
+  }
+
+  private statusFromHolder(email: string | undefined): AuthStatus {
+    const stored: StoredTokens = {
+      refreshToken: "",
+      email: email ?? null,
+      expiresAt: null,
+      loggedInAt: new Date().toISOString(),
+      rememberMe: true,
+    };
+    return this.statusFromStored(stored);
   }
 
   private expiryIsoFromUnix(seconds: number | undefined | null): string | null {
@@ -118,7 +202,8 @@ export class AuthService {
     const promise = (async () => {
       try {
         const result = await input.supabase.refresh(stored.refreshToken);
-        await this.applyTokens(result);
+        // Refresh giữ nguyên rememberMe từ stored token.
+        await this.applyTokens(result, stored.rememberMe);
         return result.access_token;
       } catch (err) {
         await this.logout();

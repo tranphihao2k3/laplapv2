@@ -12,6 +12,7 @@ import {
   render,
   type RenderOptions,
 } from "../template/engine";
+import { TEMPLATE_PRESETS, extractVariableList } from "../template/presets";
 import type { TemplateRow } from "../../shared/db-types";
 
 export type TemplateInput = {
@@ -128,6 +129,30 @@ export class TemplateService {
   /** Render preview không lưu DB. Dùng cho TPL-002 live preview. */
   renderPreview(body: string, context: Record<string, unknown>, locale?: string): string {
     return renderPreview(body, context, locale ?? "vi-VN");
+  }
+
+  /**
+   * Seed các preset mặc định nếu templates table đang rỗng (user mới cài).
+   * Idempotent: nếu đã có template cùng tên thì skip.
+   * Trả về số preset đã insert (0 nếu rỗng hoặc đã có sẵn).
+   */
+  seedPresetsIfEmpty(): number {
+    if (this.templates.listAll().length > 0) return 0;
+    let inserted = 0;
+    for (const preset of TEMPLATE_PRESETS) {
+      try {
+        this.create({
+          name: preset.name,
+          body: preset.body,
+          allowlistedVariables: extractVariableList(preset.body),
+        });
+        inserted += 1;
+      } catch {
+        // Skip nếu trùng tên (race với user) hoặc lỗi validation — không
+        // chặn boot app.
+      }
+    }
+    return inserted;
   }
 }
 

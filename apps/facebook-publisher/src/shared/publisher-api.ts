@@ -10,6 +10,7 @@ import type { AppSettings, SettingsPatch } from "./settings";
 import type { AuthStatus } from "./auth";
 import type {
   CatalogQuery,
+  ProductDetail,
   ProductSummary,
   ProductVariantSummary,
   SyncResult,
@@ -116,8 +117,8 @@ export interface PublisherApi {
   catalogSyncAll: (query: { q?: string; pageSize?: number }) => Promise<IpcResult<SyncResult>>;
   /** List product từ cache (UI render list). */
   catalogList: (query: { q?: string; page: number; pageSize: number }) => Promise<IpcResult<{ items: ProductSummary[]; total: number }>>;
-  /** Get 1 product (MED-001 dùng). */
-  catalogGet: (productId: string) => Promise<IpcResult<ProductSummary | null>>;
+  /** Get 1 product kèm variants + previewSpecs (cho modal chi tiết). */
+  catalogGet: (productId: string) => Promise<IpcResult<ProductDetail | null>>;
   /** List variants của 1 product. */
   catalogVariants: (productId: string) => Promise<IpcResult<ProductVariantSummary[]>>;
   /** Tra timestamp last sync (UI indicator). */

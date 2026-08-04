@@ -45,6 +45,8 @@ export class ProductRepository extends BaseRepo {
   private readonly listVariantsStmt: any;
   private readonly countActiveStmt: any;
   private readonly maxSyncedAtStmt: any;
+  private readonly setLocalImagePathsStmt: any;
+  private readonly setImageUrlsStmt: any;
 
   constructor(db: any) {
     super(db);
@@ -101,6 +103,12 @@ export class ProductRepository extends BaseRepo {
     this.maxSyncedAtStmt = db.prepare(`
       SELECT MAX(synced_at) AS s FROM product_cache WHERE org_id = ?
     `);
+    this.setLocalImagePathsStmt = db.prepare(`
+      UPDATE product_cache SET local_image_paths_json = ? WHERE product_id = ?
+    `);
+    this.setImageUrlsStmt = db.prepare(`
+      UPDATE product_cache SET image_urls_json = ? WHERE product_id = ?
+    `);
   }
 
   /** Upsert 1 product. Dùng trong transaction bulk. */
@@ -156,5 +164,38 @@ export class ProductRepository extends BaseRepo {
    */
   deleteById(productId: string): void {
     this.db.prepare(`DELETE FROM product_cache WHERE product_id = ?`).run(productId);
+  }
+
+  /** Lưu local paths ảnh đã tải về qua MED-001. JSON string[]. */
+  setLocalImagePaths(productId: string, paths: string[]): void {
+    this.setLocalImagePathsStmt.run(JSON.stringify(paths), productId);
+  }
+
+  /** Lưu image URLs gốc (CDN) — dùng cho lazy download. JSON string[]. */
+  setImageUrls(productId: string, urls: string[]): void {
+    this.setImageUrlsStmt.run(JSON.stringify(urls), productId);
+  }
+
+  /** Đọc local paths + urls từ row. Trả mảng rỗng nếu row không tồn tại. */
+  getImageInfo(productId: string): { localPaths: string[]; urls: string[] } {
+    const row = this.findProductStmt.get(productId) as
+      | { local_image_paths_json: string; image_urls_json: string }
+      | undefined;
+    if (!row) return { localPaths: [], urls: [] };
+    return {
+      localPaths: parseStringArray(row.local_image_paths_json),
+      urls: parseStringArray(row.image_urls_json),
+    };
+  }
+}
+
+/** Parse JSON string[] an toàn — trả mảng rỗng nếu lỗi hoặc không phải mảng. */
+function parseStringArray(input: string | null | undefined): string[] {
+  if (!input) return [];
+  try {
+    const v = JSON.parse(input);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
   }
 }

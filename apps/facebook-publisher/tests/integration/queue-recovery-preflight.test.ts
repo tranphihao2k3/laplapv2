@@ -217,15 +217,16 @@ describe("PreflightService.run — typed result", () => {
         renderedText: "",
       }),
     });
+    const body = { ok: true, data: { id: "p1", status: "archived", updatedAt: null, variants: [] } };
     const original = globalThis.fetch;
     globalThis.fetch = (async () =>
       ({
         ok: true,
         status: 200,
         statusText: "OK",
-        text: async () => JSON.stringify({ id: "p1", status: "archived", updatedAt: null, variants: [] }),
+        text: async () => JSON.stringify(body),
         json: async () => ({}),
-      }) as Response;
+      }) as Response);
     try {
       const svc = new PreflightService(jobs, settings);
       const result = await svc.run({
@@ -256,15 +257,19 @@ describe("PreflightService.run — typed result", () => {
         renderedText: "",
       }),
     });
+    const body = {
+      ok: true,
+      data: { id: "p1", status: "active", updatedAt: null, variants: [{ id: "v1", sellingPrice: 100, availableQty: 0, isActive: true }] },
+    };
     const original = globalThis.fetch;
     globalThis.fetch = (async () =>
       ({
         ok: true,
         status: 200,
         statusText: "OK",
-        text: async () => JSON.stringify({ id: "p1", status: "active", updatedAt: null, variants: [{ id: "v1", sellingPrice: 100, availableQty: 0, isActive: true }] }),
+        text: async () => JSON.stringify(body),
         json: async () => ({}),
-      }) as Response;
+      }) as Response);
     try {
       const svc = new PreflightService(jobs, settings);
       const result = await svc.run({
@@ -295,15 +300,19 @@ describe("PreflightService.run — typed result", () => {
         renderedText: "",
       }),
     });
+    const body = {
+      ok: true,
+      data: { id: "p1", status: "active", updatedAt: "2026-08-01T00:00:00Z", variants: [{ id: "v1", sellingPrice: 200, availableQty: 10, isActive: true }] },
+    };
     const original = globalThis.fetch;
     globalThis.fetch = (async () =>
       ({
         ok: true,
         status: 200,
         statusText: "OK",
-        text: async () => JSON.stringify({ id: "p1", status: "active", updatedAt: "2026-08-01T00:00:00Z", variants: [{ id: "v1", sellingPrice: 200, availableQty: 10, isActive: true }] }),
+        text: async () => JSON.stringify(body),
         json: async () => ({}),
-      }) as Response;
+      }) as Response);
     try {
       const svc = new PreflightService(jobs, settings);
       const result = await svc.run({
@@ -316,6 +325,47 @@ describe("PreflightService.run — typed result", () => {
         expect(result.priceChanged).toBe(true);
         expect(result.updatedAtChanged).toBe(false);
       }
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it("legacy payload (no wrapper) → fallback vẫn unwrap đúng", async () => {
+    jobs.insert({
+      id: "00000000-0000-0000-0000-00000000p006",
+      campaign_id: "00000000-0000-0000-0000-00000000c001",
+      group_id: "00000000-0000-0000-0000-00000000g001",
+      state: "queued",
+      fingerprint: "fpp6",
+      snapshot_json: JSON.stringify({
+        capturedAt: "2026-08-01T00:00:00Z",
+        product: { productId: "p1", name: "P", slug: null, shortDescription: null, thumbnailUrl: null, updatedAt: "2026-08-01T00:00:00Z" },
+        variant: { variantId: "v1", sku: "S", name: null, sellingPrice: 100, availableQty: 10, isActive: true },
+        template: { templateId: "t1", name: "T", body: "" },
+        group: { groupId: "g1", name: "G", url: "" },
+        images: { urls: [], paths: [], sha256s: [] },
+        renderedText: "",
+      }),
+    });
+    // Proxy tuột wrapper → fallback dùng envelope làm payload.
+    const body = { id: "p1", status: "active", updatedAt: "2026-08-01T00:00:00Z", variants: [{ id: "v1", sellingPrice: 100, availableQty: 10, isActive: true }] };
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => JSON.stringify(body),
+        json: async () => ({}),
+      }) as Response);
+    try {
+      const svc = new PreflightService(jobs, settings);
+      const result = await svc.run({
+        jobId: "00000000-0000-0000-0000-00000000p006",
+        apiBaseUrl: "https://api.laplap.vn",
+        accessToken: "t",
+      });
+      expect(result.kind).toBe("ok");
     } finally {
       globalThis.fetch = original;
     }

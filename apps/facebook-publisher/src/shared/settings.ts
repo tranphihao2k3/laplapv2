@@ -58,6 +58,14 @@ export const AppSettingsSchema = z.object({
   /** Diagnostics (screenshot/trace) TTL — cleanup tự động. */
   diagnosticsTtlMs: DiagnosticsTtlSchema.default(7 * 24 * 60 * 60 * 1000),
 
+  /** Media (ảnh tải về local cho composer) TTL riêng — dài hơn diagnostics. */
+  mediaTtlMs: z
+    .number()
+    .int()
+    .min(60_000, "Media TTL tối thiểu 1 phút")
+    .max(90 * 24 * 60 * 60 * 1000, "Media TTL tối đa 90 ngày")
+    .default(30 * 24 * 60 * 60 * 1000),
+
   /**
    * Convenience flag để áp dụng cho MỌI group khi user tạo nhanh. KHÔNG
    * phải runtime override của GOV-AUTO — đó là escalation của chủ dự án

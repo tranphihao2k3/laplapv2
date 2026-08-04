@@ -36,6 +36,12 @@ const HOST_ALLOW_DEFAULT = [
   /^cdn\.[a-z0-9.-]+$/i,
   /^localhost(:\d+)?$/i,
   /^127\.0\.0\.1(:\d+)?$/i,
+  // Generic image CDNs thường gặp cho catalog sản phẩm.
+  /^images\.unsplash\.com$/i,
+  /^res\.cloudinary\.com$/i,
+  /^[a-z0-9-]+\.cloudfront\.net$/i,
+  /^[a-z0-9-]+\.r2\.cloudflarestorage\.com$/i,
+  /^[a-z0-9-]+\.b-cdn\.net$/i,
 ];
 
 export type DownloadedImage = {
@@ -139,12 +145,11 @@ export class ImageService {
   }
 
   /**
-   * Cleanup file cũ hơn TTL. Dùng Settings.diagnosticsTtlMs làm mặc định
-   * (MED-001 chưa có setting riêng cho media TTL — reuse cho đến khi có
-   * yêu cầu phân biệt).
+   * Cleanup file cũ hơn TTL. Dùng Settings.mediaTtlMs (riêng cho media;
+   * khác với diagnosticsTtlMs). Default 30 ngày.
    */
   async cleanupExpired(): Promise<{ removed: number }> {
-    const ttlMs = this.settings.get().diagnosticsTtlMs;
+    const ttlMs = this.settings.get().mediaTtlMs;
     const cutoff = Date.now() - ttlMs;
     const dir = this.mediaDir();
     let entries: import("node:fs").Dirent[] = [];
@@ -165,6 +170,62 @@ export class ImageService {
       }
     }
     return { removed };
+  }
+
+  /**
+   * Tải nhiều URL song song (có cap). Lỗi 1 URL không fail cả batch —
+   * trả về kết quả per-URL để caller quyết định. Dedup theo sha256:
+   * cùng nội dung → cùng file path (vì tên file = sha256 nội dung).
+   */
+  async downloadMany(input: {
+    urls: string[];
+    /** Cap concurrent download để tránh spike mạng. */
+    concurrency?: number;
+  }): Promise<Array<
+    | { ok: true; downloaded: DownloadedImage }
+    | { ok: false; url: string; errorCode: string; message: string }
+  >> {
+    const cap = Math.max(1, input.concurrency ?? 4);
+    const queue = [...input.urls];
+    const out: Array<
+      | { ok: true; downloaded: DownloadedImage }
+      | { ok: false; url: string; errorCode: string; message: string }
+    > = [];
+    const workers = Array.from({ length: cap }, async () => {
+      while (queue.length > 0) {
+        const url = queue.shift();
+        if (!url) return;
+        try {
+          const downloaded = await this.download({ url });
+          out.push({ ok: true, downloaded });
+        } catch (err) {
+          const code =
+            err instanceof AppError ? err.code : "IMAGE_DOWNLOAD_FAILED";
+          const message = err instanceof Error ? err.message : String(err);
+          out.push({ ok: false, url, errorCode: code, message });
+        }
+      }
+    });
+    await Promise.all(workers);
+    return out;
+  }
+
+  /**
+   * Đảm bảo có file local cho mỗi URL. Nếu 1 URL fail → trả `null` cho
+   * slot đó nhưng KHÔNG throw — caller (CampaignService) quyết định có
+   * đăng bài không ảnh hay skip job.
+   */
+  async ensureLocalPaths(input: { urls: string[] }): Promise<Array<string | null>> {
+    const out: Array<string | null> = [];
+    for (const url of input.urls) {
+      try {
+        const r = await this.download({ url });
+        out.push(r.filePath);
+      } catch {
+        out.push(null);
+      }
+    }
+    return out;
   }
 
   /** Đường dẫn tới app data/temp/media. */

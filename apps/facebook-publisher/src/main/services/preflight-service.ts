@@ -42,6 +42,13 @@ type ProductDetailResponse = {
   }>;
 };
 
+/**
+ * Repo API wrap mọi success response trong `{ ok: true, data: ... }`
+ * (xem `src/lib/api/response.ts` → `ok()`). Desktop client phải unwrap
+ * `.data` trước khi dùng.
+ */
+type ApiSuccessEnvelope<T> = { ok: true; data: T };
+
 export class PreflightService {
   constructor(
     private readonly jobs: PostJobRepository,
@@ -56,9 +63,9 @@ export class PreflightService {
     }
     const snap = JSON.parse(job.snapshot_json) as JobSnapshot;
 
-    let resp: ProductDetailResponse;
+    let envelope: ApiSuccessEnvelope<ProductDetailResponse>;
     try {
-      resp = await apiFetch<ProductDetailResponse>(
+      envelope = await apiFetch<ApiSuccessEnvelope<ProductDetailResponse>>(
         p.apiBaseUrl,
         `/api/v1/desktop-posting/products/${snap.product.productId}`,
         "GET",
@@ -71,6 +78,13 @@ export class PreflightService {
       const msg = err instanceof Error ? err.message : String(err);
       return { kind: "network_error", message: msg };
     }
+
+    // Unwrap `{ ok: true, data }` wrapper mà repo API trả về. Fallback cho
+    // proxy/legacy response nếu wrapper bị tuột.
+    const resp: ProductDetailResponse =
+      envelope && typeof envelope === "object" && "data" in envelope
+        ? (envelope.data ?? { id: snap.product.productId, status: "active", updatedAt: null, variants: [] })
+        : (envelope as unknown as ProductDetailResponse);
 
     if (resp.status === "archived") return { kind: "product_archived" };
 

@@ -2,13 +2,19 @@
  * CMP-001/002/003 — CampaignService + fingerprint tests.
  */
 import Database from "better-sqlite3";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runMigrations } from "../../src/main/db/migrations";
 import { ProductRepository } from "../../src/main/db/repositories/products";
+import { SettingsRepository } from "../../src/main/db/repositories/settings";
 import { TemplateRepository } from "../../src/main/db/repositories/templates";
 import { CampaignRepository } from "../../src/main/db/repositories/campaigns";
 import { PostJobRepository } from "../../src/main/db/repositories/post-jobs";
 import { FacebookGroupRepository, GroupSetRepository } from "../../src/main/db/repositories/facebook-groups";
+import { CatalogService } from "../../src/main/services/catalog-service";
+import { ImageService } from "../../src/main/services/image-service";
 import { CampaignService } from "../../src/main/services/campaign-service";
 import { computeFingerprint, normalizeText } from "../../src/main/jobs/fingerprint";
 
@@ -19,9 +25,13 @@ let campaigns: CampaignRepository;
 let jobs: PostJobRepository;
 let groups: FacebookGroupRepository;
 let sets: GroupSetRepository;
+let settings: SettingsRepository;
+let images: ImageService;
+let catalog: CatalogService;
 let svc: CampaignService;
+let tempDir: string;
 
-beforeEach(() => {
+beforeEach(async () => {
   db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
   runMigrations(db);
@@ -31,7 +41,11 @@ beforeEach(() => {
   jobs = new PostJobRepository(db);
   groups = new FacebookGroupRepository(db);
   sets = new GroupSetRepository(db);
-  svc = new CampaignService(campaigns, jobs, products, templates, groups, sets);
+  settings = new SettingsRepository(db);
+  tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "laplap-camp-"));
+  images = new ImageService(settings, tempDir);
+  catalog = new CatalogService(products, settings, images, () => "", () => null);
+  svc = new CampaignService(campaigns, jobs, products, templates, groups, sets, catalog);
 
   // Seed: 1 product, 1 variant, 1 template, 2 groups.
   products.upsertProduct(
@@ -94,7 +108,10 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => db.close());
+afterEach(async () => {
+  db.close();
+  await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+});
 
 describe("fingerprint", () => {
   it("computeFingerprint: ổn định cho cùng input", () => {
@@ -181,14 +198,14 @@ describe("CampaignService — CRUD + enqueue", () => {
     ).toThrowError(/CAMPAIGN_PRODUCT_NOT_FOUND/);
   });
 
-  it("enqueue: tạo job cho mỗi enabled group + snapshot JSON", () => {
+  it("enqueue: tạo job cho mỗi enabled group + snapshot JSON", async () => {
     const c = svc.createCampaign({
       name: "C1",
       productId: "00000000-0000-0000-0000-000000000001",
       variantId: "00000000-0000-0000-0000-000000000010",
       templateId: "00000000-0000-0000-0000-000000000100",
     });
-    const result = svc.enqueue({ campaignId: c.id });
+    const result = await svc.enqueue({ campaignId: c.id });
     expect(result.jobsCreated).toBe(2);
     expect(result.duplicates).toBe(0);
     expect(result.errors).toHaveLength(0);
@@ -205,28 +222,28 @@ describe("CampaignService — CRUD + enqueue", () => {
     }
   });
 
-  it("enqueue: duplicate fingerprint bị bỏ qua (UNIQUE PARTIAL INDEX)", () => {
+  it("enqueue: duplicate fingerprint bị bỏ qua (UNIQUE PARTIAL INDEX)", async () => {
     const c = svc.createCampaign({
       name: "C1",
       productId: "00000000-0000-0000-0000-000000000001",
       variantId: "00000000-0000-0000-0000-000000000010",
       templateId: "00000000-0000-0000-0000-000000000100",
     });
-    svc.enqueue({ campaignId: c.id });
+    await svc.enqueue({ campaignId: c.id });
     // Second enqueue → duplicate cho cùng group.
-    const second = svc.enqueue({ campaignId: c.id });
+    const second = await svc.enqueue({ campaignId: c.id });
     expect(second.jobsCreated).toBe(0);
     expect(second.duplicates).toBe(2);
   });
 
-  it("sau khi enqueue, sửa template không ảnh hưởng snapshot (CMP-002)", () => {
+  it("sau khi enqueue, sửa template không ảnh hưởng snapshot (CMP-002)", async () => {
     const c = svc.createCampaign({
       name: "C1",
       productId: "00000000-0000-0000-0000-000000000001",
       variantId: "00000000-0000-0000-0000-000000000010",
       templateId: "00000000-0000-0000-0000-000000000100",
     });
-    svc.enqueue({ campaignId: c.id });
+    await svc.enqueue({ campaignId: c.id });
     const beforeSnap = jobs.listByCampaign(c.id)[0].snapshot_json!;
 
     // Sửa template body.
@@ -235,7 +252,7 @@ describe("CampaignService — CRUD + enqueue", () => {
     expect(afterSnap).toBe(beforeSnap);
   });
 
-  it("enqueue: CAMPAIGN_NO_GROUPS khi không có nhóm enabled", () => {
+  it("enqueue: CAMPAIGN_NO_GROUPS khi không có nhóm enabled", async () => {
     // Tắt hết group.
     db.prepare("UPDATE facebook_groups SET enabled = 0").run();
     const c = svc.createCampaign({
@@ -244,17 +261,17 @@ describe("CampaignService — CRUD + enqueue", () => {
       variantId: "00000000-0000-0000-0000-000000000010",
       templateId: "00000000-0000-0000-0000-000000000100",
     });
-    expect(() => svc.enqueue({ campaignId: c.id })).toThrowError(/CAMPAIGN_NO_GROUPS/);
+    await expect(svc.enqueue({ campaignId: c.id })).rejects.toThrowError(/CAMPAIGN_NO_GROUPS/);
   });
 
-  it("deleteCampaign xoá kèm post_jobs (CASCADE)", () => {
+  it("deleteCampaign xoá kèm post_jobs (CASCADE)", async () => {
     const c = svc.createCampaign({
       name: "C1",
       productId: "00000000-0000-0000-0000-000000000001",
       variantId: "00000000-0000-0000-0000-000000000010",
       templateId: "00000000-0000-0000-0000-000000000100",
     });
-    svc.enqueue({ campaignId: c.id });
+    await svc.enqueue({ campaignId: c.id });
     expect(jobs.listByCampaign(c.id)).toHaveLength(2);
     svc.deleteCampaign(c.id);
     expect(jobs.listByCampaign(c.id)).toHaveLength(0);

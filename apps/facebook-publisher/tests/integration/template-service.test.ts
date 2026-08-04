@@ -245,3 +245,130 @@ describe("TemplateService — CRUD + preview", () => {
     expect(svc.list()).toHaveLength(0);
   });
 });
+
+describe("TemplateService.seedPresetsIfEmpty", () => {
+  let db: Database.Database;
+  let repo: TemplateRepository;
+  let svc: TemplateService;
+
+  beforeEach(() => {
+    db = new Database(":memory:");
+    db.pragma("foreign_keys = ON");
+    runMigrations(db);
+    repo = new TemplateRepository(db);
+    svc = new TemplateService(repo);
+  });
+  afterEach(() => db.close());
+
+  it("seed 3 preset khi repo rỗng", () => {
+    const inserted = svc.seedPresetsIfEmpty();
+    expect(inserted).toBe(3);
+    expect(svc.list()).toHaveLength(3);
+    const names = svc.list().map((t) => t.name);
+    expect(names).toContain("Mặc định — Laptop Cần Thơ");
+    expect(names).toContain("Mặc định — Điện thoại");
+    expect(names).toContain("Mặc định — Phụ kiện");
+  });
+
+  it("KHÔNG seed khi repo đã có template", () => {
+    svc.create({ name: "Custom", body: "{{product.name}}", allowlistedVariables: [] });
+    const inserted = svc.seedPresetsIfEmpty();
+    expect(inserted).toBe(0);
+    expect(svc.list()).toHaveLength(1);
+  });
+
+  it("idempotent — gọi 2 lần không tạo trùng", () => {
+    svc.seedPresetsIfEmpty();
+    const second = svc.seedPresetsIfEmpty();
+    expect(second).toBe(0);
+    expect(svc.list()).toHaveLength(3);
+  });
+});
+
+describe("presets — body laptop có đủ biến cấu hình", () => {
+  it("LAPTOP_BODY tham chiếu cpu/ram/ssd/screen/battery/keyboard", async () => {
+    const { TEMPLATE_PRESETS } = await import("../../src/main/template/presets");
+    const laptop = TEMPLATE_PRESETS.find((p) => p.kind === "laptop");
+    expect(laptop).toBeDefined();
+    const refs = extractVariables(laptop!.body);
+    for (const required of [
+      "variant.specs.cpu",
+      "variant.specs.ram",
+      "variant.specs.ssd",
+      "variant.specs.screen",
+      "variant.specs.battery",
+      "variant.specs.keyboard",
+      "variant.priceText",
+      "variant.warrantyText",
+      "variant.giftsText",
+    ]) {
+      expect(refs).toContain(required);
+    }
+  });
+
+  it("LAPTOP_BODY dùng emoji + không có biến ngoài allowlist", async () => {
+    const { TEMPLATE_PRESETS } = await import("../../src/main/template/presets");
+    const laptop = TEMPLATE_PRESETS.find((p) => p.kind === "laptop")!;
+    expect(laptop.body).toMatch(/💻/);
+    expect(laptop.body).toMatch(/⚡️/);
+    expect(() => assertAllowlist(laptop.body)).not.toThrow();
+  });
+});
+
+describe("spec-map — buildSpecMap + formatPriceShort", () => {
+  it("parse object form với key tiếng Việt có dấu", async () => {
+    const { buildSpecMap } = await import("../../src/main/template/spec-map");
+    const map = buildSpecMap(
+      JSON.stringify({
+        "CPU": "I5-12450H",
+        "RAM": "16GB",
+        "Ổ cứng": "NVMe 256GB",
+        "Màn hình": '15.6" FHD IPS',
+        "Pin": "2-4h",
+        "Bàn phím": "Full Size",
+      }),
+    );
+    expect(map["cpu"]).toBe("I5-12450H");
+    expect(map["ram"]).toBe("16GB");
+    expect(map["ssd"]).toBe("NVMe 256GB");
+    expect(map["screen"]).toBe('15.6" FHD IPS');
+    expect(map["battery"]).toBe("2-4h");
+    expect(map["keyboard"]).toBe("Full Size");
+  });
+
+  it("parse array form", async () => {
+    const { buildSpecMap } = await import("../../src/main/template/spec-map");
+    const map = buildSpecMap(
+      JSON.stringify([
+        { key: "Chip", value: "Snapdragon 8 Gen 3" },
+        { key: "GPU", value: "Adreno 750" },
+      ]),
+    );
+    expect(map["cpu"]).toBe("Snapdragon 8 Gen 3");
+    expect(map["gpu"]).toBe("Adreno 750");
+  });
+
+  it("bỏ qua key không map được (không phải alias hợp lệ)", async () => {
+    const { buildSpecMap } = await import("../../src/main/template/spec-map");
+    const map = buildSpecMap(JSON.stringify({ "Ngày sx": "2026", "CPU": "X" }));
+    expect(Object.keys(map)).toEqual(["cpu"]);
+  });
+
+  it("trả {} khi JSON hỏng hoặc null", async () => {
+    const { buildSpecMap } = await import("../../src/main/template/spec-map");
+    expect(buildSpecMap(null)).toEqual({});
+    expect(buildSpecMap("not json")).toEqual({});
+    expect(buildSpecMap("null")).toEqual({});
+  });
+
+  it("formatPriceShort theo mẫu laptop Cần Thơ", async () => {
+    const { formatPriceShort } = await import("../../src/main/template/spec-map");
+    expect(formatPriceShort(8500000)).toBe("8.500K");
+    expect(formatPriceShort(24500000)).toBe("24.500K");
+    expect(formatPriceShort(1000000)).toBe("1.000K");
+    expect(formatPriceShort(null)).toBe("");
+    expect(formatPriceShort(undefined)).toBe("");
+    expect(formatPriceShort(0)).toBe("");
+    expect(formatPriceShort(-100)).toBe("");
+  });
+});

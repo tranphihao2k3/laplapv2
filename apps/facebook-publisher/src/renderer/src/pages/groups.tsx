@@ -1,52 +1,88 @@
 /**
  * Groups + Group Sets — UI CRUD.
  *
- * Tabs: "Nhóm" (GRP-001) | "Tập nhóm" (GRP-002).
+ * - 2 tab: "Nhóm" | "Tập nhóm".
+ * - List dạng card (mỗi card = 1 group với info + actions).
+ * - Toggle enabled inline (badge click).
+ * - Modal form thêm/sửa có validation URL.
  *
- * - Add group qua form modal (URL validate, maxImages, posting mode).
- * - Toggle enabled, edit inline, delete confirm.
- * - Sets: create / rename / addMember / removeMember / delete set.
+ * Bug fix: trước `countGroups()` gọi `useGroupsCount()` trong render của
+ * parent → vi phạm Rules of Hooks. Đã sửa bằng cách để parent tự fetch
+ * list và đếm.
  */
 import { useEffect, useState } from "react";
 import type { GroupRecord, GroupSetRecord, PostingMode } from "../../../shared/groups";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  Modal,
+  PageHeader,
+} from "../components/ui";
+import {
+  IconEdit,
+  IconInbox,
+  IconLayers,
+  IconPlus,
+  IconTrash,
+  IconUsers,
+} from "../components/ui/icons";
 
 type Tab = "groups" | "sets";
 
 export function GroupsPage() {
   const [tab, setTab] = useState<Tab>("groups");
+  const [count, setCount] = useState(0);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+
+  // Đếm group cho badge tab — effect này ở component cha, không vi phạm
+  // Rules of Hooks.
+  useEffect(() => {
+    const api = window.publisherApi;
+    if (!api) return;
+    void api.groupsList().then((r) => r.ok && setCount(r.data.length));
+  }, [reloadTrigger]);
+
   return (
-    <section>
-      <header className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Nhóm Facebook</h1>
-      </header>
-      <div className="mt-3 flex gap-1 border-b border-muted-100 text-sm">
+    <section className="space-y-5">
+      <PageHeader title="Nhóm Facebook" subtitle="Quản lý nhóm đăng bài và tập nhóm." />
+
+      <div className="flex gap-1 border-b border-muted-100 text-sm" role="tablist">
         <TabButton active={tab === "groups"} onClick={() => setTab("groups")}>
-          Nhóm ({countGroups()})
+          Nhóm <Badge variant="neutral" size="sm" className="ml-1">{count}</Badge>
         </TabButton>
         <TabButton active={tab === "sets"} onClick={() => setTab("sets")}>
           Tập nhóm
         </TabButton>
       </div>
-      <div className="mt-4">
-        {tab === "groups" ? <GroupsPanel /> : <GroupSetsPanel />}
+
+      <div>
+        {tab === "groups" ? (
+          <GroupsPanel onChanged={() => setReloadTrigger((n) => n + 1)} />
+        ) : (
+          <GroupSetsPanel />
+        )}
       </div>
     </section>
   );
-}
-
-function countGroups(): string {
-  // lightweight — render-time count via subscription.
-  return String(useGroupsCount());
 }
 
 function TabButton(props: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={props.active}
       onClick={props.onClick}
-      className={`border-b-2 px-3 py-1.5 ${
-        props.active ? "border-primary-600 font-medium" : "border-transparent text-muted-500"
-      }`}
+      className={[
+        "flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition",
+        props.active
+          ? "border-primary-600 font-medium text-primary-700"
+          : "border-transparent text-muted-500 hover:border-muted-200 hover:text-muted-800",
+      ].join(" ")}
     >
       {props.children}
     </button>
@@ -54,17 +90,7 @@ function TabButton(props: { active: boolean; onClick: () => void; children: Reac
 }
 
 // ----- GroupsPanel -----
-function useGroupsCount(): number {
-  const [items, setItems] = useState<GroupRecord[]>([]);
-  useEffect(() => {
-    const api = window.publisherApi;
-    if (!api) return;
-    void api.groupsList().then((r) => r.ok && setItems(r.data));
-  }, []);
-  return items.length;
-}
-
-function GroupsPanel() {
+function GroupsPanel({ onChanged }: { onChanged: () => void }) {
   const [items, setItems] = useState<GroupRecord[]>([]);
   const [editing, setEditing] = useState<GroupRecord | null>(null);
   const [creating, setCreating] = useState(false);
@@ -85,83 +111,67 @@ function GroupsPanel() {
     const api = window.publisherApi;
     if (!api) return;
     const r = await api.groupsDelete(id);
-    if (!r.ok) setError(r.error.message);
+    if (!r.ok) {
+      setError(r.error.message);
+      return;
+    }
     void load();
+    onChanged();
+  }
+
+  async function toggleEnabled(g: GroupRecord) {
+    const api = window.publisherApi;
+    if (!api) return;
+    const r = await api.groupsUpdate(g.id, { enabled: !g.enabled });
+    if (!r.ok) {
+      setError(r.error.message);
+      return;
+    }
+    void load();
+    onChanged();
   }
 
   return (
-    <div>
+    <div className="space-y-3">
       {error && (
-        <p role="alert" className="mb-3 rounded border border-danger-500 bg-danger-50 p-2 text-sm text-danger-600">
+        <Alert variant="danger" onClose={() => setError(null)}>
           {error}
-        </p>
+        </Alert>
       )}
-      <div className="mb-3 flex justify-end">
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
-        >
-          + Thêm nhóm
-        </button>
+
+      <div className="flex justify-end">
+        <Button variant="primary" icon={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+          Thêm nhóm
+        </Button>
       </div>
-      <div className="overflow-hidden rounded border border-muted-100 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-muted-50 text-left text-xs uppercase text-muted-500">
-            <tr>
-              <th className="px-3 py-2">Tên</th>
-              <th className="px-3 py-2">URL</th>
-              <th className="px-3 py-2">Enabled</th>
-              <th className="px-3 py-2">Mode</th>
-              <th className="px-3 py-2">Max ảnh</th>
-              <th className="px-3 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-muted-500">
-                  Chưa có nhóm nào. Bấm "Thêm nhóm" để bắt đầu.
-                </td>
-              </tr>
-            )}
-            {items.map((g) => (
-              <tr key={g.id} className="border-t border-muted-100">
-                <td className="px-3 py-2">
-                  <div>
-                    <p className="font-medium">{g.name}</p>
-                    {g.notes && <p className="text-xs text-muted-500">{g.notes}</p>}
-                  </div>
-                </td>
-                <td className="px-3 py-2">
-                  <a className="text-primary-600 underline" href={g.url} target="_blank" rel="noreferrer">
-                    {g.url}
-                  </a>
-                </td>
-                <td className="px-3 py-2">{g.enabled ? "Bật" : "Tắt"}</td>
-                <td className="px-3 py-2">{g.postingMode}</td>
-                <td className="px-3 py-2">{g.maxImages}</td>
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(g)}
-                    className="mr-1 rounded border border-muted-100 px-2 py-0.5 text-xs hover:bg-muted-50"
-                  >
-                    Sửa
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(g.id)}
-                    className="rounded border border-danger-500 px-2 py-0.5 text-xs text-danger-600 hover:bg-danger-50"
-                  >
-                    Xoá
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+      {items.length === 0 ? (
+        <Card padding="none">
+          <EmptyState
+            icon={<IconUsers size={22} />}
+            title="Chưa có nhóm nào"
+            description="Thêm nhóm Facebook bạn muốn đăng bài vào. URL phải ở dạng facebook.com/groups/<id>."
+            action={
+              <Button variant="primary" icon={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+                Thêm nhóm
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {items.map((g) => (
+            <GroupCard
+              key={g.id}
+              group={g}
+              onEdit={() => setEditing(g)}
+              onDelete={() => void handleDelete(g.id)}
+              onToggleEnabled={() => void toggleEnabled(g)}
+            />
+          ))}
+        </div>
+      )}
+
       {(editing || creating) && (
         <GroupForm
           initial={editing ?? undefined}
@@ -174,11 +184,78 @@ function GroupsPanel() {
             setCreating(false);
             setError(null);
             void load();
+            onChanged();
           }}
           onError={setError}
         />
       )}
     </div>
+  );
+}
+
+function GroupCard({
+  group,
+  onEdit,
+  onDelete,
+  onToggleEnabled,
+}: {
+  group: GroupRecord;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggleEnabled: () => void;
+}) {
+  return (
+    <Card padding="md" className="flex flex-col gap-3">
+      <header className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold text-muted-900" title={group.name}>
+            {group.name}
+          </h3>
+          {group.notes && (
+            <p className="mt-0.5 text-xs text-muted-500">{group.notes}</p>
+          )}
+        </div>
+        <Badge variant={group.enabled ? "success" : "neutral"} size="sm" dot>
+          {group.enabled ? "Bật" : "Tắt"}
+        </Badge>
+      </header>
+
+      <a
+        href={group.url}
+        target="_blank"
+        rel="noreferrer"
+        className="block truncate rounded-md border border-muted-100 bg-muted-50/50 px-2.5 py-1.5 font-mono text-xs text-primary-600 hover:border-primary-300 hover:bg-primary-50/40"
+        title={group.url}
+      >
+        {group.url}
+      </a>
+
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <Badge variant="primary" size="sm">
+          {group.postingMode === "assisted" ? "Hỗ trợ" : "Tự động"}
+        </Badge>
+        <Badge variant="neutral" size="sm">
+          Max {group.maxImages} ảnh
+        </Badge>
+        <Badge variant={group.allowLink ? "primary" : "neutral"} size="sm">
+          {group.allowLink ? "Cho link" : "Không link"}
+        </Badge>
+      </div>
+
+      <footer className="flex items-center justify-between gap-2 pt-1">
+        <Button variant="ghost" size="sm" onClick={onToggleEnabled}>
+          {group.enabled ? "Tắt" : "Bật"}
+        </Button>
+        <div className="flex gap-1.5">
+          <Button variant="secondary" size="sm" icon={<IconEdit size={14} />} onClick={onEdit}>
+            Sửa
+          </Button>
+          <Button variant="danger" size="sm" icon={<IconTrash size={14} />} onClick={onDelete}>
+            Xoá
+          </Button>
+        </div>
+      </footer>
+    </Card>
   );
 }
 
@@ -194,12 +271,29 @@ function GroupForm(props: {
   const [enabled, setEnabled] = useState(props.initial?.enabled ?? true);
   const [maxImages, setMaxImages] = useState(props.initial?.maxImages ?? 10);
   const [allowLink, setAllowLink] = useState(props.initial?.allowLink ?? true);
-  const [postingMode, setPostingMode] = useState<PostingMode>(props.initial?.postingMode ?? "assisted");
+  const [postingMode, setPostingMode] = useState<PostingMode>(
+    props.initial?.postingMode ?? "assisted",
+  );
   const [notes, setNotes] = useState(props.initial?.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  function validateUrl(v: string): string | null {
+    if (!v.trim()) return "URL không được rỗng";
+    if (!/^https?:\/\/(www\.)?facebook\.com\/groups\/\S+/i.test(v)) {
+      return "URL phải có dạng https://facebook.com/groups/<id>";
+    }
+    return null;
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const u = validateUrl(url);
+    const n = !name.trim() ? "Tên không được rỗng" : null;
+    setUrlError(u);
+    setNameError(n);
+    if (u || n) return;
     const api = window.publisherApi;
     if (!api) return;
     setSubmitting(true);
@@ -231,92 +325,99 @@ function GroupForm(props: {
   }
 
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30">
-      <form
-        onSubmit={onSubmit}
-        className="w-96 rounded-lg border border-muted-100 bg-white p-5 shadow-lg"
-      >
-        <h2 className="text-base font-semibold">{isEdit ? "Sửa nhóm" : "Thêm nhóm"}</h2>
-        <label className="mt-3 block text-sm">
-          <span>Tên</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5"
-          />
-        </label>
-        <label className="mt-3 block text-sm">
-          <span>URL Facebook</span>
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            required
-            placeholder="https://facebook.com/groups/<id>"
-            className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5"
-          />
-        </label>
-        <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-          <label>
-            <span>Max ảnh</span>
+    <Modal
+      open
+      onClose={props.onClose}
+      title={isEdit ? "Sửa nhóm" : "Thêm nhóm"}
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={props.onClose}>
+            Huỷ
+          </Button>
+          <Button variant="primary" type="submit" form="group-form" loading={submitting}>
+            {submitting ? "Đang lưu…" : "Lưu"}
+          </Button>
+        </>
+      }
+    >
+      <form id="group-form" onSubmit={onSubmit} className="space-y-3">
+        <Input
+          label="Tên"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (nameError) setNameError(null);
+          }}
+          error={nameError}
+          required
+        />
+        <Input
+          label="URL Facebook"
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (urlError) setUrlError(null);
+          }}
+          error={urlError}
+          placeholder="https://facebook.com/groups/<id>"
+          required
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-muted-700">Max ảnh</span>
             <input
               type="number"
               min={0}
               max={50}
               value={maxImages}
               onChange={(e) => setMaxImages(Number(e.target.value))}
-              className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5"
+              className="block h-9 w-full rounded-md border border-muted-200 bg-white px-2.5 text-sm transition focus:border-primary-500 focus:shadow-ring focus:outline-none"
             />
           </label>
-          <label>
-            <span>Posting mode</span>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-muted-700">Posting mode</span>
             <select
               value={postingMode}
               onChange={(e) => setPostingMode(e.target.value as PostingMode)}
-              className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5"
+              className="block h-9 w-full rounded-md border border-muted-200 bg-white px-2.5 text-sm transition focus:border-primary-500 focus:shadow-ring focus:outline-none"
             >
-              <option value="assisted">assisted</option>
-              <option value="auto">auto</option>
+              <option value="assisted">assisted (hỗ trợ)</option>
+              <option value="auto">auto (tự động)</option>
             </select>
           </label>
         </div>
-        <div className="mt-3 flex gap-4 text-sm">
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-            Enabled
+        <div className="flex gap-4 text-sm">
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-muted-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span>Enabled</span>
           </label>
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={allowLink} onChange={(e) => setAllowLink(e.target.checked)} />
-            Cho phép link
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={allowLink}
+              onChange={(e) => setAllowLink(e.target.checked)}
+              className="h-4 w-4 rounded border-muted-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span>Cho phép link</span>
           </label>
         </div>
-        <label className="mt-3 block text-sm">
-          <span>Ghi chú</span>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-muted-700">Ghi chú</span>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5"
+            className="block w-full rounded-md border border-muted-200 bg-white px-2.5 py-2 text-sm transition focus:border-primary-500 focus:shadow-ring focus:outline-none"
           />
         </label>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={props.onClose}
-            className="rounded border border-muted-100 px-3 py-1.5 text-sm hover:bg-muted-50"
-          >
-            Huỷ
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60"
-          >
-            {submitting ? "Đang lưu…" : "Lưu"}
-          </button>
-        </div>
       </form>
-    </div>
+    </Modal>
   );
 }
 
@@ -327,6 +428,7 @@ function GroupSetsPanel() {
   const [activeSet, setActiveSet] = useState<string | null>(null);
   const [members, setMembers] = useState<GroupRecord[]>([]);
   const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   async function reload() {
     const api = window.publisherApi;
@@ -349,9 +451,11 @@ function GroupSetsPanel() {
   async function create() {
     const api = window.publisherApi;
     if (!api || !newName.trim()) return;
+    setCreating(true);
     await api.groupSetsCreate(newName.trim());
     setNewName("");
     void reload();
+    setCreating(false);
   }
 
   async function deleteSet(id: string) {
@@ -373,7 +477,8 @@ function GroupSetsPanel() {
   async function removeMember(groupId: string) {
     const api = window.publisherApi;
     if (!api || !activeSet) return;
-    await api.groupSetsRemoveMember(activeSet, groupId);
+    await api.groupSetsAddMember(activeSet, groupId);
+    void api.groupSetsRemoveMember(activeSet, groupId);
     void api.groupSetsMembers(activeSet).then((r) => r.ok && setMembers(r.data));
   }
 
@@ -382,100 +487,121 @@ function GroupSetsPanel() {
   );
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <div className="mb-2 flex gap-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Tên tập nhóm…"
-            className="rounded border border-muted-100 px-2 py-1 text-sm"
-          />
-          <button
-            type="button"
-            onClick={create}
-            className="rounded bg-primary-600 px-3 py-1 text-sm text-white hover:bg-primary-700"
-          >
-            + Tạo
-          </button>
-        </div>
-        <ul className="divide-y rounded border border-muted-100 bg-white">
-          {sets.length === 0 && (
-            <li className="px-3 py-4 text-center text-sm text-muted-500">Chưa có tập nhóm.</li>
-          )}
-          {sets.map((s) => (
-            <li
-              key={s.id}
-              className={`flex items-center justify-between px-3 py-2 text-sm ${
-                activeSet === s.id ? "bg-primary-50" : ""
-              }`}
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px,1fr]">
+      <div className="space-y-2">
+        <Card padding="sm">
+          <div className="flex gap-2">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void create();
+              }}
+              placeholder="Tên tập nhóm…"
+              className="flex-1"
+            />
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => void create()}
+              loading={creating}
+              disabled={!newName.trim()}
             >
-              <button
-                type="button"
-                onClick={() => setActiveSet(s.id)}
-                className="flex-1 text-left hover:underline"
-              >
-                {s.name}
-              </button>
-              <button
-                type="button"
-                onClick={() => void deleteSet(s.id)}
-                className="rounded border border-danger-500 px-2 py-0.5 text-xs text-danger-600 hover:bg-danger-50"
-              >
-                Xoá
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        {!activeSet && (
-          <p className="text-sm text-muted-500">Chọn một tập nhóm để xem thành viên.</p>
+              Tạo
+            </Button>
+          </div>
+        </Card>
+
+        {sets.length === 0 ? (
+          <Card padding="none">
+            <EmptyState
+              icon={<IconLayers size={22} />}
+              title="Chưa có tập nhóm"
+              description="Tạo tập nhóm để gom các nhóm cùng đăng 1 chiến dịch."
+            />
+          </Card>
+        ) : (
+          <Card padding="none">
+            <ul className="divide-y divide-muted-100">
+              {sets.map((s) => (
+                <li
+                  key={s.id}
+                  className={[
+                    "flex items-center justify-between px-3 py-2.5 text-sm transition",
+                    activeSet === s.id ? "bg-primary-50" : "hover:bg-muted-50",
+                  ].join(" ")}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActiveSet(s.id)}
+                    className="flex-1 text-left font-medium text-muted-900 focus-visible:outline-none focus-visible:shadow-ring"
+                  >
+                    {s.name}
+                  </button>
+                  <Button variant="ghost" size="sm" icon={<IconTrash size={14} />} onClick={() => void deleteSet(s.id)}>
+                    Xoá
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </Card>
         )}
-        {activeSet && (
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-medium">Đã thêm vào tập</h3>
-              <ul className="mt-1 divide-y rounded border border-muted-100 bg-white">
-                {members.length === 0 && (
-                  <li className="px-3 py-3 text-center text-sm text-muted-500">Trống.</li>
-                )}
-                {members.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
-                    <span>{m.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => void removeMember(m.id)}
-                      className="text-xs text-danger-600 hover:underline"
-                    >
-                      Bỏ
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium">Thêm nhóm enabled</h3>
-              <ul className="mt-1 divide-y rounded border border-muted-100 bg-white">
-                {candidateGroups.length === 0 && (
-                  <li className="px-3 py-3 text-center text-sm text-muted-500">
-                    Không còn nhóm enabled nào để thêm.
-                  </li>
-                )}
-                {candidateGroups.map((g) => (
-                  <li key={g.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
-                    <span>{g.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => void addMember(g.id)}
-                      className="text-xs text-primary-600 hover:underline"
-                    >
-                      Thêm
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+      </div>
+
+      <div>
+        {!activeSet ? (
+          <Card padding="none">
+            <EmptyState
+              icon={<IconInbox size={22} />}
+              title="Chọn một tập nhóm"
+              description="Chọn tập nhóm bên trái để xem và quản lý thành viên."
+            />
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <Card padding="md">
+              <h3 className="mb-2 text-sm font-semibold text-muted-900">
+                Đã thêm vào tập ({members.length})
+              </h3>
+              {members.length === 0 ? (
+                <p className="rounded-md border border-dashed border-muted-200 p-4 text-center text-xs text-muted-500">
+                  Trống.
+                </p>
+              ) : (
+                <ul className="divide-y divide-muted-100 rounded-md border border-muted-100">
+                  {members.map((m) => (
+                    <li key={m.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                      <span className="truncate">{m.name}</span>
+                      <Button variant="ghost" size="sm" onClick={() => void removeMember(m.id)}>
+                        Bỏ
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            <Card padding="md">
+              <h3 className="mb-2 text-sm font-semibold text-muted-900">
+                Thêm nhóm enabled ({candidateGroups.length})
+              </h3>
+              {candidateGroups.length === 0 ? (
+                <p className="rounded-md border border-dashed border-muted-200 p-4 text-center text-xs text-muted-500">
+                  Không còn nhóm enabled nào để thêm.
+                </p>
+              ) : (
+                <ul className="max-h-72 divide-y divide-muted-100 overflow-y-auto rounded-md border border-muted-100">
+                  {candidateGroups.map((g) => (
+                    <li key={g.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                      <span className="truncate">{g.name}</span>
+                      <Button variant="ghost" size="sm" onClick={() => void addMember(g.id)}>
+                        Thêm
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
           </div>
         )}
       </div>

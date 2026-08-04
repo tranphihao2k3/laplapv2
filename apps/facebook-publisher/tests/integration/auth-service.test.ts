@@ -80,3 +80,56 @@ describe("AuthService", () => {
     expect(svc.getAccessToken()).toBeNull();
   });
 });
+
+/**
+ * Test các tính năng mới: rememberMe + bootstrap + email.
+ *
+ * Do Electron `safeStorage` cần runtime thật (keychain/DPAPI), ta mock
+ * module electron trước khi import AuthService. Trick: vi.mock không hoạt
+ * động với import đã resolve ở top-level — dùng dynamic import.
+ */
+describe("AuthService — rememberMe + bootstrap", () => {
+  let svc: AuthService;
+
+  beforeEach(() => {
+    svc = new AuthService();
+  });
+
+  afterEach(async () => {
+    await svc.logout();
+  });
+
+  it("loadFromDisk khi chưa login → anonymous", async () => {
+    const freshSvc = new AuthService(`/tmp/laplap-empty-${Date.now()}-${Math.random()}`);
+    const status = await freshSvc.loadFromDisk();
+    expect(status.kind).toBe("anonymous");
+  });
+
+  it("bootstrap khi không có token → anonymous (không throw)", async () => {
+    const freshSvc = new AuthService(`/tmp/laplap-empty-${Date.now()}-${Math.random()}`);
+    const supabase = new SupabaseAuthClient(() => "https://api.laplap.vn");
+    const status = await freshSvc.bootstrap({ supabase });
+    expect(status.kind).toBe("anonymous");
+  });
+});
+
+describe("AuthStatus — schema validation", () => {
+  it("anonymous không có field authenticated", () => {
+    const s: import("../../src/shared/auth").AuthStatus = { kind: "anonymous" };
+    expect(s.kind).toBe("anonymous");
+  });
+
+  it("authenticated có đủ field mới (email, rememberMe, secureStorageUnavailable)", () => {
+    const s: import("../../src/shared/auth").AuthStatus = {
+      kind: "authenticated",
+      email: "u@x.com",
+      refreshExpiresAt: null,
+      loggedInAt: "2026-08-01T00:00:00Z",
+      rememberMe: true,
+      secureStorageUnavailable: false,
+    };
+    expect(s.email).toBe("u@x.com");
+    expect(s.rememberMe).toBe(true);
+    expect(s.secureStorageUnavailable).toBe(false);
+  });
+});

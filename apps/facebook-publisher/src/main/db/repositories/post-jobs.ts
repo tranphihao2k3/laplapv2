@@ -23,10 +23,15 @@ const VALID_TRANSITIONS: ReadonlyArray<readonly [JobState, JobState]> = [
   ["queued", "preflight"],
   ["queued", "cancelled"],
   ["queued", "skipped"],
+  // Cho phép runner mark failed trực tiếp khi fail ở phase preflight/posting
+  // mà không kịp vào state "preflight" (vd browser crash, missing binary).
+  // Tránh loop pick lại cùng job mãi mãi.
+  ["queued", "failed"],
   ["preflight", "posting"],
   ["preflight", "skipped"],
   ["preflight", "cancelled"],
   ["preflight", "needs_action"],
+  ["preflight", "failed"],
   ["posting", "awaiting_confirmation"],
   ["posting", "unverified"],
   ["posting", "needs_action"],

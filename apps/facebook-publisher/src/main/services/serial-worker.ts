@@ -27,6 +27,13 @@ export type WorkerStatus = {
   paused: boolean;
   emergencyStop: boolean;
   currentJobId: string | null;
+  /** UI: campaign/group chứa job đang chạy — để Active Job panel biết tên. */
+  currentCampaignId: string | null;
+  currentGroupId: string | null;
+  /** UI: state tại lúc pick — luôn 'queued' ở thời điểm này (worker pick
+   *  job queued). Renderer kết hợp với queueAttempts() để hiển thị
+   *  step progress (preflight/posting/awaiting_confirmation). */
+  currentState: JobState | null;
   totalProcessed: number;
   totalSucceeded: number;
   totalFailed: number;
@@ -56,6 +63,9 @@ export class SerialWorker {
     paused: false,
     emergencyStop: false,
     currentJobId: null,
+    currentCampaignId: null,
+    currentGroupId: null,
+    currentState: null,
     totalProcessed: 0,
     totalSucceeded: 0,
     totalFailed: 0,
@@ -73,6 +83,24 @@ export class SerialWorker {
 
   getStatus(): WorkerStatus {
     return { ...this.status };
+  }
+
+  /**
+   * Thay runner tại runtime. Dùng khi adapter thật chưa sẵn sàng lúc
+   * ServiceLocator khởi tạo SerialWorker — main/index.ts sẽ gọi
+   * setRunner() sau khi FacebookGroupAdapter + BrowserProfileManager đã
+   * wired xong. Có guard "đổi giữa lúc đang chạy job" → chỉ thay khi
+   * idle để tránh job đang chạy bị runner khác nhận.
+   */
+  setRunner(runner: WorkerRunner): void {
+    if (this.status.currentJobId) {
+      throw new AppError(
+        "WORKER_BUSY",
+        "Không thể đổi runner khi worker đang xử lý job. Pause worker và đợi idle.",
+        409,
+      );
+    }
+    (this as { runner: WorkerRunner }).runner = runner;
   }
 
   /** Bắt đầu worker. Idempotent. */
@@ -154,6 +182,9 @@ export class SerialWorker {
         continue;
       }
       this.status.currentJobId = next.id;
+      this.status.currentCampaignId = next.campaign_id;
+      this.status.currentGroupId = next.group_id;
+      this.status.currentState = next.state;
       try {
         // Move queued → preflight → posting qua runner trả về.
         const result = await this.runner(next);
@@ -185,6 +216,9 @@ export class SerialWorker {
         this.status.totalFailed++;
       } finally {
         this.status.currentJobId = null;
+        this.status.currentCampaignId = null;
+        this.status.currentGroupId = null;
+        this.status.currentState = null;
         // Backoff nhỏ giữa 2 job để tránh spam.
         await this.sleep(250);
       }

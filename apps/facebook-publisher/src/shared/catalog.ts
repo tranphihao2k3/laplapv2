@@ -34,6 +34,13 @@ export type ProductSummary = {
   syncedAt: string;
   variantsCount: number;
   inStock: boolean;
+  /** Local absolute paths (MED-001) — dùng cho <img src="file://...">. */
+  localImagePaths: string[];
+  /** URLs gốc từ API /products/:id. */
+  imageUrls: string[];
+  /** Specs gọn của variant đầu tiên (nếu có) — chỉ string string string
+   *  hiển thị trên card. CatalogGet mới trả đầy đủ. */
+  previewSpecs: Record<string, string>;
 };
 
 export type ProductVariantSummary = {
@@ -47,4 +54,9 @@ export type ProductVariantSummary = {
   isActive: boolean;
   availableQty: number;
   syncedAt: string;
+};
+
+/** Detail payload cho modal "Xem chi tiết" — CatalogGet trả về. */
+export type ProductDetail = ProductSummary & {
+  variants: ProductVariantSummary[];
 };

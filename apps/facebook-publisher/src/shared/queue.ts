@@ -40,6 +40,11 @@ export type WorkerStatus = {
   paused: boolean;
   emergencyStop: boolean;
   currentJobId: string | null;
+  currentCampaignId: string | null;
+  currentGroupId: string | null;
+  /** State tại lúc worker pick job — luôn 'queued'. Renderer kết hợp
+   *  với queueAttempts() để hiển thị step progress. */
+  currentState: JobState | null;
   totalProcessed: number;
   totalSucceeded: number;
   totalFailed: number;

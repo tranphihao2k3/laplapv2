@@ -20,6 +20,10 @@ export type ProductCacheRow = {
   updated_at: string | null;
   synced_at: string;
   raw_json: string | null;
+  /** Local file paths đã tải về qua MED-001; JSON string[]. */
+  local_image_paths_json: string;
+  /** Image URLs gốc từ API /products/:id; JSON string[]. */
+  image_urls_json: string;
 };
 
 export type VariantCacheRow = {

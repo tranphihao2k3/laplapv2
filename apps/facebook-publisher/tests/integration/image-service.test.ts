@@ -155,6 +155,61 @@ describe("ImageService.download — happy path", () => {
   });
 });
 
+describe("ImageService.downloadMany — batch", () => {
+  it("tải song song nhiều URL, lỗi 1 URL không fail cả batch", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      const u = String(url);
+      // URL thứ 2 fail 404.
+      if (u.endsWith("/missing.jpg")) {
+        return fakeResponse({ status: 404 });
+      }
+      return fakeResponse({});
+    }) as unknown as typeof fetch;
+    try {
+      const out = await svc.downloadMany({
+        urls: [
+          "https://abc123.supabase.co/a.jpg",
+          "https://abc123.supabase.co/missing.jpg",
+          "https://cdn.laplap.vn/b.jpg",
+        ],
+        concurrency: 2,
+      });
+      expect(out).toHaveLength(3);
+      expect(out[0]?.ok).toBe(true);
+      expect(out[1]?.ok).toBe(false);
+      expect((out[1] as { ok: false; errorCode: string }).errorCode).toBe("IMAGE_DOWNLOAD_FAILED");
+      expect(out[2]?.ok).toBe(true);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
+describe("ImageService.ensureLocalPaths", () => {
+  it("URL hợp lệ trả filePath, URL fail trả null", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.endsWith("/missing.jpg")) return fakeResponse({ status: 404 });
+      return fakeResponse({});
+    }) as unknown as typeof fetch;
+    try {
+      const out = await svc.ensureLocalPaths({
+        urls: [
+          "https://abc123.supabase.co/a.jpg",
+          "https://abc123.supabase.co/missing.jpg",
+        ],
+      });
+      expect(out).toHaveLength(2);
+      expect(typeof out[0]).toBe("string");
+      expect(out[1]).toBeNull();
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
 describe("ImageService.cleanupExpired", () => {
   it("file cũ bị xoá; file mới giữ nguyên", async () => {
     // Tạo 2 file với mtime khác nhau.

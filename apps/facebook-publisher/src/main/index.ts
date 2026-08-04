@@ -18,7 +18,12 @@ import path from "node:path";
 import { registerIpcHandlers } from "./ipc";
 import { openDb, closeDb } from "./db/connection";
 import { runMigrations } from "./db/migrations";
-import { initServices } from "./services/service-locator";
+import {
+  initServices,
+  getCachedBrowserProfileManager,
+  getCachedSerialWorker,
+} from "./services/service-locator";
+import { createFbRunner } from "./services/fb-runner";
 
 const isDev = !app.isPackaged;
 
@@ -151,6 +156,19 @@ function startup(): void {
     // Quit cứng — không cho chạy app với DB hỏng.
     app.quit();
     return;
+  }
+  // Wire Facebook posting runner cho SerialWorker. ServiceLocator tạo
+  // SerialWorker với placeholder runner ở initServices(); ở đây ta replace
+  // bằng runner thật dùng FacebookGroupAdapter + BrowserProfileManager.
+  // Browser session đã launch-on-demand trong runner (headed — cửa sổ
+  // Chromium TỰ HIỆN để user xem trực tiếp).
+  try {
+    getCachedSerialWorker().setRunner(
+      createFbRunner(getCachedBrowserProfileManager()),
+    );
+    console.log("[startup] SerialWorker runner = fb-runner (Playwright headed)");
+  } catch (err) {
+    console.error("[startup] failed to set fb runner:", err);
   }
   configureSession();
   registerIpcHandlers();

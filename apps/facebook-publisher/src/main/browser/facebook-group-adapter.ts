@@ -18,6 +18,7 @@ export type ComposerState =
   | { kind: "open"; page: Page }
   | { kind: "pending_approval" }
   | { kind: "no_permission" }
+  | { kind: "not_member" }
   | { kind: "page_error"; message: string };
 
 export type PostTextInput = {
@@ -47,7 +48,18 @@ export class FacebookGroupAdapter {
       if (await reg.pendingApprovalText().isVisible({ timeout: 1000 }).catch(() => false)) {
         return { kind: "pending_approval" };
       }
-      return { kind: "open", page };
+      if (await reg.notMemberText().isVisible({ timeout: 1000 }).catch(() => false)) {
+        return { kind: "not_member" };
+      }
+      // Composer có sẵn (member) → open. Ngược lại → closed (group không cho post).
+      const hasComposer = await reg
+        .anyComposerTrigger()
+        .isVisible({ timeout: 1500 })
+        .catch(() => false);
+      if (hasComposer) {
+        return { kind: "open", page };
+      }
+      return { kind: "closed" };
     } catch (err) {
       return { kind: "page_error", message: err instanceof Error ? err.message : String(err) };
     }
@@ -56,10 +68,44 @@ export class FacebookGroupAdapter {
   /** Mở composer và điền text. Chưa click submit. */
   async fillText(page: Page, input: PostTextInput): Promise<void> {
     const reg = new LocatorRegistry(page);
-    const trigger = reg.createPostButton();
-    await trigger.click({ timeout: 10_000 });
-    const box = reg.composerTextbox();
-    await box.fill(input.renderedText, { timeout: 10_000 });
+    // Fallback chain: button có label rõ → textbox placeholder → bất kỳ textarea/contenteditable nào.
+    // Mỗi bước thử click + đợi composer mở (textbox composer xuất hiện).
+    const triggers = [
+      () => reg.createPostButton(),
+      () => reg.composerTriggerTextbox(),
+      () => reg.anyComposerTextbox(),
+    ];
+    let lastErr: unknown = null;
+    for (const get of triggers) {
+      const trigger = get();
+      try {
+        await trigger.waitFor({ state: "visible", timeout: 5_000 });
+        await trigger.click({ timeout: 5_000 });
+        // Sau click, composer mở → chờ textbox composer xuất hiện (max 8s).
+        const composer = reg.composerTextbox();
+        await composer.waitFor({ state: "visible", timeout: 8_000 });
+        await composer.fill(input.renderedText, { timeout: 8_000 });
+        return;
+      } catch (err) {
+        lastErr = err;
+        // Thử trigger tiếp theo.
+        continue;
+      }
+    }
+    // Cả 3 trigger đều fail. Chụp screenshot debug.
+    try {
+      const { captureDebugScreenshot } = await import("./debug-screenshot");
+      await captureDebugScreenshot(page, "fillText-all-triggers-failed");
+    } catch {
+      // ignore
+    }
+    throw new AppError(
+      "COMPOSER_OPEN_FAILED",
+      `Không thể mở composer sau khi thử 3 trigger. Lỗi cuối: ${
+        lastErr instanceof Error ? lastErr.message : String(lastErr)
+      }`,
+      502,
+    );
   }
 
   /**

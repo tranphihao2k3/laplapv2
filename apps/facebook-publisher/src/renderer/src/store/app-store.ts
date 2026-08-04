@@ -33,7 +33,7 @@ type AppStore = AuthState &
     bootstrap: () => Promise<void>;
     refreshAuth: () => Promise<void>;
     refreshSettings: () => Promise<void>;
-    login: (input: { email: string; password: string }) => Promise<AuthStatus>;
+    login: (input: { email: string; password: string; rememberMe?: boolean }) => Promise<AuthStatus>;
     logout: () => Promise<void>;
     patchSettings: (patch: SettingsPatch) => Promise<void>;
     resetSettings: () => Promise<void>;
@@ -47,7 +47,7 @@ const initial: AuthState & SettingsState = {
   defaults: null,
 };
 
-export const useAppStore = create<AppStore>((set, get) => ({
+export const useAppStore = create<AppStore>((set) => ({
   ...initial,
 
   async bootstrap() {

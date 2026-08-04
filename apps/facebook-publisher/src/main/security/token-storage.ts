@@ -25,10 +25,14 @@ const TOKEN_FILE = "auth-tokens.bin";
 export type StoredTokens = {
   /** Supabase refresh token. */
   refreshToken: string;
+  /** Email user dùng để đăng nhập — để UI hiển thị "Đăng nhập với email X". */
+  email: string | null;
   /** ISO timestamp khi refresh hết hạn (Supabase TTL mặc định ~ 30 ngày). */
   expiresAt: string | null;
   /** ISO timestamp lúc user lần cuối login. */
   loggedInAt: string;
+  /** User tick "Ghi nhớ đăng nhập" lúc login — quyết định auto-refresh on boot. */
+  rememberMe: boolean;
 };
 
 /** Plaintext access token — không bao giờ persist, chỉ in-memory. */
@@ -49,7 +53,9 @@ function resolveFile(customDir?: string): string {
  */
 export async function saveRefreshToken(
   refreshToken: string,
+  email: string | null,
   expiresAt: string | null,
+  rememberMe: boolean,
   customDir?: string,
 ): Promise<void> {
   if (!safeStorage.isEncryptionAvailable()) {
@@ -62,8 +68,10 @@ export async function saveRefreshToken(
 
   const payload: StoredTokens = {
     refreshToken,
+    email,
     expiresAt,
     loggedInAt: new Date().toISOString(),
+    rememberMe,
   };
   const encrypted = safeStorage.encryptString(JSON.stringify(payload));
   const file = resolveFile(customDir);
@@ -88,9 +96,14 @@ export async function loadRefreshToken(customDir?: string): Promise<StoredTokens
     }
     return {
       refreshToken: parsed.refreshToken,
+      // Backward compat: file cũ không có email/rememberMe → default an toàn.
+      email: typeof parsed.email === "string" ? parsed.email : null,
       expiresAt: typeof parsed.expiresAt === "string" ? parsed.expiresAt : null,
       loggedInAt:
         typeof parsed.loggedInAt === "string" ? parsed.loggedInAt : new Date().toISOString(),
+      // Default true: nếu file cũ không có flag, vẫn auto-refresh để UX
+      // tốt (user đã từng login trước đó mà không tắt remember).
+      rememberMe: typeof parsed.rememberMe === "boolean" ? parsed.rememberMe : true,
     };
   } catch {
     // File không tồn tại hoặc sai format → trả null, KHÔNG throw.

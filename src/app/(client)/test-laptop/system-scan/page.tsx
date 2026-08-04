@@ -170,10 +170,10 @@ export default function SystemScanPage() {
 
   const generateAgent = async () => {
     setStatus("downloading");
-    addLog("Đang tạo file quét tự động...");
-    
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    
+    addLog("Đang tạo trình quét...");
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
     const scanToken = generateToken();
     setToken(scanToken);
 
@@ -186,9 +186,9 @@ export default function SystemScanPage() {
     document.body.removeChild(downloadLink);
 
     setStatus("waiting");
-    addLog(`Da tai goi Toolcheck: laplap-toolcheck-${scanToken}.zip`);
-    addLog("Giai nen file zip, chay LapLap-Scanner.bat de bat dau quet.");
-    toast.success("Da tai goi Toolcheck!");
+    addLog(`Đã tải trình quét: laplap-toolcheck-${scanToken}.zip`);
+    addLog("Giải nén zip rồi chạy LapLap-Scanner.bat để bắt đầu quét.");
+    toast.success("Đã tải trình quét!");
     startPolling(scanToken);
     return;
 
@@ -405,9 +405,9 @@ exit
   const getStatusInfo = () => {
     switch (status) {
       case "downloading":
-        return { color: "text-blue-600", icon: Loader2, label: "Đang tạo gói Toolcheck...", spin: true };
+        return { color: "text-blue-600", icon: Loader2, label: "Đang tạo trình quét...", spin: true };
       case "waiting":
-        return { color: "text-amber-600", icon: FileDown, label: "Chờ chạy Toolcheck...", spin: false };
+        return { color: "text-amber-600", icon: FileDown, label: "Chờ chạy LapLap-Scanner.bat...", spin: false };
       case "connected":
         return { color: "text-purple-600", icon: LinkIcon, label: "Đã kết nối! Đang quét...", spin: false };
       case "scanning":
@@ -472,7 +472,9 @@ exit
           <div>
             <CardTitle>Quét cấu hình hệ thống</CardTitle>
             <CardDescription>
-              Tải gói Toolcheck kèm scanner, HD Sentinel, FurMark, GPU-Z và BatteryMon
+              Trình quét mini (PowerShell + WMI) — hiển thị CPU, GPU, RAM,
+              ổ cứng (kèm SMART), pin và màn hình, không cần tải gói
+              công cụ nặng.
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -483,7 +485,7 @@ exit
             ) : status === "idle" ? (
               <Button onClick={generateAgent} className="bg-zinc-900 text-white hover:bg-zinc-700">
                 <FileDown className="mr-2 h-4 w-4" />
-                Tải Toolcheck
+                Tải trình quét
               </Button>
             ) : null}
           </div>
@@ -499,9 +501,9 @@ exit
                 <div className="flex-1">
                   <p className={`font-semibold ${statusInfo.color}`}>{statusInfo.label}</p>
                   <p className="text-xs text-zinc-500">
-                    {status === "waiting" && "Giải nén gói Toolcheck rồi chạy LapLap-Scanner.bat để bắt đầu quét"}
+                    {status === "waiting" && "Giải nén zip vừa tải rồi chạy LapLap-Scanner.bat để bắt đầu quét"}
                     {status === "connected" && "File scanner đang thu thập thông tin máy tính..."}
-                    {status === "scanning" && "Đang đọc CPU, GPU, RAM, ổ cứng, pin, màn hình..."}
+                    {status === "scanning" && "Đang đọc CPU, GPU, RAM, ổ cứng (WMI SMART), pin, màn hình..."}
                     {status === "complete" && "Tất cả dữ liệu đã được tải lên thành công"}
                     {token && ` • Token: ${token}`}
                   </p>
@@ -569,28 +571,38 @@ exit
           {status === "idle" && (
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-6">
               <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-                <AlertCircle className="h-4 w-4" /> Cách sử dụng (Tự động 100%)
+                <AlertCircle className="h-4 w-4" /> Cách sử dụng (3 bước)
               </h3>
               <ol className="space-y-3 text-sm">
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs text-white">1</span>
                   <div>
-                    <p className="font-medium">Nhấn nút "Tải Toolcheck"</p>
-                    <p className="text-zinc-500">File .zip chứa scanner và thư mục Toolcheck sẽ tự động tải về máy bạn</p>
+                    <p className="font-medium">Nhấn nút "Tải trình quét"</p>
+                    <p className="text-zinc-500">
+                      Tải về file zip nhỏ (~20KB) chứa 1 file PowerShell quét
+                      bằng WMI — không cần tải thêm 145MB Toolcheck.
+                    </p>
                   </div>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs text-white">2</span>
                   <div>
-                    <p className="font-medium">Giải nén zip và chạy LapLap-Scanner.bat</p>
-                    <p className="text-zinc-500">Scanner sẽ tự kết nối với trang web, sau đó hiện menu mở HD Sentinel, FurMark, GPU-Z và BatteryMon</p>
+                    <p className="font-medium">Giải nén và chạy LapLap-Scanner.bat</p>
+                    <p className="text-zinc-500">
+                      Cửa sổ PowerShell sẽ hiện và tự quét CPU/GPU/RAM/ổ
+                      cứng/pin/màn hình, gửi kết quả về trang này.
+                    </p>
                   </div>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs text-white">3</span>
                   <div>
-                    <p className="font-medium">Xem kết quả tự động</p>
-                    <p className="text-zinc-500">Dữ liệu sẽ tự động hiển thị trên trang web trong vài giây</p>
+                    <p className="font-medium">Xem kết quả ngay trên trang</p>
+                    <p className="text-zinc-500">
+                      Dữ liệu hiện tự động trong vài giây. HDD spindle được đọc
+                      WMI SMART (Reallocated/Pending/Temperature) nên sức khỏe
+                      hiển thị đúng ngay cả khi không có CrystalDiskInfo.
+                    </p>
                   </div>
                 </li>
               </ol>
@@ -624,8 +636,8 @@ exit
                 {status === "idle" ? "Sẵn sàng quét hệ thống" : "Đang chờ dữ liệu..."}
               </p>
               <p className="text-sm text-zinc-500">
-                {status === "idle" 
-                  ? "Nhấn nút tải trình quét để bắt đầu"
+                {status === "idle"
+                  ? "Nhấn \"Tải trình quét\" để bắt đầu (file nhỏ ~20KB, không cần tải gói Toolcheck nặng)"
                   : "Vui lòng đợi file scanner hoàn tất"}
               </p>
             </div>

@@ -1,20 +1,14 @@
 import { NextRequest } from "next/server";
+import { SCANNER_PS1_TEMPLATE, SCANNER_BAT } from "@/lib/system-scan/scanner-template";
 
 export const dynamic = "force-dynamic";
 
-// Gói công cụ (~90MB) và template scanner được host trên Cloudflare R2 (bucket public).
-// Worker KHÔNG đọc filesystem — chỉ fetch template .ps1, chèn token, rồi đóng gói 1 zip
-// NHỎ trả về; gói tools 90MB thì scanner tự tải thẳng từ R2. Xem [[system-scan-fs-breaks-on-workers]].
+// Tao goi scanner mini (~20KB zip) - KHONG phu thuoc R2 hay filesystem.
+// Template PowerShell duoc nhung inline trong bundle (`scanner-template.ts`)
+// nen deploy Cloudflare Worker cung chay duoc.
 //
-// TOOLCHECK_BASE_URL = URL gốc public của bucket R2, ví dụ https://pub-xxxx.r2.dev
-// (đặt trong wrangler.jsonc > vars — là URL công khai, không phải secret).
-function storageBase(): string {
-  const base = process.env.TOOLCHECK_BASE_URL?.trim();
-  if (!base) {
-    throw new Error("TOOLCHECK_BASE_URL chưa được cấu hình (wrangler vars).");
-  }
-  return base.replace(/\/$/, "");
-}
+// Token va API base duoc chen vao template, dong goi cung LapLap-Scanner.bat
+// + README.txt -> tra ve 1 file zip cho user tai ve va chay.
 
 type ZipEntry = {
   name: string;
@@ -119,35 +113,25 @@ function makeZip(entries: ZipEntry[]) {
   return Buffer.concat([...localParts, ...centralParts, end]);
 }
 
-function scannerBat() {
-  return `@echo off
-chcp 65001 >nul
-cd /d "%~dp0"
-title LapLap Toolcheck Scanner
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0laplap-toolcheck.ps1"
-echo.
-echo Nhan phim bat ky de dong cua so...
-pause >nul
-`;
-}
-
 function readme(apiBase: string, token: string) {
-  return `LapLap Toolcheck
-================
+  return `LapLap Toolcheck (mini)
+=======================
 
 1. Giai nen file zip nay ra mot thu muc rieng.
 2. Chay file LapLap-Scanner.bat.
-3. Lan dau chay, scanner se TU DONG tai bo cong cu Toolcheck (~145MB) ve va giai nen
-   ngay canh no. Nhung lan sau khong can tai lai.
-4. Scanner se quet cau hinh, gui ket qua ve web, sau do hien menu mo cac tool.
+3. Cu so PowerShell se mo, scanner tu dong quet CPU/GPU/RAM/o cung/pin/man hinh
+   va gui ket qua ve trinh duyet. Voi HDD spinner, scanner se doc WMI SMART
+   (ReallocatedSectors, CurrentPendingSector, Temperature) de danh gia suc khoe.
+4. Neu truoc do ban da tai goi Toolcheck (145MB), dat no o Toolcheck\\ canh script
+   roi menu se tu hien ra cho mo CrystalDiskInfo / FurMark / GPU-Z / BatteryMon.
 
 Server: ${apiBase}
 Token : ${token}
 
-Trong menu sau khi quet:
-- Mo CrystalDiskInfo de xem suc khoe o cung.
-- Chay FurMark benchmark tu ban FurMark di kem.
-- Mo GPU-Z hoac BatteryMon khi can kiem tra chi tiet.
+Luu y:
+- Tool mini khong can admin, khong can mang (chi can mang de gui ket qua len server).
+- Neu scanner gap canh bao "execution of scripts is disabled", nhan "Run once"
+  hoac chay lenh: powershell -ExecutionPolicy Bypass -File .\\laplap-toolcheck.ps1
 `;
 }
 
@@ -159,24 +143,15 @@ export async function GET(req: NextRequest) {
 
   try {
     const apiBase = req.nextUrl.origin;
-    const base = storageBase();
-
-    // Lay template scanner tu R2 (khong doc filesystem tren Worker).
-    const res = await fetch(`${base}/laplap-toolcheck.ps1`, { cache: "no-store" });
-    if (!res.ok) {
-      throw new Error(`Fetch scanner template failed: ${res.status}`);
-    }
-    const scannerTemplate = await res.text();
-
-    const scannerScript = scannerTemplate
+    // Chen token + api base vao template, KHONG can R2 / filesystem ngoai.
+    const scannerScript = SCANNER_PS1_TEMPLATE
       .replaceAll("__API_BASE__", apiBase)
-      .replaceAll("__SCAN_TOKEN__", token)
-      .replaceAll("__TOOLCHECK_URL__", `${base}/Toolcheck.zip`);
+      .replaceAll("__SCAN_TOKEN__", token);
 
     const entries: ZipEntry[] = [
       {
         name: "LapLap-Scanner.bat",
-        data: Buffer.from(scannerBat(), "utf8"),
+        data: Buffer.from(SCANNER_BAT, "utf8"),
         mtime: new Date(),
       },
       {

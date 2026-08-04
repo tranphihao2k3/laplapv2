@@ -12,9 +12,41 @@ import type { Locator, Page } from "playwright-core";
 export class LocatorRegistry {
   constructor(private readonly page: Page) {}
 
-  /** Nút mở composer trong group. */
+  /**
+   * Nút mở composer trong group.
+   *
+   * Facebook group có 3 kiểu composer trigger (tùy layout):
+   *   1. Button có aria-label "Viết bài"/"Write something"/"Create post"
+   *   2. Textarea/contenteditable với placeholder "Bạn đang nghĩ gì?"
+   *   3. Tab "Discussion" đã active sẵn, composer ở dạng inline
+   *
+   * Trả về một Locator (gộp nhiều match) — caller chỉ cần click .first().
+   * Lý do không dùng .first() ở đây: muốn match ưu tiên (button có label rõ)
+   * trước khi rơi xuống textarea placeholder.
+   */
   createPostButton(): Locator {
-    return this.page.getByRole("button", { name: /viết bài|tạo bài đăng|create post/i }).first();
+    return this.page
+      .locator(":is(button, [role=button], a)")
+      .filter({ hasText: /viết bài|write something|create post|create a post|viết bài đăng/i })
+      .first();
+  }
+
+  /** Composer trigger dạng textbox/textarea (placeholder-based fallback). */
+  composerTriggerTextbox(): Locator {
+    return this.page
+      .getByRole("textbox", {
+        name: /bạn đang nghĩ gì|write something|create a post|tạo bài đăng/i,
+      })
+      .first();
+  }
+
+  /** Generic fallback: textarea/contenteditable đầu tiên trong page. */
+  anyComposerTextbox(): Locator {
+    return this.page
+      .locator(
+        'textarea:not([readonly]):not([disabled]), [contenteditable="true"][role="textbox"], [contenteditable="true"]',
+      )
+      .first();
   }
 
   /** Ô composer textarea (rich text editor). */
@@ -38,9 +70,23 @@ export class LocatorRegistry {
     return this.page.getByText(/đang được xét duyệt|pending approval|đang chờ duyệt/i).first();
   }
 
+  /** Indicator "Bạn không thể đăng (chưa là thành viên)" — group non-member view. */
+  notMemberText(): Locator {
+    return this.page.getByText(/tham gia nhóm|join group|you must join|bạn cần tham gia/i).first();
+  }
+
   /** Indicator "Không có quyền đăng". */
   noPermissionText(): Locator {
     return this.page.getByText(/bạn không có quyền|you don.?t have permission/i).first();
+  }
+
+  /** Generic: bất kỳ composer trigger nào có thể click được (button / textbox / contenteditable). */
+  anyComposerTrigger(): Locator {
+    return this.page
+      .locator(
+        '[role=button][aria-label*="iết" i], [role=button][aria-label*="reate" i], [aria-label*="hought" i], textarea:not([readonly]):not([disabled]), [contenteditable="true"][role="textbox"], [contenteditable="true"]',
+      )
+      .first();
   }
 
   /** Thông báo lỗi chung. */

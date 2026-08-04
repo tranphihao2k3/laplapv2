@@ -216,4 +216,21 @@ export const migrations: Migration[] = [
       ALTER TABLE post_jobs ADD COLUMN snapshot_json TEXT;
     `,
   },
+  {
+    version: 8,
+    name: "product_cache local_image_paths + variant_cache image_urls",
+    sql: `
+      -- Lưu đường dẫn file ảnh đã tải về local (MED-001) cho product_cache
+      -- để tool upload dùng khi đăng bài (PW-004) thay vì fetch URL trực
+      -- tiếp từ CDN (Facebook composer cần file path local qua setInputFiles).
+      -- Mảng JSON string[] — service layer parse.
+      ALTER TABLE product_cache ADD COLUMN local_image_paths_json TEXT
+        NOT NULL DEFAULT '[]';
+
+      -- Image URLs gốc của product (CDN) — dùng cho lazy download lúc enqueue
+      -- nếu sync lần đầu chưa kịp tải về.
+      ALTER TABLE product_cache ADD COLUMN image_urls_json TEXT
+        NOT NULL DEFAULT '[]';
+    `,
+  },
 ];

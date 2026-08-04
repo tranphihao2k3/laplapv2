@@ -13,8 +13,13 @@ export type AuthStatus =
   | { kind: "anonymous" }
   | {
       kind: "authenticated";
+      email: string | null;
       refreshExpiresAt: string | null;
       loggedInAt: string;
+      rememberMe: boolean;
+      /** True khi safeStorage không khả dụng — file token không mã hoá.
+       *  UI nên cảnh báo user (production không chạy Linux). */
+      secureStorageUnavailable: boolean;
     };
 
 export type { IpcResult };

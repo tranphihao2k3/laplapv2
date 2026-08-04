@@ -17,7 +17,9 @@ import { PostJobRepository } from "../db/repositories/post-jobs";
 import { ProductRepository } from "../db/repositories/products";
 import { TemplateRepository } from "../db/repositories/templates";
 import { GroupSetRepository, FacebookGroupRepository } from "../db/repositories/facebook-groups";
+import { CatalogService } from "./catalog-service";
 import { render, makeResolver } from "../template/engine";
+import { buildSpecMap, formatPriceShort } from "../template/spec-map";
 import { buildSnapshot, type JobSnapshot } from "../jobs/snapshot";
 import { computeFingerprint } from "../jobs/fingerprint";
 import type { CampaignStatus } from "../../shared/db-types";
@@ -56,6 +58,7 @@ export class CampaignService {
     private readonly templates: TemplateRepository,
     private readonly groups: FacebookGroupRepository,
     private readonly sets: GroupSetRepository,
+    private readonly catalog: CatalogService,
   ) {}
 
   createCampaign(input: CampaignInput): { id: string; snapshot: JobSnapshot | null } {
@@ -117,7 +120,7 @@ export class CampaignService {
    *
    * Lỗi duplicate (UNIQUE PARTIAL INDEX) được đếm riêng để UI báo cáo.
    */
-  enqueue(req: EnqueueRequest): EnqueueResult {
+  async enqueue(req: EnqueueRequest): Promise<EnqueueResult> {
     const campaign = this.campaigns.findById(req.campaignId);
     if (!campaign) throw new AppError("CAMPAIGN_NOT_FOUND", `Chiến dịch không tồn tại: ${req.campaignId}`, 404);
 
@@ -148,20 +151,70 @@ export class CampaignService {
     // nguyên vì text chỉ phụ thuộc product/variant/template).
     const firstGroup = enabledGroups[0]!;
 
-    let imageUrls = req.imageUrls ?? [];
-    let imageSha256s = req.imageSha256s ?? [];
-    if (imageUrls.length === 0 || imageSha256s.length === 0) {
-      // Fallback: dùng từ campaign.image_paths_json (parse thô).
-      try {
-        const arr = JSON.parse(campaign.image_paths_json) as string[];
-        imageUrls = arr;
-        imageSha256s = arr.map((p) => p.replace(/^.*[/\\]/, "").split(".")[0] ?? "");
-      } catch {
-        imageUrls = [];
-        imageSha256s = [];
-      }
-    }
+    // Resolve danh sách ảnh sẽ đăng kèm bài:
+//   1. Caller (renderer) truyền req.imageUrls + req.imageSha256s.
+//   2. Hoặc fallback từ campaign.image_paths_json (UI upload riêng).
+//   3. Hoặc lazy: lấy từ product_cache.local_image_paths_json (sync đã
+//      tải về). Nếu rỗng (vd sync cũ / host bị deny) → gọi
+//      CatalogService.ensureLocalImages để retry.
+//
+// File path local BẮT BUỘC — Playwright setFiles cần path, không nhận URL.
+let resolvedPaths: string[] = [];
+let resolvedUrls: string[] = [];
+let resolvedSha256s: string[] = [];
 
+const reqUrls = req.imageUrls ?? [];
+const reqSha = req.imageSha256s ?? [];
+if (reqUrls.length > 0 && reqSha.length > 0) {
+  resolvedUrls = reqUrls;
+  resolvedSha256s = reqSha;
+  // filePath lấy từ campaign.image_paths_json nếu có (UI upload); nếu
+  // không có thì caller phải truyền qua EnqueueRequest mở rộng sau.
+  try {
+    resolvedPaths = (JSON.parse(campaign.image_paths_json) as string[]).slice(
+      0,
+      reqUrls.length,
+    );
+  } catch {
+    resolvedPaths = [];
+  }
+}
+
+if (resolvedUrls.length === 0) {
+  // Fallback 1: campaign.image_paths_json (UI upload trước đó).
+  try {
+    const arr = JSON.parse(campaign.image_paths_json) as string[];
+    if (arr.length > 0) {
+      resolvedPaths = arr;
+      resolvedUrls = arr;
+      resolvedSha256s = arr.map((p) => p.replace(/^.*[/\\]/, "").split(".")[0] ?? "");
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+if (resolvedPaths.length === 0) {
+  // Fallback 2: lazy download từ product_cache.local_image_paths_json /
+  // image_urls_json.
+  // enqueue() đang sync — gọi qua this.catalog (đã inject). Phương thức
+  // này tự idempotent nếu đã có local_paths.
+  // Note: enqueue() trước đây là sync; đổi thành async để await lazy.
+  // (Caller đã await — xem IPC handler).
+  const lazy = this.catalog
+    ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await this.catalog.ensureLocalImages(campaign.product_id)
+    : [];
+  if (lazy.length > 0) {
+    resolvedPaths = lazy;
+    const info = this.products.getImageInfo(campaign.product_id);
+    resolvedUrls = info.urls;
+    // Reuse sha256 từ tên file: <sha256>.<ext>.
+    resolvedSha256s = lazy.map((p) => p.replace(/^.*[/\\]/, "").split(".")[0] ?? "");
+  }
+}
+
+    const specs = buildSpecMap(variant.specs_json);
     const ctx = {
       "product.name": product.name,
       "product.shortDescription": product.short_description ?? "",
@@ -170,7 +223,24 @@ export class CampaignService {
       "variant.sku": variant.sku,
       "variant.name": variant.name ?? "",
       "variant.price": variant.selling_price ?? 0,
+      "variant.priceText": formatPriceShort(variant.selling_price),
       "variant.availableQty": variant.available_qty,
+      // Specs flat (canonical key) — template gọi {{variant.specs.cpu}}...
+      "variant.specs.cpu": specs["cpu"] ?? "",
+      "variant.specs.ram": specs["ram"] ?? "",
+      "variant.specs.ssd": specs["ssd"] ?? "",
+      "variant.specs.gpu": specs["gpu"] ?? "",
+      "variant.specs.screen": specs["screen"] ?? "",
+      "variant.specs.battery": specs["battery"] ?? "",
+      "variant.specs.keyboard": specs["keyboard"] ?? "",
+      "variant.specs.camera": specs["camera"] ?? "",
+      "variant.specs.os": specs["os"] ?? "",
+      "variant.specs.weight": specs["weight"] ?? "",
+      "variant.specs.color": specs["color"] ?? "",
+      // Bảo hành + quà tặng — mặc định nếu API không có → fallback text
+      // an toàn (không để trống vì sẽ làm vỡ format mẫu laptop).
+      "variant.warrantyText": "3 tháng",
+      "variant.giftsText": "Balo + túi chống sốc + chuột + lót chuột + sạc Zin",
       "group.name": firstGroup.name,
       "group.url": firstGroup.url,
       "post.id": "",
@@ -178,17 +248,10 @@ export class CampaignService {
     };
     const renderedText = render(template.body, makeResolver(ctx), { locale: "vi-VN" });
 
-    const imagesArr = imageUrls.map((url, i) => ({
+    const imagesArr = resolvedUrls.map((url, i) => ({
       url,
-      filePath: (() => {
-        try {
-          const arr = JSON.parse(campaign.image_paths_json) as string[];
-          return arr[i] ?? "";
-        } catch {
-          return "";
-        }
-      })(),
-      sha256: imageSha256s[i] ?? "",
+      filePath: resolvedPaths[i] ?? "",
+      sha256: resolvedSha256s[i] ?? "",
     }));
 
     let created = 0;
@@ -235,7 +298,7 @@ export class CampaignService {
         groupId: group.id,
         variantId: variant.variant_id,
         renderedText: groupText,
-        imageSha256s,
+        imageSha256s: resolvedSha256s,
       });
 
       try {
@@ -255,6 +318,18 @@ export class CampaignService {
         } else {
           errors.push(msg);
         }
+      }
+    }
+
+    // Đánh dấu campaign đã sẵn sàng nếu enqueue thành công ≥ 1 job.
+    // Không promote khi jobsCreated = 0 (toàn duplicate) — campaign vẫn
+    // giữ "draft" để user biết cần xử lý (vd set rỗng, lỗi toàn bộ).
+    if (created > 0) {
+      try {
+        this.campaigns.update(req.campaignId, { status: "ready" });
+      } catch (err) {
+        // Không block enqueue — chỉ log; UI vẫn có thể thấy job queued.
+        console.warn("[campaign] update status=ready failed:", err);
       }
     }
 

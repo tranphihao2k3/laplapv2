@@ -1,6 +1,22 @@
+/**
+ * Settings page.
+ *
+ * - Form chia 2 cột: chung (locale, posting, auto-submit) + kỹ thuật
+ *   (timeouts, TTL).
+ * - Mỗi field có helper giải thích.
+ * - Save button có loading state; reset button có confirm.
+ */
 import { useState } from "react";
 import { useSettings, useAppStore } from "../store/app-store";
 import type { SettingsPatch } from "../../../shared/settings";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  PageHeader,
+} from "../components/ui";
+import { IconRefresh, IconSettings } from "../components/ui/icons";
 
 export function SettingsPage() {
   const settings = useSettings();
@@ -11,7 +27,14 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   if (!settings || !defaults) {
-    return <p className="text-sm text-muted-500">Đang tải cấu hình…</p>;
+    return (
+      <section className="space-y-5">
+        <PageHeader title="Cấu hình" />
+        <Card padding="lg">
+          <p className="text-sm text-muted-500">Đang tải cấu hình…</p>
+        </Card>
+      </section>
+    );
   }
 
   async function onSave(values: SettingsPatch) {
@@ -27,27 +50,27 @@ export function SettingsPage() {
   }
 
   return (
-    <section>
-      <h1 className="text-lg font-semibold">Cấu hình</h1>
+    <section className="space-y-5">
+      <PageHeader
+        title="Cấu hình"
+        subtitle="Thiết lập locale, posting mode, timeouts."
+      />
+
       {error && (
-        <p
-          role="alert"
-          className="mt-3 rounded border border-danger-500 bg-danger-50 p-2 text-sm text-danger-600"
-        >
+        <Alert variant="danger" onClose={() => setError(null)}>
           {error}
-        </p>
+        </Alert>
       )}
+
       <form
-        className="mt-3 space-y-3 rounded border border-muted-100 bg-white p-4 text-sm"
+        className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
           void onSave({
             apiBaseUrl: String(fd.get("apiBaseUrl") ?? "").trim(),
             locale:
-              String(fd.get("locale")) === "en"
-                ? "en"
-                : ("vi" as const),
+              String(fd.get("locale")) === "en" ? "en" : ("vi" as const),
             defaultPostingMode:
               (String(fd.get("defaultPostingMode")) as "assisted" | "auto") === "auto"
                 ? "auto"
@@ -59,92 +82,107 @@ export function SettingsPage() {
           });
         }}
       >
-        <Field label="API base URL" name="apiBaseUrl" defaultValue={settings.apiBaseUrl} />
-        <SelectField
-          label="Locale"
-          name="locale"
-          defaultValue={settings.locale}
-          options={[
-            { value: "vi", label: "Tiếng Việt (vi)" },
-            { value: "en", label: "English (en)" },
-          ]}
-        />
-        <SelectField
-          label="Default posting mode"
-          name="defaultPostingMode"
-          defaultValue={settings.defaultPostingMode}
-          options={[
-            { value: "assisted", label: "Assisted (an toàn — mặc định)" },
-            { value: "auto", label: "Auto (cần GOV-AUTO + autoSubmit bật)" },
-          ]}
-        />
-        <CheckboxField
-          label="Cho phép auto-submit (cần GOV-AUTO duyệt)"
-          name="autoSubmit"
-          defaultChecked={settings.autoSubmitGloballyAllowed}
-        />
-        <Field
-          label="HTTP timeout (ms)"
-          name="httpTimeoutMs"
-          defaultValue={String(settings.httpTimeoutMs)}
-          type="number"
-        />
-        <Field
-          label="Playwright timeout (ms)"
-          name="playwrightTimeoutMs"
-          defaultValue={String(settings.playwrightTimeoutMs)}
-          type="number"
-        />
-        <Field
-          label="Diagnostics TTL (ms)"
-          name="diagnosticsTtlMs"
-          defaultValue={String(settings.diagnosticsTtlMs)}
-          type="number"
-        />
+        <Card padding="md">
+          <header className="mb-3 flex items-center gap-2">
+            <IconSettings size={16} className="text-muted-500" />
+            <h2 className="text-sm font-semibold text-muted-900">Chung</h2>
+          </header>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input
+              label="API base URL"
+              name="apiBaseUrl"
+              defaultValue={settings.apiBaseUrl}
+              placeholder="https://api.laplap.example"
+            />
+            <SelectField
+              label="Locale"
+              name="locale"
+              defaultValue={settings.locale}
+              options={[
+                { value: "vi", label: "Tiếng Việt (vi)" },
+                { value: "en", label: "English (en)" },
+              ]}
+              helper="Ngôn ngữ dùng cho format số/ngày trong template."
+            />
+            <SelectField
+              label="Default posting mode"
+              name="defaultPostingMode"
+              defaultValue={settings.defaultPostingMode}
+              options={[
+                { value: "assisted", label: "Assisted (an toàn — mặc định)" },
+                { value: "auto", label: "Auto (cần GOV-AUTO + autoSubmit bật)" },
+              ]}
+            />
+          </div>
+        </Card>
 
-        <div className="flex gap-2 pt-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60"
-          >
-            {saving ? "Đang lưu…" : "Lưu"}
-          </button>
-          <button
+        <Card padding="md">
+          <header className="mb-3 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted-900">Auto-submit</h2>
+          </header>
+          <CheckboxField
+            label="Cho phép auto-submit (cần GOV-AUTO duyệt)"
+            name="autoSubmit"
+            defaultChecked={settings.autoSubmitGloballyAllowed}
+            helper="Khi bật, worker có thể auto-submit bài đăng mà không cần user nhấn xác nhận."
+          />
+        </Card>
+
+        <Card padding="md">
+          <header className="mb-3 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted-900">Kỹ thuật</h2>
+          </header>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Input
+              label="HTTP timeout (ms)"
+              name="httpTimeoutMs"
+              type="number"
+              defaultValue={String(settings.httpTimeoutMs)}
+              helper="Thời gian tối đa cho mỗi HTTP call."
+            />
+            <Input
+              label="Playwright timeout (ms)"
+              name="playwrightTimeoutMs"
+              type="number"
+              defaultValue={String(settings.playwrightTimeoutMs)}
+              helper="Thời gian tối đa cho page navigation/click."
+            />
+            <Input
+              label="Diagnostics TTL (ms)"
+              name="diagnosticsTtlMs"
+              type="number"
+              defaultValue={String(settings.diagnosticsTtlMs)}
+              helper="Thời gian giữ log debug trước khi xoá."
+            />
+          </div>
+        </Card>
+
+        <div className="flex items-center justify-between">
+          <Button
             type="button"
-            onClick={() => void reset()}
-            className="rounded border border-muted-100 px-3 py-1.5 text-sm hover:bg-muted-50"
+            variant="ghost"
+            icon={<IconRefresh size={14} />}
+            onClick={() => {
+              if (window.confirm("Khôi phục toàn bộ cấu hình về mặc định?")) {
+                void reset();
+              }
+            }}
           >
             Khôi phục mặc định
-          </button>
+          </Button>
+          <Button type="submit" variant="primary" loading={saving}>
+            {saving ? "Đang lưu…" : "Lưu cấu hình"}
+          </Button>
         </div>
 
-        <div className="pt-2 text-xs text-muted-500">
+        <p className="text-xs text-muted-500">
           Mặc định: locale={defaults.locale}, posting={defaults.defaultPostingMode},
-          autoSubmit={String(defaults.autoSubmitGloballyAllowed)}, timeout={defaults.httpTimeoutMs}ms,
-          Playwright={defaults.playwrightTimeoutMs}ms, TTL={defaults.diagnosticsTtlMs}ms.
-        </div>
+          autoSubmit={String(defaults.autoSubmitGloballyAllowed)},
+          timeout={defaults.httpTimeoutMs}ms, Playwright={defaults.playwrightTimeoutMs}ms,
+          TTL={defaults.diagnosticsTtlMs}ms.
+        </p>
       </form>
     </section>
-  );
-}
-
-function Field(props: {
-  label: string;
-  name: string;
-  defaultValue: string;
-  type?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="text-muted-900">{props.label}</span>
-      <input
-        name={props.name}
-        defaultValue={props.defaultValue}
-        type={props.type ?? "text"}
-        className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5"
-      />
-    </label>
   );
 }
 
@@ -153,14 +191,15 @@ function SelectField(props: {
   name: string;
   defaultValue: string;
   options: Array<{ value: string; label: string }>;
+  helper?: string;
 }) {
   return (
     <label className="block">
-      <span className="text-muted-900">{props.label}</span>
+      <span className="mb-1 block text-xs font-medium text-muted-700">{props.label}</span>
       <select
         name={props.name}
         defaultValue={props.defaultValue}
-        className="mt-1 block w-full rounded border border-muted-100 px-2 py-1.5"
+        className="block h-9 w-full rounded-md border border-muted-200 bg-white px-2.5 text-sm transition focus:border-primary-500 focus:shadow-ring focus:outline-none"
       >
         {props.options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -168,6 +207,9 @@ function SelectField(props: {
           </option>
         ))}
       </select>
+      {props.helper && (
+        <span className="mt-1 block text-[11px] text-muted-500">{props.helper}</span>
+      )}
     </label>
   );
 }
@@ -176,16 +218,22 @@ function CheckboxField(props: {
   label: string;
   name: string;
   defaultChecked: boolean;
+  helper?: string;
 }) {
   return (
-    <label className="flex items-center gap-2">
+    <label className="flex items-start gap-2.5">
       <input
         name={props.name}
         type="checkbox"
         defaultChecked={props.defaultChecked}
-        className="h-4 w-4 rounded border-muted-100"
+        className="mt-0.5 h-4 w-4 rounded border-muted-300 text-primary-600 focus:ring-primary-500"
       />
-      <span className="text-muted-900">{props.label}</span>
+      <span>
+        <span className="block text-sm font-medium text-muted-900">{props.label}</span>
+        {props.helper && (
+          <span className="mt-0.5 block text-[11px] text-muted-500">{props.helper}</span>
+        )}
+      </span>
     </label>
   );
 }

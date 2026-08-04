@@ -13,7 +13,7 @@
  */
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { z } from "zod";
-import { AppError } from "../shared/errors";
+import { AppError, ErrorCodes } from "../shared/errors";
 import { IpcChannel, type IpcResult } from "../shared/ipc";
 import {
   applySettingsPatch,
@@ -84,10 +84,13 @@ const authGetStatusSchema = z.tuple([]);
 const authLogoutSchema = z.tuple([]);
 
 // APP-005: login bang email + password qua SupabaseAuthClient.
+// rememberMe default = true → persist refresh token local để auto-login
+// lần sau. Nếu false → chỉ giữ session hiện tại.
 const authLoginSchema = z.tuple([
   z.object({
     email: z.string().email("Email không hợp lệ").max(254),
     password: z.string().min(1, "Mật khẩu không được để trống").max(256),
+    rememberMe: z.boolean().optional().default(true),
   }),
 ]);
 const authRefreshSchema = z.tuple([]);
@@ -240,29 +243,60 @@ function parse<T>(schema: z.ZodType<T>, payload: unknown, channel: string): T {
   return result.data;
 }
 
-/** Wrapper chuẩn để đăng ký handler — convert throw → IpcResult. */
+/**
+ * Wrapper chuẩn để đăng ký handler — convert throw → IpcResult.
+ *
+ * MỌI đường thoát phải trả `{ ok: true, data }` hoặc
+ * `{ ok: false, error: { code, message } }` (shared/ipc.ts). Nếu để lọt một
+ * throw ra ngoài, Electron bọc nó thành Error ở renderer, `result.ok` là
+ * undefined → renderer chạy nhánh `!result.ok` rồi đọc `result.error.message`
+ * trên undefined và sập với "Cannot read properties of undefined".
+ */
 function handle<TData>(
   channel: string,
   schema: z.ZodTypeAny,
   fn: (args: any[]) => Promise<TData> | TData,
 ): void {
-  ipcMain.handle(channel, async (_event: IpcMainInvokeEvent, ...rawArgs: any[]) => {
-    let parsedData: unknown[];
-    if (rawArgs.length === 0) {
-      const p = (schema as z.ZodType<unknown[]>).safeParse([]);
-      if (!p.success) throw new z.ZodError(p.error.issues);
-      parsedData = p.data as unknown[];
-    } else if (schema.constructor.name === "ZodObject" && rawArgs.length >= 1) {
-      const p = (schema as z.ZodType<unknown>).safeParse(rawArgs[0]);
-      if (!p.success) throw new z.ZodError(p.error.issues);
-      parsedData = [p.data];
-    } else {
-      const p = (schema as z.ZodType<unknown[]>).safeParse(rawArgs);
-      if (!p.success) throw new z.ZodError(p.error.issues);
-      parsedData = p.data as unknown[];
-    }
-    return fn(parsedData);
-  });
+  ipcMain.handle(
+    channel,
+    async (_event: IpcMainInvokeEvent, ...rawArgs: any[]): Promise<IpcResult<TData>> => {
+      try {
+        let parsedData: unknown[];
+        if (rawArgs.length === 0) {
+          parsedData = parse(schema as z.ZodType<unknown[]>, [], channel);
+        } else if (schema.constructor.name === "ZodObject" && rawArgs.length >= 1) {
+          parsedData = [parse(schema as z.ZodType<unknown>, rawArgs[0], channel)];
+        } else {
+          parsedData = parse(schema as z.ZodType<unknown[]>, rawArgs, channel);
+        }
+        return { ok: true, data: await fn(parsedData) };
+      } catch (err) {
+        return { ok: false, error: toIpcError(err) };
+      }
+    },
+  );
+}
+
+/**
+ * Map error bất kỳ → `{ code, message }` cho renderer.
+ *
+ * AppError giữ nguyên code để UI phân biệt (AUTH_BAD_CREDENTIALS vs
+ * AUTH_PROVIDER_UNAVAILABLE). Error lạ về INTERNAL_ERROR — KHÔNG kèm stack
+ * để không rò đường dẫn máy/nội dung token ra renderer.
+ */
+function toIpcError(err: unknown): { code: string; message: string } {
+  if (err instanceof AppError) return { code: err.code, message: err.message };
+  if (err instanceof z.ZodError) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: err.issues.map((i) => i.path.join(".") || "(root)").join(", "),
+    };
+  }
+  console.error("[ipc] unhandled error:", err);
+  return {
+    code: ErrorCodes.INTERNAL_ERROR,
+    message: err instanceof Error ? err.message : "Lỗi không xác định",
+  };
 }
 
 export function registerIpcHandlers(): void {
@@ -279,20 +313,24 @@ export function registerIpcHandlers(): void {
 
   // --- Auth ---
   handle(IpcChannel.AuthGetStatus, authGetStatusSchema, async () => {
+    // Bootstrap: load token từ disk + tự refresh nếu rememberMe=true.
+    // Đây là entry point duy nhất khi app mount — UI không cần gọi riêng
+    // AuthRefresh. Nếu không có token / refresh fail → trả anonymous.
     const svc = getCachedAuthService();
-    return svc.loadFromDisk();
+    return svc.bootstrap({ supabase: getCachedSupabaseAuthClient() });
   });
   handle(IpcChannel.AuthLogout, authLogoutSchema, async () => {
     const svc = getCachedAuthService();
     await svc.logout();
     return { ok: true } as const;
   });
-  handle(IpcChannel.AuthLogin, authLoginSchema, async ([{ email, password }]) => {
+  handle(IpcChannel.AuthLogin, authLoginSchema, async ([{ email, password, rememberMe }]) => {
     const svc = getCachedAuthService();
     return svc.login({
       supabase: getCachedSupabaseAuthClient(),
       email,
       password,
+      rememberMe,
     });
   });
   handle(IpcChannel.AuthRefresh, authRefreshSchema, async () => {
@@ -329,9 +367,10 @@ export function registerIpcHandlers(): void {
     const repo = getCachedProductRepository();
     const row = repo.findById(productId);
     if (!row) return null;
-    // Đếm variants để UI hiển thị.
-    const variants = repo.listVariants(productId);
-    return { ...adaptProductSummary(row), variantsCount: variants.length };
+    // Đếm variants + lấy danh sách để UI hiển thị chi tiết.
+    const variants = repo.listVariants(productId).map(adaptVariantSummary);
+    const base = adaptProductSummary(row);
+    return { ...base, variantsCount: variants.length, previewSpecs: extractPreviewSpecs(variants), variants };
   });
   handle(IpcChannel.CatalogVariants, catalogVariantsSchema, async ([productId]) => {
     const repo = getCachedProductRepository();
@@ -442,7 +481,7 @@ export function registerIpcHandlers(): void {
     return null;
   });
   handle(IpcChannel.CampaignsEnqueue, campaignsEnqueueSchema, async ([req]) => {
-    return getCachedCampaignService().enqueue(req);
+    return await getCachedCampaignService().enqueue(req);
   });
   handle(IpcChannel.CampaignsJobs, campaignsJobsSchema, async ([campaignId]) => {
     return getCachedPostJobRepository().listByCampaign(campaignId).map(adaptJob);
@@ -648,6 +687,50 @@ function getCurrentOrgId(): string {
   return "default-org";
 }
 
+function parseImageList(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Lấy vài dòng specs gọn từ variant đầu tiên để hiển thị preview trên card.
+ *  Specs có thể là Record<string, unknown> hoặc array of {key,value}. Chuẩn
+ *  hoá về Record<string, string> và chỉ lấy 3 dòng đầu. */
+function extractPreviewSpecs(variants: ProductVariantSummary[]): Record<string, string> {
+  for (const v of variants) {
+    const specs = v.specs;
+    if (specs && typeof specs === "object") {
+      const out: Record<string, string> = {};
+      // Trường hợp 1: { key: value }
+      if (!Array.isArray(specs)) {
+        let count = 0;
+        for (const [k, val] of Object.entries(specs as Record<string, unknown>)) {
+          if (count >= 3) break;
+          if (val === null || val === undefined) continue;
+          out[k] = String(val);
+          count += 1;
+        }
+      } else {
+        // Trường hợp 2: [{ key, value }]
+        for (const item of specs as unknown[]) {
+          if (out && Object.keys(out).length >= 3) break;
+          if (item && typeof item === "object" && "key" in item && "value" in item) {
+            const k = String((item as { key: unknown }).key);
+            const v = String((item as { value: unknown }).value);
+            if (v) out[k] = v;
+          }
+        }
+      }
+      if (Object.keys(out).length > 0) return out;
+    }
+  }
+  return {};
+}
+
 function adaptProductSummary(row: import("../shared/db-types").ProductCacheRow): ProductSummary {
   return {
     productId: row.product_id,
@@ -661,6 +744,9 @@ function adaptProductSummary(row: import("../shared/db-types").ProductCacheRow):
     syncedAt: row.synced_at,
     variantsCount: 0, // CatalogService đếm khi detail.
     inStock: false,
+    localImagePaths: parseImageList(row.local_image_paths_json),
+    imageUrls: parseImageList(row.image_urls_json),
+    previewSpecs: {}, // chỉ fill khi detail (cần variants)
   };
 }
 
