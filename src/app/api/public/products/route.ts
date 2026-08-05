@@ -2,14 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ramSize, storageSize } from "@/lib/normalize-ram";
 import { keepValidNeedTags, priceBucketOf } from "@/lib/product-collections";
+import { mergeVariants, type VariantForMerge } from "@/lib/products/merge-variant-specs";
 
-type VariantRow = {
-  id: string;
-  product_id: string | null;
-  selling_price: number | null;
-  specs: Record<string, unknown> | null;
-  is_active: boolean | null;
-};
+type VariantRow = VariantForMerge;
 
 type StockRow = {
   product_variant_id: string | null;
@@ -114,26 +109,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const minPrice_ = new Map<string, number>();
-    const specsByProduct = new Map<string, Record<string, string>>();
+    // Giá thấp nhất + specs đã merge (dùng chung với trang /so-sanh).
+    const { minPrice: minPrice_, specs: specsByProduct } = mergeVariants(variants);
+
     const stockByProduct = new Map<string, number>();
     for (const v of variants) {
       if (!v.product_id || v.is_active === false) continue;
-      if (v.selling_price != null) {
-        const cur = minPrice_.get(v.product_id);
-        if (cur == null || v.selling_price < cur) minPrice_.set(v.product_id, v.selling_price);
-      }
       stockByProduct.set(
         v.product_id,
         (stockByProduct.get(v.product_id) ?? 0) + (stockByVariant.get(v.id) ?? 0),
       );
-      if (v.specs && typeof v.specs === "object") {
-        const merged = specsByProduct.get(v.product_id) ?? {};
-        for (const [k, val] of Object.entries(v.specs)) {
-          if (typeof val === "string" && val.trim() && !merged[k]) merged[k] = val.trim();
-        }
-        specsByProduct.set(v.product_id, merged);
-      }
     }
 
     let items: PublicProduct[] = products.map((p) => ({
