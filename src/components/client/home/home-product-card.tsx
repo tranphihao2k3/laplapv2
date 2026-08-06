@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
+import { CompareToggle } from "@/components/client/compare/compare-toggle";
 import type { PublicProduct } from "./use-home-data";
 
 // Bảng thông số hiển thị trong panel trượt lên — theo thứ tự ưu tiên
@@ -35,15 +36,23 @@ function buildSpecRows(specs: Record<string, string>) {
 export function HomeProductCard({
   product,
   className,
+  showCompare = true,
 }: {
   product: PublicProduct;
   className?: string;
+  /** Cho phép tắt nút "So sánh" ở những chỗ không cần (vd. slider trang chủ). */
+  showCompare?: boolean;
 }) {
   const rows = buildSpecRows(product.specs);
 
   return (
-    <Link
-      href={`/products/${product.slug}`}
+    /*
+      Dùng "stretched link": vỏ ngoài là <div>, một <Link> phủ toàn bộ ở z-20.
+      Trước đây cả card là một <Link> — khi đó nút "So sánh" (thẻ <button>) sẽ bị
+      lồng trong <a>, vừa sai HTML vừa bị thẻ a nuốt click.
+      Phân tầng: nội dung z-0 · panel specs z-10 · link phủ z-20 · nút so sánh z-30.
+    */
+    <div
       title={product.name}
       className={cn(
         "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white",
@@ -51,6 +60,24 @@ export function HomeProductCard({
         className,
       )}
     >
+      <Link
+        href={`/products/${product.slug}`}
+        aria-label={product.name}
+        className="absolute inset-0 z-20 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      />
+
+      {showCompare && (
+        <CompareToggle
+          product={{
+            id: product.id,
+            name: product.name,
+            slug: product.slug,
+            image: product.image ?? null,
+            price: product.price,
+          }}
+        />
+      )}
+
       {/* Ảnh + panel thông số trượt lên */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-b from-slate-50 to-white">
         {product.image ? (
@@ -67,16 +94,23 @@ export function HomeProductCard({
           </div>
         )}
 
+        {/* Xuống dưới khi có nút So sánh để không đè nhau ở góc trên trái. */}
         {!product.inStock && (
-          <span className="absolute left-3 top-3 z-20 rounded-full bg-slate-900/85 px-2.5 py-1 text-[10px] font-medium tracking-wide text-white backdrop-blur-sm">
+          <span
+            className={cn(
+              "absolute left-3 z-20 rounded-full bg-slate-900/85 px-2.5 py-1 text-[10px] font-medium tracking-wide text-white backdrop-blur-sm",
+              showCompare ? "top-12" : "top-3",
+            )}
+          >
             Hết hàng
           </span>
         )}
 
-        {/* Nút xem nhanh — hiện khi hover, gợi ý tính tương tác */}
+        {/* Nút xem nhanh — thuần trang trí, để link phủ bên dưới nhận click */}
         <span
+          aria-hidden
           className={cn(
-            "absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm",
+            "pointer-events-none absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm",
             "translate-y-1 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100",
           )}
         >
@@ -127,6 +161,6 @@ export function HomeProductCard({
           </span>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }

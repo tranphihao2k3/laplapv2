@@ -17,6 +17,8 @@
 import { NEED_TAGS } from "@/lib/product-collections";
 import {
   hasDiscreteGpu,
+  parseBatteryCycles,
+  parseBatteryHealthPct,
   parseBatteryWh,
   parseRamGb,
   parseRefreshHz,
@@ -92,6 +94,7 @@ export function rankRow(
     rank: null,
     vsBestPct: null,
     leadPct: null,
+    vsBestTimes: null,
     barPct: null,
   });
 
@@ -128,11 +131,15 @@ export function rankRow(
     const rank = 1 + present.filter((p) => better(p.value, i.value as number) > 0).length;
     const isBest = rank === 1;
     const ratio = bestGood === Infinity ? 1 : goodness(i.value, dir) / bestGood;
+    // Chênh bao nhiêu LẦN so với TOP 1 (theo chiều "tốt"): 2.8 nghĩa là TOP 1
+    // tốt gấp 2.8 lần máy này. Dùng thay % khi chênh lệch quá lớn.
+    const times = ratio > 0 && ratio < 1 ? 1 / ratio : null;
     return {
       ...i,
       rank,
       vsBestPct: isBest ? 0 : advantagePct(i.value, bestVal, dir),
       leadPct: isBest && secondVal != null && !allEqual ? advantagePct(bestVal, secondVal, dir) : null,
+      vsBestTimes: isBest ? null : times != null ? Math.round(times * 10) / 10 : null,
       barPct: Math.max(0, Math.min(100, ratio * 100)),
     };
   });
@@ -162,6 +169,10 @@ function measurableValueOf(metric: Metric, p: ProductForCompare): number | null 
       return parseResolutionPx(raw);
     case "battery":
       return parseBatteryWh(raw);
+    case "batteryHealth":
+      return parseBatteryHealthPct(raw);
+    case "batteryCycles":
+      return parseBatteryCycles(raw);
     case "weight":
       return parseWeightKg(raw, p.variantWeightKg);
     case "price":
@@ -211,11 +222,26 @@ function isEligibleForNeed(needSlug: string, p: ProductForCompare): boolean {
   }
 }
 
-/** Min-max normalize về 0-100 trong nhóm máy đang so. */
+/**
+ * Biên của thang điểm thành phần.
+ *
+ * KHÔNG dùng 0-100: min-max thuần khiến máy tốt nhất LUÔN được 100 và máy kém
+ * nhất LUÔN 0, kể cả khi hai máy chỉ chênh nhau chút xíu (16GB vs 24GB RAM ra
+ * 0 và 100). Khách đọc "0/100" sẽ tưởng máy đó vô dụng. Nén vào 25-95 để điểm
+ * phản ánh khoảng cách tương đối mà vẫn giữ được thứ hạng.
+ */
+const SCORE_FLOOR = 25;
+const SCORE_CEIL = 95;
+
+/** Dưới ngưỡng này thì điểm tổng bị đánh dấu "thiếu thông số" để UI cảnh báo. */
+const MIN_METRICS_FOR_CONFIDENCE = 4;
+
+/** Min-max normalize về dải SCORE_FLOOR..SCORE_CEIL trong nhóm máy đang so. */
 function normalize01(v: number, min: number, max: number, dir: Direction): number {
-  if (max === min) return 50; // Tất cả bằng nhau → điểm trung tính.
+  if (max === min) return (SCORE_FLOOR + SCORE_CEIL) / 2; // Bằng nhau → điểm trung tính.
   const t = (v - min) / (max - min);
-  return (dir === "higher" ? t : 1 - t) * 100;
+  const norm = dir === "higher" ? t : 1 - t;
+  return SCORE_FLOOR + norm * (SCORE_CEIL - SCORE_FLOOR);
 }
 
 /**
@@ -278,6 +304,7 @@ function computeOverall(
     ...r,
     score: k(r.score),
     rank: 1 + raw.filter((o) => k(o.score) > k(r.score)).length,
+    lowConfidence: r.metricsUsed < MIN_METRICS_FOR_CONFIDENCE,
   }));
 }
 
@@ -315,6 +342,7 @@ export function buildCompareResult(
             rank: null,
             vsBestPct: null,
             leadPct: null,
+            vsBestTimes: null,
             barPct: null,
           };
         }),
@@ -343,12 +371,17 @@ export function buildCompareResult(
 
       // Với hàng ai-scored, chuỗi gốc (tên CPU/GPU) mới là thứ người dùng cần đọc;
       // điểm số chỉ dùng để xếp hạng nên không thay thế phần hiển thị.
+      //
+      // Với hàng measurable thì TUYỆT ĐỐI KHÔNG fallback về chuỗi gốc khi parse
+      // không ra: nhiều metric cùng đọc một key (display → kích thước/tần số quét/
+      // độ phân giải), fallback sẽ nhét "15 inch" vào hàng "Tần số quét" và
+      // "2-4 giờ" vào hàng "Độ chai pin". Không đọc được số thì hiện "—".
       const display =
         metric.kind === "ai-scored"
           ? raw ?? "—"
           : value != null
             ? formatMetricValue(metric.id, value)
-            : raw ?? "—";
+            : "—";
 
       return { productId: p.id, raw, value, display };
     });
@@ -375,6 +408,7 @@ export function buildCompareResult(
         rank: null,
         vsBestPct: null,
         leadPct: null,
+        vsBestTimes: null,
         barPct: null,
       };
     }),

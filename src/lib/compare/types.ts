@@ -51,6 +51,11 @@ export type Cell = {
   vsBestPct: number | null;
   /** Chỉ TOP 1: hơn máy hạng nhì bao nhiêu %. ≥ 0. */
   leadPct: number | null;
+  /**
+   * Số lần chênh so với TOP 1, dùng khi |vsBestPct| quá lớn.
+   * "-182%" khó hiểu, "đắt gấp 2.8 lần" thì đọc là hiểu ngay.
+   */
+  vsBestTimes: number | null;
   /** Độ dài thanh bar, 0..100 (thuần thị giác). */
   barPct: number | null;
 };
@@ -73,8 +78,14 @@ export type OverallScore = {
   /** Điểm 0-100. */
   score: number;
   rank: number;
-  /** Số chỉ số thực sự có dữ liệu để tính điểm (dùng để cảnh báo độ tin cậy). */
+  /** Số chỉ số thực sự có dữ liệu để tính điểm. */
   metricsUsed: number;
+  /**
+   * true khi điểm dựa trên quá ít chỉ số (< 4) → UI phải ghi chú "thiếu thông số".
+   * Không có cờ này thì một máy chỉ có RAM + ổ cứng vẫn hiện điểm cao chót vót
+   * như thể đã được đánh giá đầy đủ.
+   */
+  lowConfidence: boolean;
 };
 
 /** Kết quả so sánh hoàn chỉnh. */

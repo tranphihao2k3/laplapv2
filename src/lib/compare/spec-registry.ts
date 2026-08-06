@@ -130,6 +130,33 @@ export const METRICS: Metric[] = [
   },
 
   // ---------- Di động & Pin ----------
+  // Shop bán nhiều máy cũ nên trường battery thường ghi sức khoẻ pin
+  // ("100% (93 chu kỳ sạc)") thay vì Wh → tách thành 3 chỉ số, chỉ chỉ số nào
+  // parse được mới hiện.
+  {
+    id: "batteryHealth",
+    label: "Độ chai pin",
+    unit: "%",
+    group: "Di động & Pin",
+    iconName: "BatteryCharging",
+    keys: ["battery", "pin", "battery_health", "do_chai_pin"],
+    kind: "measurable",
+    direction: "higher",
+    decimals: 0,
+    scored: true,
+  },
+  {
+    id: "batteryCycles",
+    label: "Số chu kỳ sạc",
+    group: "Di động & Pin",
+    iconName: "RotateCcw",
+    keys: ["battery", "pin", "battery_cycles", "chu_ky_sac"],
+    kind: "measurable",
+    // Càng ít chu kỳ càng tốt — pin còn mới.
+    direction: "lower",
+    decimals: 0,
+    scored: false,
+  },
   {
     id: "battery",
     label: "Dung lượng pin",

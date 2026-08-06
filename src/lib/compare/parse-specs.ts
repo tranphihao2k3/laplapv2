@@ -83,6 +83,28 @@ export function parseBatteryWh(raw?: string): number | null {
 }
 
 /**
+ * Độ chai pin: "100% (93 chu kỳ sạc)" → 100 | "Pin 87%" → 87.
+ *
+ * Shop bán nhiều máy cũ nên trường battery thường ghi SỨC KHOẺ PIN thay vì Wh —
+ * đây là tiêu chí mua hàng quan trọng bậc nhất với máy cũ, phải so sánh được.
+ * Chỉ nhận 0-100 để không nuốt các số khác trong chuỗi.
+ */
+export function parseBatteryHealthPct(raw?: string): number | null {
+  if (!raw) return null;
+  const m = raw.match(/(\d{1,3})\s*%/);
+  if (!m) return null;
+  const v = num(m[1]);
+  return v != null && v > 0 && v <= 100 ? v : null;
+}
+
+/** Số chu kỳ sạc: "100% (93 chu kỳ sạc)" → 93. Càng ít càng tốt (pin còn mới). */
+export function parseBatteryCycles(raw?: string): number | null {
+  if (!raw) return null;
+  const m = raw.match(/(\d{1,4})\s*(?:chu\s*k[yỳ]|cycles?|lần sạc)/i);
+  return m ? num(m[1]) : null;
+}
+
+/**
  * "15.6 inch FHD 144Hz" → 144.
  * KHÔNG mặc định 60Hz khi thiếu dữ liệu — thiếu thông tin ≠ màn 60Hz.
  */
@@ -196,6 +218,10 @@ export function formatMetricValue(metricId: string, n: number): string {
       return `${n} Hz`;
     case "battery":
       return `${n} Wh`;
+    case "batteryHealth":
+      return `${n}%`;
+    case "batteryCycles":
+      return `${n} chu kỳ`;
     case "weight":
       return `${n} kg`;
     case "cpu":

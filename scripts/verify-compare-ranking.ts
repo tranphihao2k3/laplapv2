@@ -208,8 +208,6 @@ eq("gaming -> máy A (RTX 4060)", gaming.productId, "A");
 const mongNhe = res2.bestByNeed.find((b) => b.needSlug === "mong-nhe")!;
 eq("mỏng nhẹ -> máy C (1.4kg)", mongNhe.productId, "C");
 
-console.log(`\n${pass} pass, ${fail} fail`);
-if (fail > 0) process.exit(1);
 
 // --- Gate điều kiện cứng cho bestByNeed ---
 console.log("=== GATE nhu cầu ===");
@@ -222,3 +220,42 @@ eq("gpu Radeon RX 6600M -> rời", hasDiscreteGpu("AMD Radeon RX 6600M"), true);
 eq("gpu MX550 -> rời", hasDiscreteGpu("NVIDIA MX550"), true);
 eq("gpu onboard -> tích hợp", hasDiscreteGpu("Onboard"), false);
 eq("gpu rỗng -> null", hasDiscreteGpu(undefined), null);
+
+// --- Pin may cu: sức khoẻ pin + chu kỳ sạc (dữ liệu thật của shop) ---
+console.log("=== PIN MAY CU ===");
+import { parseBatteryHealthPct, parseBatteryCycles } from "../src/lib/compare/parse-specs";
+eq("chai pin 100%", parseBatteryHealthPct("100% (93 chu kỳ sạc)"), 100);
+eq("chai pin 87%", parseBatteryHealthPct("Pin 87%"), 87);
+eq("chai pin sai dai -> null", parseBatteryHealthPct("120%"), null);
+eq("chai pin khong co -> null", parseBatteryHealthPct("2-4 giờ"), null);
+eq("chu ky 93", parseBatteryCycles("100% (93 chu kỳ sạc)"), 93);
+eq("chu ky cycles", parseBatteryCycles("120 cycles"), 120);
+eq("chu ky khong co -> null", parseBatteryCycles("56Wh"), null);
+
+// Metric do duoc parse khong ra -> hien "—", KHONG fallback chuoi goc.
+// Nhieu metric doc chung key display; fallback se nhet "15 inch" vao hang "Tan so quet".
+const pMac = mk("MAC", { display: "15 inch", battery: "100% (93 chu kỳ sạc)" }, 24_000_000);
+const pWin = mk("WIN", { display: '15.6" FHD 165Hz', battery: "2-4 giờ" }, 16_000_000);
+const resFb = buildCompareResult([pMac, pWin], null);
+const allRows = resFb.groups.flatMap((g) => g.rows);
+const hz = allRows.find((r) => r.metricId === "refreshHz")!;
+eq("khong nhet '15 inch' vao hang tan so quet", hz.cells[0].display, "—");
+eq("may co 165Hz van hien dung", hz.cells[1].display, "165 Hz");
+const health = allRows.find((r) => r.metricId === "batteryHealth")!;
+eq("khong nhet '2-4 giờ' vao hang do chai pin", health.cells[1].display, "—");
+eq("do chai pin doc dung tu chuoi may cu", health.cells[0].display, "100%");
+
+// Diem tong khong duoc ra 0/100 chi vi min-max.
+const twoNear = [
+  mk("X", { ram: "24GB", ssd: "512GB SSD" }, 20_000_000),
+  mk("Y", { ram: "16GB", ssd: "512GB SSD" }, 18_000_000),
+];
+const resNear = buildCompareResult(twoNear, null);
+const worst = resNear.overall.find((o) => o.productId === "Y")!;
+eq("may kem hon KHONG bi 0 diem", worst.score > 0, true);
+eq("diem nam trong dai hop ly", resNear.overall.every((o) => o.score >= 25 && o.score <= 95), true);
+eq("canh bao thieu thong so", worst.lowConfidence, true);
+
+console.log(`
+${pass} pass, ${fail} fail`);
+if (fail > 0) process.exit(1);
