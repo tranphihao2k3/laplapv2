@@ -37,6 +37,7 @@ function catIconFor(label: string): LucideIcon {
 const NAV_LINKS = [
   { href: "/", label: "Trang chủ" },
   { href: "/products", label: "Sản phẩm" },
+  { href: "/so-sanh", label: "So sánh" },
   { href: "/test-laptop", label: "Test Laptop" },
   { href: "/dich-vu-sua-chua", label: "Dịch vụ sửa chữa" },
   { href: "/tra-cuu-bao-hanh", label: "Tra cứu bảo hành" },
