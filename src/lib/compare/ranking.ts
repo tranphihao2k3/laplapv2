@@ -236,6 +236,40 @@ const SCORE_CEIL = 95;
 /** Dưới ngưỡng này thì điểm tổng bị đánh dấu "thiếu thông số" để UI cảnh báo. */
 const MIN_METRICS_FOR_CONFIDENCE = 4;
 
+/**
+ * Có đủ dữ liệu để gợi ý "tốt nhất cho <nhu cầu>" hay chưa.
+ *
+ * Nhãn này chỉ đáng tin khi ÍT NHẤT một máy có thông số quyết định của nhu cầu
+ * đó. Không có dữ liệu trọng lượng thì mọi máy đều lọt qua gate, và máy gaming
+ * nặng nhất vẫn thắng nhãn "mỏng nhẹ" nhờ điểm CPU/RAM.
+ */
+function hasDataForNeed(needSlug: string, products: ProductForCompare[]): boolean {
+  const readable = (metricId: string, parse: (raw?: string) => number | null) => {
+    const metric = METRIC_BY_ID.get(metricId);
+    if (!metric) return false;
+    return products.some((p) => parse(rawValueOf(metric, p.specs)) != null);
+  };
+
+  switch (needSlug) {
+    case "mong-nhe":
+      return products.some(
+        (p) =>
+          parseWeightKg(
+            rawValueOf(METRIC_BY_ID.get("weight")!, p.specs),
+            p.variantWeightKg,
+          ) != null,
+      );
+    case "gaming": {
+      const gpu = METRIC_BY_ID.get("gpu");
+      return !!gpu && products.some((p) => hasDiscreteGpu(rawValueOf(gpu, p.specs)) != null);
+    }
+    case "do-hoa":
+      return readable("ram", parseRamGb);
+    default:
+      return true;
+  }
+}
+
 /** Min-max normalize về dải SCORE_FLOOR..SCORE_CEIL trong nhóm máy đang so. */
 function normalize01(v: number, min: number, max: number, dir: Direction): number {
   if (max === min) return (SCORE_FLOOR + SCORE_CEIL) / 2; // Bằng nhau → điểm trung tính.
@@ -446,6 +480,11 @@ export function buildCompareResult(
   const bestByNeed = NEED_TAGS.map((tag) => {
     const profile = WEIGHT_PROFILES[tag.slug];
     if (!profile) return null;
+
+    // Chỉ gợi ý khi CÓ ĐỦ DỮ LIỆU để phán đoán. Nếu không máy nào ghi trọng
+    // lượng thì mọi máy đều "không bị loại" và máy gaming 2.3kg sẽ thắng nhãn
+    // "mỏng nhẹ" — thà không gợi ý còn hơn gợi ý sai.
+    if (!hasDataForNeed(tag.slug, products)) return null;
 
     // Điều kiện CỨNG trước khi xét điểm: chỉ riêng trọng số là không đủ.
     // Máy cấu hình khủng 2.3kg vẫn có thể thắng điểm profile "mỏng nhẹ" nhờ
