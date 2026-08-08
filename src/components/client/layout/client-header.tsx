@@ -252,7 +252,11 @@ export function ClientHeader() {
             aria-label="Tìm kiếm laptop"
           />
 
-          {(open || query) && (
+          {/*
+            Chỉ dựa vào `open`, KHÔNG dùng `open || query`: click ra ngoài set
+            open=false nhưng ô tìm kiếm vẫn còn chữ nên box không bao giờ ẩn.
+          */}
+          {open && (
             <div className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-b-lg border border-border bg-popover text-popover-foreground shadow-lg">
               {isLoading ? (
                 <div className="space-y-2 p-3">
