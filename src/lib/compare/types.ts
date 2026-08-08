@@ -112,3 +112,30 @@ export type AiMachineScores = {
   gpuScore: number;
   displayScore: number;
 };
+
+/** Nhận xét chi tiết AI viết cho một máy. */
+export type AiMachineDetail = {
+  index: number;
+  cpu_score: number;
+  cpu_note: string;
+  gpu_score: number;
+  gpu_note: string;
+  display_score: number;
+  display_note: string;
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+};
+
+/**
+ * Payload của POST /api/ai/compare.
+ *
+ * Khai báo ở đây (thay vì suy ra từ zod schema trong lib/ai) để component client
+ * import được kiểu mà KHÔNG kéo gemini-client + prompt vào bundle trình duyệt.
+ */
+export type CompareAiPayload = {
+  scores: AiMachineScores[];
+  machines: AiMachineDetail[];
+  verdict: string;
+  needNotes: { need_slug: string; note: string }[];
+};

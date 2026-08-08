@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { GitCompareArrows, PackageX, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,8 +11,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { MAX_COMPARE } from "@/lib/compare/fetch-products";
 import { buildCompareResult } from "@/lib/compare/ranking";
-import type { ProductForCompare } from "@/lib/compare/types";
+import type { CompareAiPayload, ProductForCompare } from "@/lib/compare/types";
 import { useCompareStore } from "@/stores/compare-store";
+import { AiAnalysisPanel } from "./ai-analysis-panel";
+import { CompareSummary } from "./compare-summary";
 import { CompareTable } from "./compare-table";
 import { ComparePicker } from "./compare-picker";
 
@@ -92,9 +94,48 @@ export function CompareClient() {
     pushIds([]);
   }, [pushIds]);
 
+  /**
+   * Kết quả AI lưu theo BỘ MÁY (key = danh sách id đã sắp xếp), không lưu phẳng.
+   * Bỏ bớt một máy thì phân tích cũ tự biến mất thay vì hiện điểm của máy không
+   * còn trong bảng; thêm máy đó lại thì kết quả cũ hiện ngay, không gọi lại AI.
+   */
+  const aiKey = useMemo(() => [...products.map((p) => p.id)].sort().join(","), [products]);
+  const [aiByKey, setAiByKey] = useState<Record<string, { data: CompareAiPayload; cached: boolean }>>(
+    {},
+  );
+
+  const aiMutation = useMutation({
+    mutationFn: async (targetIds: string[]) => {
+      const res = await fetch("/api/ai/compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: targetIds }),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | { ok: true; data: CompareAiPayload; cached: boolean }
+        | { ok: false; error: { message: string } }
+        | null;
+      if (!json?.ok) throw new Error(json?.error?.message ?? "Không phân tích được, thử lại nhé.");
+      return json;
+    },
+    onSuccess: (json, targetIds) => {
+      // Khoá theo BỘ MÁY ĐÃ GỬI, không theo aiKey hiện tại — user có thể đã đổi
+      // lựa chọn trong lúc AI chạy, gán nhầm thì điểm sẽ thuộc về sai bộ máy.
+      const key = [...targetIds].sort().join(",");
+      setAiByKey((prev) => ({ ...prev, [key]: { data: json.data, cached: json.cached } }));
+    },
+  });
+
+  const ai = aiByKey[aiKey] ?? null;
+
+  // Loading/lỗi chỉ thuộc về ĐÚNG bộ máy đã bấm. Nếu user bỏ bớt một máy giữa
+  // chừng thì panel mới phải sạch, không kế thừa spinner hay lỗi của lượt trước.
+  const pendingKey = aiMutation.variables ? [...aiMutation.variables].sort().join(",") : null;
+  const isForCurrent = pendingKey === aiKey;
+
   const result = useMemo(
-    () => (products.length >= 2 ? buildCompareResult(products, null) : null),
-    [products],
+    () => (products.length >= 2 ? buildCompareResult(products, ai?.data.scores ?? null) : null),
+    [products, ai],
   );
 
   // --- Các trạng thái rỗng ---
@@ -176,6 +217,17 @@ export function CompareClient() {
         </div>
       ) : (
         <>
+          {result && <CompareSummary result={result} />}
+
+          <AiAnalysisPanel
+            products={products}
+            data={ai?.data ?? null}
+            cached={ai?.cached ?? false}
+            isPending={aiMutation.isPending && isForCurrent}
+            error={aiMutation.isError && isForCurrent ? (aiMutation.error as Error).message : null}
+            onRun={() => aiMutation.mutate(products.map((p) => p.id))}
+          />
+
           {result && <CompareTable result={result} onlyDiff={onlyDiff} onRemove={handleRemove} />}
 
           {products.length < MAX_COMPARE && (

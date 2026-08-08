@@ -10,6 +10,7 @@ import {
 import { GEMINI_MODEL } from "@/lib/ai/gemini-client";
 import { buildFingerprint, sha256Hex, COMPARE_PROMPT_VERSION } from "@/lib/compare/cache-key";
 import { getCompareProducts, MAX_COMPARE } from "@/lib/compare/fetch-products";
+import type { CompareAiPayload } from "@/lib/compare/types";
 
 const bodySchema = z.object({
   ids: z.array(z.string().uuid()).min(2).max(MAX_COMPARE),
@@ -180,7 +181,7 @@ function isMissingTable(error: { code?: string; message?: string } | null): bool
 function buildResponse(
   result: AiCompareResult,
   products: Awaited<ReturnType<typeof getCompareProducts>>,
-) {
+): CompareAiPayload {
   return {
     scores: mapScoresToProducts(result, products),
     machines: result.machines,
