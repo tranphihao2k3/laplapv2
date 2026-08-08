@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { MAX_COMPARE } from "@/lib/compare/fetch-products";
 import { buildCompareResult } from "@/lib/compare/ranking";
+import { clearLocalAi, readLocalAi, writeLocalAi } from "@/lib/compare/ai-cache-local";
 import type { CompareAiPayload, ProductForCompare } from "@/lib/compare/types";
 import { useCompareStore } from "@/stores/compare-store";
 import { AiAnalysisPanel } from "./ai-analysis-panel";
@@ -100,9 +101,26 @@ export function CompareClient() {
    * còn trong bảng; thêm máy đó lại thì kết quả cũ hiện ngay, không gọi lại AI.
    */
   const aiKey = useMemo(() => [...products.map((p) => p.id)].sort().join(","), [products]);
-  const [aiByKey, setAiByKey] = useState<Record<string, { data: CompareAiPayload; cached: boolean }>>(
-    {},
-  );
+  const [aiByKey, setAiByKey] = useState<
+    Record<string, { data: CompareAiPayload; cached: boolean; savedAt: number | null }>
+  >({});
+
+  /*
+    Khôi phục từ localStorage khi đổi bộ máy (gồm cả lần F5 đầu tiên).
+    Đọc trong effect chứ KHÔNG phải initializer của useState: server render
+    không có localStorage, đọc lúc render sẽ lệch HTML giữa server và client
+    và vỡ hydrate.
+  */
+  useEffect(() => {
+    if (!aiKey || aiByKey[aiKey]) return;
+    const saved = readLocalAi(aiKey);
+    if (saved) {
+      setAiByKey((prev) => ({
+        ...prev,
+        [aiKey]: { data: saved.data, cached: true, savedAt: saved.savedAt },
+      }));
+    }
+  }, [aiKey, aiByKey]);
 
   const aiMutation = useMutation({
     mutationFn: async (targetIds: string[]) => {
@@ -122,9 +140,24 @@ export function CompareClient() {
       // Khoá theo BỘ MÁY ĐÃ GỬI, không theo aiKey hiện tại — user có thể đã đổi
       // lựa chọn trong lúc AI chạy, gán nhầm thì điểm sẽ thuộc về sai bộ máy.
       const key = [...targetIds].sort().join(",");
-      setAiByKey((prev) => ({ ...prev, [key]: { data: json.data, cached: json.cached } }));
+      writeLocalAi(key, json.data);
+      setAiByKey((prev) => ({
+        ...prev,
+        [key]: { data: json.data, cached: json.cached, savedAt: Date.now() },
+      }));
     },
   });
+
+  /** Nút "Phân tích lại": bỏ bản lưu rồi gọi AI mới. */
+  const handleRerunAi = useCallback(() => {
+    clearLocalAi(aiKey);
+    setAiByKey((prev) => {
+      const next = { ...prev };
+      delete next[aiKey];
+      return next;
+    });
+    aiMutation.mutate(products.map((p) => p.id));
+  }, [aiKey, products, aiMutation]);
 
   const ai = aiByKey[aiKey] ?? null;
 
@@ -222,10 +255,11 @@ export function CompareClient() {
           <AiAnalysisPanel
             products={products}
             data={ai?.data ?? null}
-            cached={ai?.cached ?? false}
+            savedAt={ai?.savedAt ?? null}
             isPending={aiMutation.isPending && isForCurrent}
             error={aiMutation.isError && isForCurrent ? (aiMutation.error as Error).message : null}
             onRun={() => aiMutation.mutate(products.map((p) => p.id))}
+            onRerun={handleRerunAi}
           />
 
           {result && <CompareTable result={result} onlyDiff={onlyDiff} onRemove={handleRemove} />}

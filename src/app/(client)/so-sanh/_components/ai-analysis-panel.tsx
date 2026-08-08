@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { AlertCircle, Check, Loader2, Minus, Sparkles } from "lucide-react";
+import { AlertCircle, Check, Loader2, Minus, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatSavedAgo } from "@/lib/compare/ai-cache-local";
 import { needTagLabel } from "@/lib/product-collections";
 import { cn } from "@/lib/utils";
 import type { CompareAiPayload, ProductForCompare } from "@/lib/compare/types";
@@ -11,10 +12,12 @@ import type { CompareAiPayload, ProductForCompare } from "@/lib/compare/types";
 type Props = {
   products: ProductForCompare[];
   data: CompareAiPayload | null;
+  /** Thời điểm kết quả được lưu ở máy khách. null = vừa lấy từ server. */
+  savedAt: number | null;
   isPending: boolean;
   error: string | null;
-  cached: boolean;
   onRun: () => void;
+  onRerun: () => void;
 };
 
 /**
@@ -24,7 +27,15 @@ type Props = {
  * Toàn bộ xếp hạng và phần trăm nằm ở bảng thông số phía dưới — cố tình KHÔNG
  * lặp lại ở đây để hai chỗ không bao giờ nói khác nhau.
  */
-export function AiAnalysisPanel({ products, data, isPending, error, cached, onRun }: Props) {
+export function AiAnalysisPanel({
+  products,
+  data,
+  savedAt,
+  isPending,
+  error,
+  onRun,
+  onRerun,
+}: Props) {
   const machineByProduct = new Map(
     data?.scores.map((s, i) => [s.productId, data.machines[i]]) ?? [],
   );
@@ -44,7 +55,27 @@ export function AiAnalysisPanel({ products, data, isPending, error, cached, onRu
           </p>
         </div>
 
-        {!data && (
+        {data ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRerun}
+            disabled={isPending}
+            className="h-8 border-violet-200 text-[12px] text-violet-700 hover:bg-violet-50"
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                Đang phân tích lại…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Phân tích lại
+              </>
+            )}
+          </Button>
+        ) : (
           <Button onClick={onRun} disabled={isPending} className="bg-violet-600 hover:bg-violet-700">
             {isPending ? (
               <>
@@ -175,8 +206,8 @@ export function AiAnalysisPanel({ products, data, isPending, error, cached, onRu
           )}
 
           <p className="text-[10px] text-slate-400">
-            Điểm do AI ước lượng từ thông số, dùng để tham khảo — không phải kết quả benchmark thực tế
-            {cached && " · lấy từ kết quả đã lưu"}.
+            Điểm do AI ước lượng từ thông số, dùng để tham khảo — không phải kết quả benchmark thực
+            tế{savedAt != null && ` · đã lưu ${formatSavedAgo(savedAt)}`}.
           </p>
         </div>
       )}
