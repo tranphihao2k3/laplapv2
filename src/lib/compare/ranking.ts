@@ -43,7 +43,9 @@ import type {
   Cell,
   CompareResult,
   Direction,
+  MetricStanding,
   OverallScore,
+  ProductBreakdown,
   ProductForCompare,
   Row,
 } from "./types";
@@ -283,11 +285,10 @@ function normalize01(v: number, min: number, max: number, dir: Direction): numbe
  * Metric thiếu dữ liệu ở máy nào thì bị loại khỏi CẢ tử số và mẫu số của
  * riêng máy đó (renormalize per-machine) — để máy thiếu 1 spec không bị phạt oan.
  */
-function computeOverall(
-  products: ProductForCompare[],
+function partialScores(
   rowByMetric: Map<string, Row>,
   profile: Record<string, number>,
-): OverallScore[] {
+): Map<string, Map<string, number>> {
   // Điểm thành phần 0-100 cho từng (metric, máy).
   const partial = new Map<string, Map<string, number>>();
 
@@ -317,6 +318,16 @@ function computeOverall(
     partial.set(metric.id, scores);
   }
 
+  return partial;
+}
+
+function computeOverall(
+  products: ProductForCompare[],
+  rowByMetric: Map<string, Row>,
+  profile: Record<string, number>,
+): OverallScore[] {
+  const partial = partialScores(rowByMetric, profile);
+
   const raw = products.map((p) => {
     let sum = 0;
     let wSum = 0;
@@ -340,6 +351,53 @@ function computeOverall(
     rank: 1 + raw.filter((o) => k(o.score) > k(r.score)).length,
     lowConfidence: r.metricsUsed < MIN_METRICS_FOR_CONFIDENCE,
   }));
+}
+
+/**
+ * Diễn giải thứ hạng: mỗi máy thắng những tiêu chí nào.
+ *
+ * CHỈ xét metric `scored` — đúng tập tiêu chí đã quyết định điểm tổng. Nếu đếm
+ * cả các metric không tính điểm (giá, kích thước màn, chu kỳ sạc) thì máy rẻ
+ * nhất sẽ hiện "thắng 3/9 tiêu chí" trong khi điểm tổng bét bảng, hai con số
+ * mâu thuẫn nhau ngay trên cùng một thẻ.
+ *
+ * Hàng `allEqual` không tính là thắng: mọi máy cùng 16GB RAM thì không ai
+ * "thắng" RAM cả.
+ */
+function computeBreakdowns(
+  products: ProductForCompare[],
+  rowByMetric: Map<string, Row>,
+  profile: Record<string, number>,
+): ProductBreakdown[] {
+  const partial = partialScores(rowByMetric, profile);
+
+  const scoredRows = METRICS.filter((m) => m.scored && (profile[m.id] ?? 0) > 0)
+    .map((m) => ({ metric: m, row: rowByMetric.get(m.id) }))
+    .filter((x): x is { metric: Metric; row: Row } => x.row != null && x.row.ranked);
+
+  const rankedCount = scoredRows.filter((x) => !x.row.allEqual).length;
+
+  return products.map((p) => {
+    const standings: MetricStanding[] = [];
+    let wins = 0;
+
+    for (const { metric, row } of scoredRows) {
+      const cell = row.cells.find((c) => c.productId === p.id);
+      if (!cell || cell.rank == null) continue;
+      if (cell.rank === 1 && !row.allEqual) wins++;
+      standings.push({
+        metricId: metric.id,
+        rank: cell.rank,
+        score: partial.get(metric.id)?.get(p.id) ?? null,
+        weight: profile[metric.id] ?? 0,
+        allEqual: row.allEqual,
+      });
+    }
+
+    // Tiêu chí nặng cân lên trước; cùng trọng số thì hạng tốt hơn lên trước.
+    standings.sort((a, b) => b.weight - a.weight || a.rank - b.rank);
+    return { productId: p.id, wins, rankedCount, standings };
+  });
 }
 
 /**
@@ -458,6 +516,7 @@ export function buildCompareResult(
   })).filter((g) => g.rows.length > 0);
 
   const overall = computeOverall(products, rowByMetric, WEIGHT_PROFILES.default);
+  const breakdowns = computeBreakdowns(products, rowByMetric, WEIGHT_PROFILES.default);
 
   // Đáng tiền = điểm tổng / giá (triệu đồng). Máy chưa có giá → null.
   const overallById = new Map(overall.map((o) => [o.productId, o]));
@@ -510,6 +569,7 @@ export function buildCompareResult(
     groups,
     extraRows,
     overall,
+    breakdowns,
     valueScores,
     bestByNeed,
     hasAiScores,

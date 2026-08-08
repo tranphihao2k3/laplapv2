@@ -88,6 +88,40 @@ export type OverallScore = {
   lowConfidence: boolean;
 };
 
+/** Thứ hạng của một máy ở MỘT tiêu chí, kèm sức nặng của tiêu chí đó. */
+export type MetricStanding = {
+  metricId: string;
+  /** Competition rank trong tiêu chí này. */
+  rank: number;
+  /** Điểm thành phần 0-100 đã dùng để tính điểm tổng. */
+  score: number | null;
+  /** Trọng số trong profile "default" — tiêu chí nặng hơn thì thắng ở đó giá trị hơn. */
+  weight: number;
+  /** Mọi máy ngang nhau ở tiêu chí này → không tính là "thắng". */
+  allEqual: boolean;
+};
+
+/**
+ * Vì sao một máy đứng hạng đó.
+ *
+ * Chỉ số tổng trần trụi ("75.5") không nói lên điều gì. Bảng này cho thấy máy
+ * thắng những tiêu chí nào và thua ở đâu, để khách tự kiểm chứng thứ hạng.
+ */
+export type ProductBreakdown = {
+  productId: string;
+  /**
+   * Số tiêu chí máy này đứng nhất một mình.
+   * CHỈ đếm trên các tiêu chí scored (tiêu chí thực sự quyết định điểm tổng) —
+   * nếu đếm cả giá thì máy rẻ nhất sẽ "thắng nhiều tiêu chí" mà điểm vẫn bét,
+   * hai con số mâu thuẫn nhau ngay trên cùng một thẻ.
+   */
+  wins: number;
+  /** Tổng số tiêu chí scored thực sự xếp hạng được (mẫu số của `wins`). */
+  rankedCount: number;
+  /** Xếp theo trọng số giảm dần — tiêu chí quan trọng nhất lên đầu. */
+  standings: MetricStanding[];
+};
+
 /** Kết quả so sánh hoàn chỉnh. */
 export type CompareResult = {
   products: ProductForCompare[];
@@ -97,6 +131,8 @@ export type CompareResult = {
   extraRows: Row[];
   /** Điểm tổng theo profile "default". */
   overall: OverallScore[];
+  /** Diễn giải thứ hạng: máy nào thắng tiêu chí nào. */
+  breakdowns: ProductBreakdown[];
   /** Chỉ số đáng tiền: điểm tổng / giá (triệu đồng). null nếu chưa có giá. */
   valueScores: { productId: string; value: number | null; rank: number | null }[];
   /** Máy tốt nhất cho từng nhu cầu — CODE tính từ WEIGHT_PROFILES, không phải AI. */

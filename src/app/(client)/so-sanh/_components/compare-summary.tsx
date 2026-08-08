@@ -1,181 +1,257 @@
 "use client";
 
 import Image from "next/image";
-import { Award, CircleHelp, Coins, Trophy } from "lucide-react";
+import Link from "next/link";
+import { Award, CircleHelp, Coins, Crown, Sparkles } from "lucide-react";
+import { METRIC_BY_ID } from "@/lib/compare/spec-registry";
 import { cn, formatCurrency } from "@/lib/utils";
-import type { CompareResult } from "@/lib/compare/types";
+import type { CompareResult, MetricStanding } from "@/lib/compare/types";
+import { specIcon } from "@/components/client/compare/spec-icons";
 
 /**
- * Khối tổng kết đặt TRÊN bảng thông số: điểm tổng, máy đáng tiền nhất,
- * máy tốt nhất cho từng nhu cầu.
+ * Khối xếp hạng tổng, đặt TRÊN bảng thông số.
  *
- * Mọi con số ở đây do CODE tính (buildCompareResult), kể cả khi đã có điểm AI —
- * AI chỉ đóng góp điểm CPU/GPU/màn hình làm đầu vào. Nhờ vậy nhãn "Tốt nhất cho
- * Gaming" không bao giờ mâu thuẫn với bảng xếp hạng ngay bên dưới.
+ * Nguyên tắc: mọi con số ở đây do CODE tính (buildCompareResult), kể cả khi đã
+ * có điểm AI — AI chỉ đóng góp điểm CPU/GPU/màn hình làm đầu vào. Nhờ vậy thứ
+ * hạng ở đây không bao giờ mâu thuẫn với bảng xếp hạng ngay bên dưới.
+ *
+ * Mỗi thẻ kèm "thắng N/M tiêu chí" + danh sách tiêu chí thắng, để khách kiểm
+ * chứng được thứ hạng thay vì phải tin một con số trần trụi.
  */
 export function CompareSummary({ result }: { result: CompareResult }) {
-  const { products, overall, valueScores, bestByNeed, hasAiScores } = result;
+  const { products, overall, breakdowns, valueScores, bestByNeed, hasAiScores } = result;
 
   const productById = new Map(products.map((p) => [p.id, p]));
-  const overallById = new Map(overall.map((o) => [o.productId, o]));
+  const breakdownById = new Map(breakdowns.map((b) => [b.productId, b]));
+  const valueById = new Map(valueScores.map((v) => [v.productId, v]));
   const maxScore = Math.max(...overall.map((o) => o.score), 1);
 
-  const bestValue = valueScores
-    .filter((v) => v.value != null)
-    .reduce<(typeof valueScores)[number] | null>(
-      (best, v) => (best == null || (v.value as number) > (best.value as number) ? v : best),
-      null,
-    );
+  const ranked = [...overall].sort((a, b) => a.rank - b.rank || b.score - a.score);
+  const bestValueId =
+    valueScores.filter((v) => v.rank === 1 && v.value != null)[0]?.productId ?? null;
 
   // Điểm dựa trên quá ít thông số thì phải nói rõ, đừng để khách tưởng đã
   // đánh giá đầy đủ. Chỉ cần MỘT máy thiếu là cả bảng đã lệch.
   const anyLowConfidence = overall.some((o) => o.lowConfidence);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-gradient-to-r from-amber-50/70 to-white px-4 py-3 sm:px-5">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-          <Trophy className="h-4 w-4 text-amber-500" />
-          Điểm tổng
+          <Crown className="h-4 w-4 text-amber-500" />
+          Bảng xếp hạng tổng
         </h2>
-        <p className="text-[11px] text-slate-400">
-          {hasAiScores
-            ? "Đã tính cả điểm AI cho CPU, GPU và chất lượng màn hình"
-            : "Chưa gồm CPU/GPU/màn hình — bấm “AI phân tích” để chấm thêm"}
+        <p
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+            hasAiScores
+              ? "bg-violet-100 text-violet-700"
+              : "bg-slate-100 text-slate-500",
+          )}
+        >
+          {hasAiScores ? (
+            <>
+              <Sparkles className="h-2.5 w-2.5" />
+              Đã gồm điểm AI cho CPU · GPU · màn hình
+            </>
+          ) : (
+            "Chưa gồm CPU · GPU · màn hình"
+          )}
         </p>
       </header>
 
-      <ol className="space-y-2.5">
-        {[...overall]
-          .sort((a, b) => a.rank - b.rank || b.score - a.score)
-          .map((o) => {
-            const p = productById.get(o.productId);
-            if (!p) return null;
-            const isTop = o.rank === 1;
-            return (
-              <li key={o.productId} className="flex items-center gap-3">
+      <ol className="divide-y divide-slate-100">
+        {ranked.map((o) => {
+          const p = productById.get(o.productId);
+          if (!p) return null;
+          const bd = breakdownById.get(o.productId);
+          const value = valueById.get(o.productId);
+          const isTop = o.rank === 1;
+
+          return (
+            <li
+              key={o.productId}
+              className={cn(
+                "flex gap-3 px-4 py-3 sm:px-5",
+                isTop && "bg-amber-50/40",
+              )}
+            >
+              {/* Hạng */}
+              <div className="flex w-7 shrink-0 flex-col items-center pt-0.5">
                 <span
                   className={cn(
-                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
-                    isTop ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500",
+                    "flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-bold",
+                    isTop
+                      ? "bg-amber-400 text-white shadow-sm shadow-amber-200"
+                      : "bg-slate-100 text-slate-500",
                   )}
                 >
                   {o.rank}
                 </span>
+              </div>
 
-                <div className="relative h-8 w-8 shrink-0">
-                  {p.image ? (
-                    <Image src={p.image} alt="" fill sizes="32px" className="object-contain" />
-                  ) : null}
-                </div>
+              {/* Ảnh */}
+              <Link
+                href={`/products/${p.slug}`}
+                className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-white"
+              >
+                {p.image ? (
+                  <Image src={p.image} alt="" fill sizes="56px" className="object-contain p-1" />
+                ) : (
+                  <span className="flex h-full items-center justify-center text-[10px] font-semibold text-slate-200">
+                    LapLap
+                  </span>
+                )}
+              </Link>
 
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={cn(
-                      "truncate text-[12px] leading-tight",
-                      isTop ? "font-semibold text-slate-900" : "text-slate-700",
-                    )}
-                    title={p.name}
-                  >
-                    {p.name}
-                  </p>
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
+              {/* Nội dung */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/products/${p.slug}`}
                       className={cn(
-                        "h-full rounded-full transition-all duration-700",
-                        isTop ? "bg-amber-400" : "bg-slate-300",
+                        "block truncate text-[13px] leading-tight hover:text-primary",
+                        isTop ? "font-semibold text-slate-900" : "font-medium text-slate-700",
                       )}
-                      style={{ width: `${Math.max(4, (o.score / maxScore) * 100)}%` }}
-                    />
+                      title={p.name}
+                    >
+                      {p.name}
+                    </Link>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {p.price > 0 ? formatCurrency(p.price) : "Liên hệ"}
+                      {value?.value != null && (
+                        <span className="text-slate-400"> · {value.value} điểm/triệu</span>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <span
+                      className={cn(
+                        "text-[17px] font-bold leading-none tabular-nums",
+                        isTop ? "text-amber-600" : "text-slate-700",
+                      )}
+                    >
+                      {o.score.toFixed(1)}
+                    </span>
+                    <span className="ml-0.5 text-[10px] text-slate-400">/100</span>
+                    {bd && bd.rankedCount > 0 && (
+                      <p className="mt-0.5 text-[10px] text-slate-500">
+                        Thắng {bd.wins}/{bd.rankedCount} tiêu chí
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                <span
-                  className={cn(
-                    "shrink-0 text-[13px] font-semibold tabular-nums",
-                    isTop ? "text-amber-700" : "text-slate-600",
+                {/* Thanh điểm */}
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-700",
+                      isTop ? "bg-amber-400" : "bg-slate-300",
+                    )}
+                    style={{ width: `${Math.max(4, (o.score / maxScore) * 100)}%` }}
+                  />
+                </div>
+
+                {/* Tiêu chí thắng — bằng chứng cho thứ hạng */}
+                {bd && bd.wins > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {bd.standings
+                      .filter((s) => s.rank === 1 && !s.allEqual)
+                      .map((s) => (
+                        <WinChip key={s.metricId} standing={s} />
+                      ))}
+                  </div>
+                )}
+
+                {/* Nhãn nổi bật */}
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {bestValueId === p.id && (
+                    <Tag icon={<Coins className="h-2.5 w-2.5" />} tone="emerald">
+                      Đáng tiền nhất
+                    </Tag>
                   )}
-                >
-                  {o.score.toFixed(1)}
-                </span>
-              </li>
-            );
-          })}
+                  {bestByNeed
+                    .filter((b) => b.productId === p.id)
+                    .map((b) => (
+                      <Tag key={b.needSlug} icon={<Award className="h-2.5 w-2.5" />} tone="sky">
+                        Tốt nhất cho {b.needLabel}
+                      </Tag>
+                    ))}
+                  {o.lowConfidence && (
+                    <Tag icon={<CircleHelp className="h-2.5 w-2.5" />} tone="slate">
+                      Thiếu thông số
+                    </Tag>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
       </ol>
 
-      {anyLowConfidence && (
-        <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-400">
-          <CircleHelp className="mt-px h-3 w-3 shrink-0" />
-          Một số máy còn thiếu thông số nên điểm chỉ mang tính tham khảo.
+      <footer className="border-t border-slate-100 bg-slate-50/60 px-4 py-2.5 sm:px-5">
+        <p className="text-[10px] leading-relaxed text-slate-500">
+          Điểm tính từ CPU, GPU, RAM, ổ cứng, màn hình, pin và trọng lượng — tiêu chí quan trọng hơn
+          có trọng số cao hơn. <span className="text-slate-400">Giá không tính vào điểm</span> (nếu
+          tính, máy rẻ-yếu sẽ thắng oan) mà tách riêng thành chỉ số “điểm/triệu”.
+          {anyLowConfidence && " Máy gắn nhãn “thiếu thông số” có điểm chỉ mang tính tham khảo."}
         </p>
-      )}
-
-      {(bestValue || bestByNeed.length > 0) && (
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-          {bestValue && (
-            <Highlight
-              icon={<Coins className="h-3 w-3" />}
-              label="Đáng tiền nhất"
-              name={productById.get(bestValue.productId)?.name ?? ""}
-              note={
-                (() => {
-                  const p = productById.get(bestValue.productId);
-                  const o = overallById.get(bestValue.productId);
-                  return p && o ? `${o.score.toFixed(1)} điểm · ${formatCurrency(p.price)}` : undefined;
-                })()
-              }
-              tone="emerald"
-            />
-          )}
-          {bestByNeed.map((b) => (
-            <Highlight
-              key={b.needSlug}
-              icon={<Award className="h-3 w-3" />}
-              label={`Tốt nhất cho ${b.needLabel}`}
-              name={productById.get(b.productId)?.name ?? ""}
-              tone="slate"
-            />
-          ))}
-        </div>
-      )}
+      </footer>
     </section>
   );
 }
 
-function Highlight({
+/**
+ * Chip một tiêu chí thắng. Tiêu chí trọng số cao được tô đậm hơn — thắng CPU
+ * (28đ) đáng giá hơn hẳn thắng tần số quét (4đ), nên nhìn phải thấy khác nhau.
+ */
+function WinChip({ standing }: { standing: MetricStanding }) {
+  const metric = METRIC_BY_ID.get(standing.metricId);
+  const Icon = specIcon(metric?.iconName);
+  const major = standing.weight >= 14;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1",
+        major
+          ? "bg-amber-100 text-amber-800 ring-amber-200"
+          : "bg-slate-50 text-slate-600 ring-slate-200",
+      )}
+      title={`Đứng nhất về ${metric?.label ?? standing.metricId}`}
+    >
+      <Icon className="h-2.5 w-2.5" />
+      {metric?.label ?? standing.metricId}
+    </span>
+  );
+}
+
+function Tag({
   icon,
-  label,
-  name,
-  note,
   tone,
+  children,
 }: {
   icon: React.ReactNode;
-  label: string;
-  name: string;
-  note?: string;
-  tone: "emerald" | "slate";
+  tone: "emerald" | "sky" | "slate";
+  children: React.ReactNode;
 }) {
-  if (!name) return null;
+  const TONE = {
+    emerald: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    sky: "bg-sky-50 text-sky-700 ring-sky-200",
+    slate: "bg-slate-50 text-slate-500 ring-slate-200",
+  };
   return (
-    <div
+    <span
       className={cn(
-        "min-w-[160px] flex-1 rounded-lg border px-3 py-2",
-        tone === "emerald" ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50/50",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1",
+        TONE[tone],
       )}
     >
-      <p
-        className={cn(
-          "flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide",
-          tone === "emerald" ? "text-emerald-700" : "text-slate-500",
-        )}
-      >
-        {icon}
-        {label}
-      </p>
-      <p className="mt-0.5 line-clamp-2 text-[12px] font-medium leading-snug text-slate-800">
-        {name}
-      </p>
-      {note && <p className="mt-0.5 text-[10px] text-slate-500">{note}</p>}
-    </div>
+      {icon}
+      {children}
+    </span>
   );
 }

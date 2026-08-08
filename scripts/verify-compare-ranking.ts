@@ -256,6 +256,35 @@ eq("may kem hon KHONG bi 0 diem", worst.score > 0, true);
 eq("diem nam trong dai hop ly", resNear.overall.every((o) => o.score >= 25 && o.score <= 95), true);
 eq("canh bao thieu thong so", worst.lowConfidence, true);
 
+// --- Breakdown: "thắng N/M tiêu chí" phải khớp chính thứ hạng ---
+console.log("=== BREAKDOWN ===");
+const bdProducts = [
+  // STRONG hơn ở MỌI tiêu chí đo được; CHEAP rẻ nhất nhưng yếu nhất.
+  mk("STRONG", { ram: "32GB", ssd: "1TB SSD", display: '15.6" QHD 165Hz', battery: "80Wh", weight: "1.4kg" }, 30_000_000),
+  mk("CHEAP", { ram: "8GB", ssd: "256GB SSD", display: '15.6" HD 60Hz', battery: "40Wh", weight: "2.2kg" }, 9_000_000),
+];
+const resBd = buildCompareResult(bdProducts, null);
+const bdStrong = resBd.breakdowns.find((b) => b.productId === "STRONG")!;
+const bdCheap = resBd.breakdowns.find((b) => b.productId === "CHEAP")!;
+
+eq("may manh thang het tieu chi", bdStrong.wins === bdStrong.rankedCount, true);
+eq("may yeu khong thang tieu chi nao", bdCheap.wins, 0);
+eq("rankedCount dong nhat giua cac may", bdStrong.rankedCount === bdCheap.rankedCount, true);
+eq("wins khop so standing hang 1", bdStrong.wins, bdStrong.standings.filter((s) => s.rank === 1 && !s.allEqual).length);
+// GIÁ không được tính vào wins: nếu tính, CHEAP sẽ hiện "thắng 1 tiêu chí" ngay
+// cạnh điểm bét bảng — hai con số mâu thuẫn trên cùng một thẻ.
+eq("gia KHONG nam trong breakdown", bdStrong.standings.some((s) => s.metricId === "price"), false);
+eq("sap theo trong so giam dan", bdStrong.standings.every((s, i, a) => i === 0 || a[i - 1].weight >= s.weight), true);
+eq("may thang het phai dung hang 1", resBd.overall.find((o) => o.productId === "STRONG")!.rank, 1);
+
+// Tiêu chí mọi máy đều bằng nhau -> KHÔNG ai "thắng" tiêu chí đó.
+const bdEqual = buildCompareResult(
+  [mk("E1", { ram: "16GB", ssd: "512GB SSD" }, 20_000_000), mk("E2", { ram: "16GB", ssd: "512GB SSD" }, 20_000_000)],
+  null,
+).breakdowns;
+eq("ngang nhau -> khong ai thang", bdEqual.every((b) => b.wins === 0), true);
+eq("ngang nhau -> rankedCount = 0", bdEqual[0].rankedCount, 0);
+
 console.log(`
 ${pass} pass, ${fail} fail`);
 if (fail > 0) process.exit(1);

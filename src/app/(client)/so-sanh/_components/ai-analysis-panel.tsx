@@ -30,15 +30,17 @@ export function AiAnalysisPanel({ products, data, isPending, error, cached, onRu
   );
 
   return (
-    <section className="rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50/60 to-white p-4 sm:p-5">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <section className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-violet-50 to-white px-4 py-3 sm:px-5">
+        <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Sparkles className="h-4 w-4 text-violet-500" />
             AI phân tích hiệu năng
           </h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            AI chấm điểm CPU, GPU và chất lượng màn hình để bảng bên dưới xếp được hạng.
+            {data
+              ? "Nhận xét từng máy. Thứ hạng và phần trăm xem ở bảng phía trên."
+              : "AI chấm điểm CPU, GPU và chất lượng màn hình để xếp hạng đầy đủ hơn."}
           </p>
         </div>
 
@@ -59,8 +61,12 @@ export function AiAnalysisPanel({ products, data, isPending, error, cached, onRu
         )}
       </header>
 
+      {/* Chưa bấm thì header đứng một mình — không để lại khoảng trống thừa. */}
+      {(isPending || error || data) && (
+      <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+
       {isPending && !data && (
-        <div className="mt-4 space-y-2">
+        <div className="space-y-2">
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-24 w-full rounded-lg" />
@@ -71,7 +77,7 @@ export function AiAnalysisPanel({ products, data, isPending, error, cached, onRu
       )}
 
       {error && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
           <div className="min-w-0 flex-1">
             <p className="text-[12px] text-red-700">{error}</p>
@@ -89,9 +95,9 @@ export function AiAnalysisPanel({ products, data, isPending, error, cached, onRu
       )}
 
       {data && (
-        <div className="mt-4 space-y-4">
+        <div className="space-y-4">
           {data.verdict && (
-            <p className="rounded-lg bg-white/80 p-3 text-[13px] leading-relaxed text-slate-700 ring-1 ring-violet-100">
+            <p className="rounded-lg bg-violet-50/60 p-3 text-[13px] leading-relaxed text-slate-700 ring-1 ring-violet-100">
               {data.verdict}
             </p>
           )}
@@ -173,6 +179,8 @@ export function AiAnalysisPanel({ products, data, isPending, error, cached, onRu
             {cached && " · lấy từ kết quả đã lưu"}.
           </p>
         </div>
+      )}
+      </div>
       )}
     </section>
   );
