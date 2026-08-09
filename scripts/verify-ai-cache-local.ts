@@ -99,11 +99,15 @@ eq("con han -> van doc duoc", readLocalAi("a,b")?.data.verdict, "ket luan 1");
 
 console.log("=== GIOI HAN SO MUC ===");
 reset();
-// Ghi 7 bo may, moi bo cach nhau 10ms de savedAt khac nhau.
+/*
+  Ghi 7 bo may, ep moc thoi gian ve QUA KHU tang dan (bo-1 cu nhat, bo-7 moi
+  nhat). Phai lui ve qua khu: neu day sang tuong lai thi muc vua ghi (Date.now())
+  lai thanh cu nhat va tu loai chinh no.
+*/
 for (let i = 1; i <= 7; i++) {
   writeLocalAi(`bo-${i}`, mkPayload(i));
   const s = JSON.parse(store[KEY]);
-  s[`bo-${i}`].savedAt = Date.now() + i * 10; // ep thu tu ro rang
+  s[`bo-${i}`].savedAt = Date.now() - (10 - i) * 1000;
   store[KEY] = JSON.stringify(s);
 }
 const kept = Object.keys(JSON.parse(store[KEY]));
