@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { SCANNER_PS1_TEMPLATE, SCANNER_BAT } from "@/lib/system-scan/scanner-template";
+import { SCANNER_PS1, SCANNER_BAT } from "@/lib/system-scan/scanner-template";
 
 export const dynamic = "force-dynamic";
 
@@ -118,20 +118,28 @@ function readme(apiBase: string, token: string) {
 =======================
 
 1. Giai nen file zip nay ra mot thu muc rieng.
-2. Chay file LapLap-Scanner.bat.
-3. Cu so PowerShell se mo, scanner tu dong quet CPU/GPU/RAM/o cung/pin/man hinh
-   va gui ket qua ve trinh duyet. Voi HDD spinner, scanner se doc WMI SMART
-   (ReallocatedSectors, CurrentPendingSector, Temperature) de danh gia suc khoe.
-4. Neu truoc do ban da tai goi Toolcheck (145MB), dat no o Toolcheck\\ canh script
-   roi menu se tu hien ra cho mo CrystalDiskInfo / FurMark / GPU-Z / BatteryMon.
+2. Chay file LapLap-Scanner.bat (chi can DOUBLE-CLICK).
+3. Cu so PowerShell se mo va scanner se:
+   a. Download smartctl.exe (chi lan dau, ~5MB) tu server.
+   b. Quet CPU, GPU, RAM, o cung (SMART chi tiet), pin, man hinh, WiFi.
+   c. Gui ket qua ve trinh duyet.
+4. Neu muon doc SMART chi tiet (wear level, reallocated sectors, NVMe health),
+   phai chay voi quyen ADMIN:
+   - Chuot phai vao "LapLap-Scanner.bat" -> "Run as administrator"
+   - BAM YES tren UAC popup.
+   - PS1 se tu phat hien admin va chay smartctl.exe.
+5. Neu khong muon admin, scanner van chay binh thuong (chi thieu SMART chi tiet).
 
 Server: ${apiBase}
 Token : ${token}
 
 Luu y:
-- Tool mini khong can admin, khong can mang (chi can mang de gui ket qua len server).
-- Neu scanner gap canh bao "execution of scripts is disabled", nhan "Run once"
-  hoac chay lenh: powershell -ExecutionPolicy Bypass -File .\\laplap-toolcheck.ps1
+- Lan dau smartctl se download tu server (~5MB), cache tai
+  %LOCALAPPDATA%\\LapLap\\smartctl\\ (cac lan sau dung cache).
+- smartctl chi chay duoi quyen admin nen can "Run as administrator".
+- Neu gap canh bao "execution of scripts is disabled", nhan "Run once"
+  hoac chay truc tiep lenh:
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\\laplap-toolcheck.ps1
 `;
 }
 
@@ -144,7 +152,7 @@ export async function GET(req: NextRequest) {
   try {
     const apiBase = req.nextUrl.origin;
     // Chen token + api base vao template, KHONG can R2 / filesystem ngoai.
-    const scannerScript = SCANNER_PS1_TEMPLATE
+    const scannerScript = SCANNER_PS1
       .replaceAll("__API_BASE__", apiBase)
       .replaceAll("__SCAN_TOKEN__", token);
 
