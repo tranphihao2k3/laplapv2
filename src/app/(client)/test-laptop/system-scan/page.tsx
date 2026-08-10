@@ -237,14 +237,27 @@ export default function SystemScanPage() {
         const payload = json?.data ?? json;
 
         // Heartbeat: scanner đã mở và đang quét -> đồng bộ trạng thái web.
-        if (payload.status === "scanning") {
+        if (payload.status === "scanning" || payload.status === "rescan_requested") {
+          // Khi user bam "Quet lai" → server set status=rescan_requested →
+          // scanner nhan command → set status=scanning. Ca 2 deu bao
+          // "tool dang chay scan moi", UI xoa data cu de tranh hien thi
+          // nham data moi/cu trong luc cho.
           setStatus((prev) => {
-            if (prev === "waiting" || prev === "connected") {
-              addLog("✅ File scanner đã kết nối — đang quét cấu hình...");
+            if (prev === "waiting" || prev === "connected" || prev === "complete") {
+              if (payload.status === "rescan_requested") {
+                addLog("🔄 Tool đã nhận yêu cầu quét lại...");
+              } else {
+                addLog("✅ File scanner đã kết nối — đang quét cấu hình...");
+              }
               return "scanning";
             }
             return prev;
           });
+          if (payload.status === "scanning") {
+            // Xoa data cu khi bat dau scan that su (sau rescan_requested)
+            setInfo(null);
+            setCachedSavedAt(null);
+          }
         }
 
         if (payload.status === "complete" && payload.data) {
@@ -512,6 +525,49 @@ exit
     startPolling(scanToken);
   };
 
+  // Re-scan qua tool (KHONG can tai lai zip). Tool dang chay BG se
+  // nhan command "rescan" qua command-poll va chay lai scan script.
+  // Neu tool KHONG con chay (user da dong cua so PS1), fallback ve
+  // resetScan de user tai lai zip.
+  const rescanViaTool = async () => {
+    if (!token) {
+      resetScan();
+      return;
+    }
+    try {
+      addLog("Yêu cầu tool quét lại...");
+      setStatus("waiting");
+      const res = await fetch(`/api/v1/system-scan/rescan?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error?.message || `HTTP ${res.status}`);
+      }
+      addLog("Tool đã nhận yêu cầu. Đang chờ quét lại...");
+      toast.success("Đã gửi yêu cầu quét lại cho tool!");
+      // Polling van dang chay → se nhan data moi khi tool submit xong.
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown";
+      addLog(`Lỗi rescan: ${msg}. Fallback về tải lại tool.`);
+      toast.error("Tool không phản hồi. Vui lòng tải lại tool.");
+      resetScan();
+    }
+  };
+
+  // Quyet dinh action cua nut "Quet lai":
+  // - status=complete (tool van chay BG) → rescanViaTool
+  // - status=idle + co data (tool dong cua so hoac chua scan) → resetScan
+  // Neu can them fallback cho "tool chet" (command khong ack trong 30s),
+  // test se hien thi thong bao de user biet can tai lai zip.
+  const handleRescan = () => {
+    if (status === "complete") {
+      rescanViaTool();
+    } else {
+      resetScan();
+    }
+  };
+
   const resetScan = () => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
@@ -605,8 +661,14 @@ exit
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {status === "complete" || (status === "idle" && info) ? (
-              <Button variant="outline" onClick={resetScan}>
+            {status === "complete" ? (
+              // Tool van chay BG → rescan qua command-poll (khong can tai lai).
+              <Button variant="outline" onClick={rescanViaTool}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Quét lại (không cần tải lại)
+              </Button>
+            ) : status === "idle" && info ? (
+              // Co data cu (cache) → nguoi dung muon scan lai nhung tool co the da dong.
+              <Button variant="outline" onClick={handleRescan}>
                 <RefreshCw className="mr-2 h-4 w-4" /> Quét lại
               </Button>
             ) : status === "idle" ? (

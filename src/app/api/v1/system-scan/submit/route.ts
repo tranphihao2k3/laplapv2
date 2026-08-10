@@ -48,7 +48,14 @@ export async function POST(req: NextRequest) {
       );
     if (error) throw error;
 
-    return ok({ success: true });
+    // Tra ve URL trang ket qua de scanner mo browser cho user.
+    // URL tuyet doi (server base + path) vi scanner chay tren may user,
+    // browser can mo dung dia chi web dang xem ket qua.
+    const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(":", "");
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host;
+    const resultUrl = `${proto}://${host}/test-laptop/system-scan?token=${encodeURIComponent(token)}&auto=1`;
+
+    return ok({ success: true, resultUrl, token });
   } catch (e) {
     return handleError(e);
   }

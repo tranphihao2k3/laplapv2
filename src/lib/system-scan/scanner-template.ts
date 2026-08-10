@@ -55,7 +55,11 @@ function SendResult($payload) {
     try {
         $json = $payload | ConvertTo-Json -Depth 10 -Compress
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-        Invoke-RestMethod -Uri $SubmitUrl -Method Post -Body $bytes -ContentType "application/json; charset=utf-8" -TimeoutSec 30 | Out-Null
+        # Capture response de lay resultUrl (server tra URL trang web).
+        $resp = Invoke-RestMethod -Uri $SubmitUrl -Method Post -Body $bytes -ContentType "application/json; charset=utf-8" -TimeoutSec 30
+        if ($resp -and $resp.resultUrl) {
+            $script:ResultUrl = $resp.resultUrl
+        }
         return $true
     } catch {
         Write-Warn "Cannot send result: $($_.Exception.Message)"
@@ -277,8 +281,15 @@ function Invoke-ToolCommand {
 }
 
 # ============================================================
-# MAIN SCAN
+# MAIN SCAN - wrapped in function for rescan support
 # ============================================================
+# Wrap toàn bộ scan trong function Invoke-Scan de co the goi lai khi user
+# bam "Quet lai" tren web (server push command "rescan" qua command-poll).
+# Function tra ve $true/$false (submit OK/fail) de caller quyet dinh watcher mode.
+function Invoke-Scan {
+    [CmdletBinding()]
+    param()
+
 Show-Header
 Write-Step "Connecting to server..."
 SendPing "scanning"
@@ -1287,18 +1298,37 @@ Write-Host ""
 if ($ok) {
     Write-Host "================================================" -ForegroundColor Green
     Write-Host "  SCAN COMPLETE - result sent to server!" -ForegroundColor Green
-    Write-Host "  Open your browser to see the result." -ForegroundColor Green
+    Write-Host "  Opening result page in your browser..." -ForegroundColor Green
     Write-Host "================================================" -ForegroundColor Green
     Write-Host ""
-    Write-Host "  This window will close in 3 seconds..." -ForegroundColor DarkGray
+    # Server da tra resultUrl → mo browser ngay de user xem ket qua.
+    # Neu user dong browser, lan sau mo lai URL van thay data (server da luu).
+    if ($script:ResultUrl) {
+        try {
+            Start-Process -FilePath $script:ResultUrl -ErrorAction Stop
+            Write-Host "  [OK] Browser opened: $script:ResultUrl" -ForegroundColor DarkGray
+        } catch {
+            Write-Host "  [!] Khong the mo browser tu dong. URL:" -ForegroundColor Yellow
+            Write-Host "      $script:ResultUrl" -ForegroundColor Cyan
+        }
+    }
 } else {
     Write-Host "================================================" -ForegroundColor Yellow
     Write-Host "  SCAN DONE but server unreachable." -ForegroundColor Yellow
     Write-Host "  Please check your internet connection." -ForegroundColor Yellow
     Write-Host "================================================" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  Press any key to close..." -ForegroundColor DarkGray
 }
+
+    return $ok
+}
+
+# ============================================================
+# MAIN ENTRY POINT
+# ============================================================
+# Chay scan lan dau khi user moi mo .bat (khong co token cu).
+# Viewer loop ben duoi se xu ly "rescan" command tu server khi user bam
+# "Quet lai" tren web.
+$ok = Invoke-Scan
 
 # ============================================================
 # WATCHER LOOP (Phase 3 - command-poll)
@@ -1330,11 +1360,18 @@ while ($true) {
             # Xu ly command that su:
             if ($cmd.action -eq "launch-tool") {
                 Invoke-ToolCommand -cmd $cmd
-            } else {
-                if ($cmd.action -eq "stop-tool") {
-                    # TODO: stop running tool by PID. Hien tai chi log.
-                    Write-OK "Stop command received for $($cmd.toolId) (not implemented yet)."
-                }
+            } elseif ($cmd.action -eq "stop-tool") {
+                # TODO: stop running tool by PID. Hien tai chi log.
+                Write-OK "Stop command received for $($cmd.toolId) (not implemented yet)."
+            } elseif ($cmd.action -eq "rescan") {
+                # User bam "Quet lai" tren web -> server day command nay ->
+                # scanner chay lai Invoke-Scan (KHONG can user tai lai zip).
+                Write-Step "Re-scan requested by web UI. Running scan again..."
+                SendPing "scanning"
+                $rescanOk = Invoke-Scan
+                # Sau rescan, thong bao cho web biet scanner van song.
+                SendPing "complete"
+                Write-Step "Re-scan complete. Continue waiting for commands..."
             }
         }
     } catch {
@@ -1357,13 +1394,13 @@ echo ================================================
 echo   LAPTOP SYSTEM SCANNER
 echo ================================================
 echo.
-echo   Waiting for scanner to start...
-echo   (This window will stay open while scanning)
+echo   Scanner dang chay... Vui long KHONG DONG cua so nay.
+echo   (Browser se tu mo trang ket qua khi scan xong)
 echo.
-echo   For detailed disk SMART (wear, reallocated,
-echo   temperature, NVMe health), run as Administrator.
+echo   Ban co the bam "Quet lai" tren trang web ma
+echo   KHONG can dong cua so nay - scanner se tu scan.
 echo.
-echo   To stop: close this window or press Ctrl+C.
+echo   De thoat: dong cua so hoac nhan Ctrl+C.
 echo ================================================
 echo.
 

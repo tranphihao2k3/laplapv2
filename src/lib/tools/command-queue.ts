@@ -9,7 +9,7 @@
  */
 
 export interface CommandEntry {
-  action: "launch-tool" | "stop-tool";
+  action: "launch-tool" | "stop-tool" | "rescan";
   toolId: string;
   toolName: string;
   /** URL download (server proxy R2). Scanner GET file tu URL nay. */
