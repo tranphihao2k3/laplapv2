@@ -144,6 +144,35 @@ type SystemInfo = {
   };
 };
 
+/**
+ * KV: Key-Value helper cho cac cot trong storage section.
+ * Hien thi label (xam, nho) ben trai, value (den, vua) ben phai.
+ * Co the highlight value theo tone: bad (do), warn (vang), mono (font-mono).
+ */
+function KV({
+  label,
+  value,
+  bad = false,
+  warn = false,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  bad?: boolean;
+  warn?: boolean;
+  mono?: boolean;
+}) {
+  const tone = bad ? "text-red-700 font-bold" : warn ? "text-amber-700 font-medium" : "text-zinc-800 font-medium";
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-zinc-500">{label}</span>
+      <span className={`${tone} ${mono ? "font-mono" : ""} truncate`} title={value}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export default function SystemScanPage() {
   const router = useRouter();
   const [info, setInfo] = useState<SystemInfo | null>(null);
@@ -826,9 +855,9 @@ exit
                   )}
                 </div>
 
-                {/* Ổ cứng */}
-                <div className="rounded-lg border border-zinc-200 p-3">
-                  <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+                {/* Ổ cứng - LAYOUT MOI: card rieng, 3 cot song song (CDI / WMI / smartctl) */}
+                <div className="rounded-lg border border-zinc-200 p-3 sm:col-span-2 lg:col-span-3">
+                  <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
                     <HardDrive className="h-3.5 w-3.5" /> Ổ cứng
                   </div>
                   {drives.map((drive, i) => {
@@ -845,53 +874,212 @@ exit
                       (drive.modelFamily !== null && drive.modelFamily !== undefined && drive.modelFamily !== "") ||
                       (drive.smartSerial !== null && drive.smartSerial !== undefined && drive.smartSerial !== "");
                     const isSmartCtl = typeof drive.source === "string" && drive.source.startsWith("smartctl");
+                    const tempCdi = (drive.cdiTemperature !== null && drive.cdiTemperature !== undefined) ? Number(drive.cdiTemperature) : null;
+                    const tempWmi = (drive.wmiTemp !== null && drive.wmiTemp !== undefined) ? Number(drive.wmiTemp) : null;
+                    const lifeCdi = (drive.cdiLife !== null && drive.cdiLife !== undefined) ? Number(drive.cdiLife) : null;
+                    const wearCdi = (drive.cdiWearLevel !== null && drive.cdiWearLevel !== undefined) ? Number(drive.cdiWearLevel) : null;
+                    const wearSmart = (drive.wearLevel !== null && drive.wearLevel !== undefined) ? Number(drive.wearLevel) : null;
+                    const rpm = (drive.cdiRotationRate !== null && drive.cdiRotationRate !== undefined) ? Number(drive.cdiRotationRate)
+                              : ((drive.rotationRate !== null && drive.rotationRate !== undefined) ? Number(drive.rotationRate) : 0);
+                    const isHdd = rpm >= 4000;
+                    const hasCdi = !!drive.cdiAvailable;
                     return (
-                      <div key={i} className={i > 0 ? "mt-3 border-t border-zinc-100 pt-3" : ""}>
-                        <p className="text-base font-bold leading-tight text-zinc-900">
-                          {drive.capacity === "N/A" || drive.capacity === null ? "N/A" : `${drive.capacity} GB`}{" "}
-                          {show(drive.type)}
-                        </p>
-                        <p className="mt-0.5 truncate text-xs text-zinc-500" title={show(drive.name)}>
-                          {show(drive.name)}
-                        </p>
-
-                        {/* HDD RPM chip */}
-                        {(() => {
-                          const rpm = drive.rotationRate !== null && drive.rotationRate !== undefined ? Number(drive.rotationRate) : 0;
-                          return rpm > 0 ? (
-                            <span className="mt-1 inline-block rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">
-                              🔄 {rpm} RPM
-                            </span>
-                          ) : null;
-                        })()}
-
-                        {/* Thong bao neu source la smartctl nhung khong co SMART data
-                            (thuong do khong co quyen Admin de doc raw PhysicalDrive).
-                            Trong truong hop nay o cung VAN co the OK - ta chi khong
-                            doc duoc SMART chi tiet, nen hien thi info-box XANH DUONG
-                            (thong tin) thay vi canh bao VANG (canh bao). */}
-                        {isSmartCtl && !hasSmartData && (
-                          <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-xs text-sky-800">
-                            <p className="font-medium text-sky-900">
-                              ✓ Ổ cứng có thể đang ổn — chỉ chưa đọc được SMART chi tiết.
-                            </p>
-                            <p className="mt-1 text-sky-700">
-                              Scanner chạy không có quyền Admin nên smartctl không truy cập
-                              được SMART raw. Chạy lại <code className="rounded bg-sky-100 px-1 py-0.5 text-[11px]">LapLap-Scanner.bat</code>{" "}
-                              với <strong>Run as Administrator</strong> để xem
-                              reallocated, wear level, nhiệt độ, RPM.
-                            </p>
+                      <div key={i} className={i > 0 ? "mt-4 border-t border-zinc-100 pt-4" : ""}>
+                        {/* === ROW 1: HEADER - model + capacity + drive + status === */}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-base font-bold text-zinc-900" title={show(drive.name)}>
+                                {show(drive.name)}
+                              </span>
+                              {show(drive.type) !== "N/A" && (
+                                <Badge variant="outline" className="border-zinc-300 px-1.5 py-0 text-[10px] font-medium text-zinc-600">
+                                  {show(drive.type)}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-500">
+                              <span className="font-semibold text-zinc-700">
+                                {drive.capacity === "N/A" || drive.capacity === null ? "N/A" : `${drive.capacity} GB`}
+                              </span>
+                              {drive.cdiDriveMap && (
+                                <span>📍 {show(drive.cdiDriveMap)}</span>
+                              )}
+                              {rpm > 0 && (
+                                <span>🔄 {rpm} RPM</span>
+                              )}
+                              {drive.cdiInterface && (
+                                <span>{show(drive.cdiInterface)}</span>
+                              )}
+                              {drive.cdiTransferMode && (
+                                <span className="font-medium text-zinc-600">⚡ {show(drive.cdiTransferMode)}</span>
+                              )}
+                            </div>
                           </div>
-                        )}
+                          <div className="flex shrink-0 items-center gap-2">
+                            {/* Trang thai GOOD/BAD tu CDI (uu tien) hoac SMART */}
+                            {(() => {
+                              const cdiSt = (drive.cdiDiskStatus !== null && drive.cdiDiskStatus !== undefined) ? Number(drive.cdiDiskStatus) : null;
+                              const smartSt = show(drive.status);
+                              let label = "N/A";
+                              let cls = "bg-zinc-100 text-zinc-500 border-zinc-200";
+                              if (cdiSt === 0) {
+                                label = "GOOD";
+                                cls = "bg-emerald-50 text-emerald-700 border-emerald-300";
+                              } else if (cdiSt !== null && cdiSt > 0) {
+                                label = "BAD";
+                                cls = "bg-red-50 text-red-700 border-red-300";
+                              } else if (smartSt !== "N/A") {
+                                const st = smartSt.toLowerCase();
+                                const isGood = st === "good" || st === "passed";
+                                const bad = /(bad|fail|unhealth|critical|caution|lỗi)/.test(st);
+                                if (isGood) {
+                                  label = "GOOD";
+                                  cls = "bg-emerald-50 text-emerald-700 border-emerald-300";
+                                } else if (bad) {
+                                  label = "BAD";
+                                  cls = "bg-red-50 text-red-700 border-red-300";
+                                } else {
+                                  label = smartSt.toUpperCase();
+                                  cls = "bg-amber-50 text-amber-700 border-amber-300";
+                                }
+                              }
+                              return (
+                                <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold ${cls}`}>
+                                  {label === "GOOD" && <CheckCircle2 className="h-3 w-3" />}
+                                  {label === "BAD" && <AlertCircle className="h-3 w-3" />}
+                                  {label}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
 
-                        {/* Sức khỏe & hiệu năng — hiển thị nổi bật với thanh màu */}
+                        {/* === ROW 2: HERO METRICS - 4 chi so quan trong nhat === */}
+                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {/* Nhiet do */}
+                          <div className="rounded-md border border-zinc-200 bg-white p-2">
+                            <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Nhiệt độ</div>
+                            {(() => {
+                              const temp = tempCdi ?? tempWmi;
+                              const src = tempCdi !== null ? "CDI" : (tempWmi !== null ? "WMI" : null);
+                              const tone = temp === null ? "text-zinc-400" :
+                                temp >= 55 ? "text-red-600" :
+                                temp >= 45 ? "text-amber-600" : "text-emerald-600";
+                              const icon = temp === null ? "" :
+                                temp >= 55 ? "🔥" :
+                                temp >= 45 ? "🌡️" : "❄️";
+                              return (
+                                <>
+                                  <div className={`mt-0.5 flex items-baseline gap-1 ${tone}`}>
+                                    <span className="text-xl font-bold leading-none">{temp === null ? "—" : temp}</span>
+                                    {temp !== null && <span className="text-xs font-medium">°C</span>}
+                                    {temp !== null && <span className="text-sm">{icon}</span>}
+                                  </div>
+                                  <div className="mt-0.5 text-[10px] text-zinc-400">
+                                    {src ? `nguồn ${src}` : "chưa đo được"}
+                                    {drive.cdiAlarmTemp !== null && drive.cdiAlarmTemp !== undefined && Number(drive.cdiAlarmTemp) > 0 && (
+                                      <> · alarm {Number(drive.cdiAlarmTemp)}°</>
+                                    )}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Life (NVMe) hoac Wear (SSD/HDD - same field) */}
+                          <div className="rounded-md border border-zinc-200 bg-white p-2">
+                            <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                              {isHdd ? "Tình trạng" : "Life còn lại"}
+                            </div>
+                            {(() => {
+                              const life = lifeCdi ?? (wearSmart !== null && !isHdd ? wearSmart : null);
+                              const tone = life === null ? "text-zinc-400" :
+                                life <= 20 ? "text-red-600" :
+                                life <= 50 ? "text-amber-600" : "text-emerald-600";
+                              return (
+                                <>
+                                  <div className={`mt-0.5 flex items-baseline gap-1 ${tone}`}>
+                                    <span className="text-xl font-bold leading-none">{life === null ? "—" : life}</span>
+                                    {life !== null && <span className="text-xs font-medium">%</span>}
+                                  </div>
+                                  <div className="mt-0.5 text-[10px] text-zinc-400">
+                                    {lifeCdi !== null ? "NVMe % Life (CDI)" : wearSmart !== null ? "smartctl" : "chưa đo được"}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Wear Level (SSD) hoac Health (HDD) */}
+                          <div className="rounded-md border border-zinc-200 bg-white p-2">
+                            <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                              {isHdd ? "Health" : "Wear Level"}
+                            </div>
+                            {(() => {
+                              const wear = wearCdi ?? (wearSmart !== null ? wearSmart : null);
+                              const tone = wear === null ? "text-zinc-400" :
+                                wear <= 20 ? "text-red-600" :
+                                wear <= 50 ? "text-amber-600" : "text-emerald-600";
+                              return (
+                                <>
+                                  <div className={`mt-0.5 flex items-baseline gap-1 ${tone}`}>
+                                    <span className="text-xl font-bold leading-none">{wear === null ? "—" : wear}</span>
+                                    {wear !== null && <span className="text-xs font-medium">/ 100</span>}
+                                  </div>
+                                  <div className="mt-0.5 text-[10px] text-zinc-400">
+                                    {wearCdi !== null ? "CDI" : wearSmart !== null ? "smartctl" : "chưa đo được"}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Power On Hours */}
+                          <div className="rounded-md border border-zinc-200 bg-white p-2">
+                            <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Đã chạy</div>
+                            {(() => {
+                              const hrs = (drive.cdiPowerOnHours !== null && drive.cdiPowerOnHours !== undefined) ? Number(drive.cdiPowerOnHours)
+                                        : ((drive.wmiPowerOnHours !== null && drive.wmiPowerOnHours !== undefined) ? Number(drive.wmiPowerOnHours)
+                                        : ((drive.powerOnTime !== null && drive.powerOnTime !== undefined) ? Number(String(drive.powerOnTime).replace(/[^0-9]/g, "")) : null));
+                              const src = (drive.cdiPowerOnHours !== null && drive.cdiPowerOnHours !== undefined) ? "CDI"
+                                        : ((drive.wmiPowerOnHours !== null && drive.wmiPowerOnHours !== undefined) ? "WMI" : "smartctl");
+                              // Format h -> "1y 23d" neu > 8760h
+                              const fmt = (h: number) => {
+                                if (h >= 8760) {
+                                  const y = Math.floor(h / 8760);
+                                  const d = Math.floor((h % 8760) / 24);
+                                  return `${h.toLocaleString()} h (~${y}năm ${d}ngày)`;
+                                }
+                                if (h >= 24) {
+                                  const d = Math.floor(h / 24);
+                                  return `${h.toLocaleString()} h (~${d} ngày)`;
+                                }
+                                return `${h.toLocaleString()} h`;
+                              };
+                              return (
+                                <>
+                                  <div className={`mt-0.5 flex items-baseline gap-1 ${hrs === null ? "text-zinc-400" : "text-zinc-900"}`}>
+                                    <span className="text-base font-bold leading-none">{hrs === null ? "—" : fmt(hrs).split(" ")[0]}</span>
+                                    {hrs !== null && <span className="text-xs font-medium text-zinc-600">{fmt(hrs).split(" ").slice(1).join(" ")}</span>}
+                                  </div>
+                                  <div className="mt-0.5 text-[10px] text-zinc-400">
+                                    {hrs === null ? "chưa đo được" : `nguồn ${src}${drive.cdiPowerOnCount !== null && drive.cdiPowerOnCount !== undefined ? ` · ${drive.cdiPowerOnCount} lần bật` : ""}`}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* === ROW 3: Thanh suc khoe (neu co health/performance %) === */}
                         {(healthN !== null || perfN !== null) && (
                           <div className={`mt-2 grid gap-2 ${healthN !== null && perfN !== null ? "grid-cols-2" : "grid-cols-1"}`}>
                             {healthN !== null && (
                               <div>
                                 <div className="flex items-baseline justify-between">
                                   <span className="text-[11px] font-medium text-zinc-500">Sức khỏe</span>
-                                  <span className={`text-lg font-bold leading-none ${hTone.text}`}>{healthN}%</span>
+                                  <span className={`text-sm font-bold leading-none ${hTone.text}`}>{healthN}%</span>
                                 </div>
                                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
                                   <div className={`h-full rounded-full ${hTone.bar}`} style={{ width: `${Math.min(100, healthN)}%` }} />
@@ -902,7 +1090,7 @@ exit
                               <div>
                                 <div className="flex items-baseline justify-between">
                                   <span className="text-[11px] font-medium text-zinc-500">Hiệu năng</span>
-                                  <span className={`text-lg font-bold leading-none ${pTone.text}`}>{perfN}%</span>
+                                  <span className={`text-sm font-bold leading-none ${pTone.text}`}>{perfN}%</span>
                                 </div>
                                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
                                   <div className={`h-full rounded-full ${pTone.bar}`} style={{ width: `${Math.min(100, perfN)}%` }} />
@@ -912,266 +1100,126 @@ exit
                           </div>
                         )}
 
-                        {/* === CDI / CrystalDiskInfo section (uu tien cao nhat neu co Admin) ===
-                            Cung cấp dữ liệu chuẩn xác như CrystalDiskInfo GUI:
-                            nhiệt độ trực tiếp, power on hours, NVMe % life,
-                            SSD wear, host writes/reads (GB), transfer mode. */}
-                        {drive.cdiAvailable ? (
-                          <div className="mt-2 rounded-md border border-sky-200 bg-sky-50/50 p-2 text-xs">
-                            <div className="mb-1.5 flex items-center gap-1.5">
-                              <span className="font-semibold text-sky-900">CrystalDiskInfo</span>
-                              <span className="text-[10px] text-sky-700">(chính xác nhất · cần Admin)</span>
-                              <span className="ml-auto rounded bg-sky-200 px-1 text-[10px] text-sky-900">
-                                {drive.cdiInterface || "?"}
+                        {/* === ROW 4: 3 COT SONG SONG (CDI / WMI / smartctl) === */}
+                        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                          {/* COT 1: CDI (uu tien, can Admin) */}
+                          <div className={`rounded-md border p-2.5 text-xs ${hasCdi ? "border-sky-200 bg-sky-50/50" : "border-dashed border-zinc-200 bg-zinc-50/50"}`}>
+                            <div className="mb-2 flex items-center gap-1.5">
+                              <span className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold ${hasCdi ? "bg-sky-600 text-white" : "bg-zinc-300 text-zinc-500"}`}>
+                                1
                               </span>
+                              <span className={`font-semibold ${hasCdi ? "text-sky-900" : "text-zinc-500"}`}>
+                                CrystalDiskInfo
+                              </span>
+                              <span className="ml-auto text-[9px] text-zinc-500">CDI</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
-                              {drive.cdiTemperature !== null && drive.cdiTemperature !== undefined && (
-                                <div>
-                                  <span className="text-sky-700">Nhiệt độ: </span>
-                                  <span className={Number(drive.cdiTemperature) >= 55 ? "font-bold text-red-700" : Number(drive.cdiTemperature) >= 45 ? "font-bold text-amber-700" : "font-medium text-sky-900"}>
-                                    {String(drive.cdiTemperature)} °C
-                                  </span>
-                                  {drive.cdiAlarmTemp !== null && drive.cdiAlarmTemp !== undefined && Number(drive.cdiAlarmTemp) > 0 && (
-                                    <span className="text-[10px] text-zinc-500"> / alarm {String(drive.cdiAlarmTemp)} °C</span>
-                                  )}
-                                </div>
-                              )}
-                              {drive.cdiPowerOnHours !== null && drive.cdiPowerOnHours !== undefined && (
-                                <div>
-                                  <span className="text-sky-700">Power On: </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiPowerOnHours)} h</span>
-                                </div>
-                              )}
-                              {drive.cdiPowerOnCount !== null && drive.cdiPowerOnCount !== undefined && (
-                                <div>
-                                  <span className="text-sky-700">Số lần bật: </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiPowerOnCount)}</span>
-                                </div>
-                              )}
-                              {drive.cdiLife !== null && drive.cdiLife !== undefined && (
-                                <div>
-                                  <span className="text-sky-700">Life còn lại (NVMe): </span>
-                                  <span className={Number(drive.cdiLife) <= 20 ? "font-bold text-red-700" : Number(drive.cdiLife) <= 50 ? "font-bold text-amber-700" : "font-bold text-emerald-700"}>
-                                    {String(drive.cdiLife)} %
-                                  </span>
-                                </div>
-                              )}
-                              {drive.cdiWearLevel !== null && drive.cdiWearLevel !== undefined && (
-                                <div>
-                                  <span className="text-sky-700">Wear Level (SSD): </span>
-                                  <span className={Number(drive.cdiWearLevel) <= 20 ? "font-bold text-red-700" : Number(drive.cdiWearLevel) <= 50 ? "font-bold text-amber-700" : "font-bold text-emerald-700"}>
-                                    {String(drive.cdiWearLevel)} / 100
-                                  </span>
-                                </div>
-                              )}
-                              {drive.cdiHostWrites !== null && drive.cdiHostWrites !== undefined && (
-                                <div>
-                                  <span className="text-sky-700">Đã ghi (Host): </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiHostWrites)} GB</span>
-                                </div>
-                              )}
-                              {drive.cdiHostReads !== null && drive.cdiHostReads !== undefined && (
-                                <div>
-                                  <span className="text-sky-700">Đã đọc (Host): </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiHostReads)} GB</span>
-                                </div>
-                              )}
-                              {drive.cdiRotationRate !== null && drive.cdiRotationRate !== undefined && Number(drive.cdiRotationRate) > 0 && (
-                                <div>
-                                  <span className="text-sky-700">RPM: </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiRotationRate)}</span>
-                                </div>
-                              )}
-                              {drive.cdiFirmware && (
-                                <div className="col-span-2 sm:col-span-3">
-                                  <span className="text-sky-700">Serial/Firmware: </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiSerial)} · fw {String(drive.cdiFirmware)}</span>
-                                </div>
-                              )}
-                              {drive.cdiDriveMap && (
-                                <div>
-                                  <span className="text-sky-700">Drive: </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiDriveMap)}</span>
-                                </div>
-                              )}
-                              {drive.cdiFormFactor && (
-                                <div>
-                                  <span className="text-sky-700">Form factor: </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiFormFactor)}</span>
-                                </div>
-                              )}
-                              {drive.cdiTransferMode && (
-                                <div className="col-span-2 sm:col-span-3">
-                                  <span className="text-sky-700">Transfer: </span>
-                                  <span className="font-medium text-sky-900">{String(drive.cdiTransferMode)}</span>
-                                </div>
-                              )}
-                              {drive.cdiDiskStatus !== null && drive.cdiDiskStatus !== undefined && (
-                                <div>
-                                  <span className="text-sky-700">Trạng thái: </span>
-                                  <span className={Number(drive.cdiDiskStatus) === 0 ? "font-bold text-emerald-700" : "font-bold text-red-700"}>
-                                    {Number(drive.cdiDiskStatus) === 0 ? "GOOD" : "BAD"} ({String(drive.cdiDiskStatus)})
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {/* === WMI SMART (khong can admin, fallback khi smartctl fail) ===
-                            Hien thi chi so raw doc tu MSStorageDriver_ATAPISmartData +
-                            MSStorageDriver_FailurePredictStatus. KHONG tinh diem,
-                            chi show gia tri de user tu danh gia / so sanh voi smartctl. */}
-                        {(drive.wmiReallocated !== null && drive.wmiReallocated !== undefined) ||
-                         (drive.wmiPending !== null && drive.wmiPending !== undefined) ||
-                         (drive.wmiWearLevel !== null && drive.wmiWearLevel !== undefined) ||
-                         (drive.wmiPowerOnHours !== null && drive.wmiPowerOnHours !== undefined) ||
-                         (drive.wmiTemp !== null && drive.wmiTemp !== undefined) ||
-                         (drive.wmiPredictFailure !== null && drive.wmiPredictFailure !== undefined) ? (
-                          <div className="mt-2 rounded-md border border-zinc-200 bg-zinc-50/50 p-2 text-xs">
-                            <div className="mb-1 flex items-center gap-1.5">
-                              <span className="font-semibold text-zinc-700">WMI SMART</span>
-                              <span className="text-[10px] text-zinc-500">(không cần Admin)</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 sm:grid-cols-3">
-                              {drive.wmiPredictFailure !== null && drive.wmiPredictFailure !== undefined && (
-                                <div className="col-span-2 sm:col-span-3">
-                                  <span className="text-zinc-500">PredictFailure: </span>
-                                  {Number(drive.wmiPredictFailure) === 1 ? (
-                                    <span className="font-bold text-red-700">TRUE — ổ sắp hỏng</span>
-                                  ) : (
-                                    <span className="font-medium text-emerald-700">FALSE — OK</span>
-                                  )}
-                                </div>
-                              )}
-                              {drive.wmiReallocated !== null && drive.wmiReallocated !== undefined && (
-                                <div>
-                                  <span className="text-zinc-500">Reallocated: </span>
-                                  <span className={Number(drive.wmiReallocated) > 0 ? "font-bold text-red-700" : "font-medium text-zinc-700"}>
-                                    {String(drive.wmiReallocated)}
-                                  </span>
-                                </div>
-                              )}
-                              {drive.wmiPending !== null && drive.wmiPending !== undefined && (
-                                <div>
-                                  <span className="text-zinc-500">Pending: </span>
-                                  <span className={Number(drive.wmiPending) > 0 ? "font-bold text-amber-700" : "font-medium text-zinc-700"}>
-                                    {String(drive.wmiPending)}
-                                  </span>
-                                </div>
-                              )}
-                              {drive.wmiWearLevel !== null && drive.wmiWearLevel !== undefined && (
-                                <div>
-                                  <span className="text-zinc-500">Wear Level: </span>
-                                  <span className="font-medium text-zinc-700">{String(drive.wmiWearLevel)}</span>
-                                </div>
-                              )}
-                              {drive.wmiPowerOnHours !== null && drive.wmiPowerOnHours !== undefined && (
-                                <div>
-                                  <span className="text-zinc-500">Power On: </span>
-                                  <span className="font-medium text-zinc-700">{String(drive.wmiPowerOnHours)} h</span>
-                                </div>
-                              )}
-                              {drive.wmiTemp !== null && drive.wmiTemp !== undefined && (
-                                <div>
-                                  <span className="text-zinc-500">Nhiệt độ: </span>
-                                  <span className="font-medium text-zinc-700">{String(drive.wmiTemp)} °C</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {/* === SMART DETAIL (hien thi TAT CA field de user biet thieu data o dau) === */}
-                        {isSmartCtl && (
-                          <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2 text-xs">
-                            {/* Model family + Serial */}
-                            {(show(drive.modelFamily) !== "N/A" || show(drive.smartSerial) !== "N/A") && (
-                              <div className="flex justify-between gap-2">
-                                <span className="shrink-0 text-zinc-500">SMART:</span>
-                                <span className="truncate text-right text-zinc-700" title={`${show(drive.modelFamily)} • ${show(drive.smartSerial)}`}>
-                                  {show(drive.modelFamily) !== "N/A" ? show(drive.modelFamily) : ""}
-                                  {show(drive.modelFamily) !== "N/A" && show(drive.smartSerial) !== "N/A" ? " • " : ""}
-                                  {show(drive.smartSerial) !== "N/A" ? `SN: ${show(drive.smartSerial)}` : ""}
-                                </span>
+                            {!hasCdi ? (
+                              <p className="text-[11px] text-zinc-500">
+                                Cần chạy scanner với <strong className="text-amber-700">Run as Administrator</strong> để có dữ liệu này.
+                              </p>
+                            ) : (
+                              <div className="space-y-1">
+                                {drive.cdiHostWrites !== null && drive.cdiHostWrites !== undefined && (
+                                  <KV label="Đã ghi" value={`${drive.cdiHostWrites} GB`} />
+                                )}
+                                {drive.cdiHostReads !== null && drive.cdiHostReads !== undefined && (
+                                  <KV label="Đã đọc" value={`${drive.cdiHostReads} GB`} />
+                                )}
+                                {drive.cdiFirmware && (
+                                  <KV label="Firmware" value={show(drive.cdiFirmware)} mono />
+                                )}
+                                {drive.cdiSsdVendor && (
+                                  <KV label="Vendor" value={show(drive.cdiSsdVendor)} />
+                                )}
+                                {drive.cdiFormFactor && (
+                                  <KV label="Form" value={show(drive.cdiFormFactor)} />
+                                )}
                               </div>
                             )}
+                          </div>
 
-                            {/* Power on hours + Temperature */}
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                              <span>
-                                <span className="text-zinc-500">⏱ Giờ chạy: </span>
-                                <span className="font-medium text-zinc-700">
-                                  {show(drive.powerOnTime) !== "N/A" ? show(drive.powerOnTime) : "—"}
-                                </span>
-                              </span>
-                              <span>
-                                <span className="text-zinc-500">🌡 Nhiệt độ: </span>
-                                <span className="font-medium text-zinc-700">
-                                  {show(drive.temp) !== "N/A" ? show(drive.temp) : "—"}
-                                </span>
-                              </span>
+                          {/* COT 2: WMI SMART (khong can admin) */}
+                          <div className={`rounded-md border p-2.5 text-xs ${(drive.wmiReallocated !== null && drive.wmiReallocated !== undefined) || (drive.wmiPending !== null && drive.wmiPending !== undefined) || (drive.wmiPowerOnHours !== null && drive.wmiPowerOnHours !== undefined) || (drive.wmiTemp !== null && drive.wmiTemp !== undefined) ? "border-zinc-300 bg-white" : "border-dashed border-zinc-200 bg-zinc-50/50"}`}>
+                            <div className="mb-2 flex items-center gap-1.5">
+                              <span className="flex h-5 w-5 items-center justify-center rounded bg-zinc-700 text-[10px] font-bold text-white">2</span>
+                              <span className="font-semibold text-zinc-800">WMI SMART</span>
+                              <span className="ml-auto text-[9px] text-zinc-500">không cần Admin</span>
                             </div>
-
-                            {/* Wear Level + Critical Warning */}
-                            {(drive.wearLevel !== null && drive.wearLevel !== undefined) ||
-                             (drive.criticalWarning !== null && drive.criticalWarning !== undefined && Number(drive.criticalWarning) > 0) ? (
-                              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                                {drive.wearLevel !== null && drive.wearLevel !== undefined && (
-                                  <span>
-                                    <span className="text-zinc-500">📊 Wear Level: </span>
-                                    <span className="font-medium text-zinc-700">{Number(drive.wearLevel)}%</span>
-                                  </span>
-                                )}
-                                {drive.criticalWarning !== null && drive.criticalWarning !== undefined && Number(drive.criticalWarning) > 0 && (
-                                  <span className="font-bold text-red-700">
-                                    ⚠ Critical Warning: {Number(drive.criticalWarning)}
-                                  </span>
-                                )}
-                              </div>
-                            ) : null}
-
-                            {/* Reallocated + Pending */}
-                            {(drive.reallocated !== null && drive.reallocated !== undefined && Number(drive.reallocated) > 0) ||
-                             (drive.pending !== null && drive.pending !== undefined && Number(drive.pending) > 0) ? (
-                              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                                {drive.reallocated !== null && drive.reallocated !== undefined && Number(drive.reallocated) > 0 && (
-                                  <span className={Number(drive.reallocated) > 10 ? "font-bold text-red-700" : "text-amber-700"}>
-                                    ⚠ Reallocated: {Number(drive.reallocated)}
-                                  </span>
-                                )}
-                                {drive.pending !== null && drive.pending !== undefined && Number(drive.pending) > 0 && (
-                                  <span className="text-amber-700">
-                                    ⚠ Pending: {Number(drive.pending)}
-                                  </span>
-                                )}
-                              </div>
-                            ) : null}
-
-                            {/* Status badge */}
-                            {show(drive.status) !== "N/A" && (() => {
-                              const st = show(drive.status).toLowerCase();
-                              const bad = /(bad|fail|unhealth|critical|caution|lỗi)/.test(st);
-                              // "warning" khong con la bad mac dinh (co tru hop NVMe critical warning = 0)
-                              // tuy nhien van giu "warning" trong nhom do neu khong phai GOOD.
-                              const isGood = st === "good" || st === "passed";
-                              const isNeutral = isGood === false && bad === false;
-                              let cls = "bg-emerald-50 text-emerald-600";
-                              if (bad) cls = "bg-red-50 text-red-600";
-                              else if (isNeutral) cls = "bg-amber-50 text-amber-700";
+                            {(() => {
+                              const hasAny = (drive.wmiReallocated !== null && drive.wmiReallocated !== undefined) || (drive.wmiPending !== null && drive.wmiPending !== undefined) || (drive.wmiPowerOnHours !== null && drive.wmiPowerOnHours !== undefined) || (drive.wmiTemp !== null && drive.wmiTemp !== undefined) || (drive.wmiPredictFailure !== null && drive.wmiPredictFailure !== undefined);
+                              if (!hasAny) return <p className="text-[11px] text-zinc-500">Chưa có dữ liệu SMART raw.</p>;
                               return (
-                                <div className="pt-1">
-                                  <span className={`inline-block rounded-md px-1.5 py-0.5 text-xs font-medium ${cls}`}>
-                                    {show(drive.status)}
-                                  </span>
+                                <div className="space-y-1">
+                                  {drive.wmiPredictFailure !== null && drive.wmiPredictFailure !== undefined && (
+                                    <div className="flex items-baseline justify-between gap-2">
+                                      <span className="text-zinc-500">PredictFailure</span>
+                                      {Number(drive.wmiPredictFailure) === 1 ? (
+                                        <span className="font-bold text-red-700">TRUE — sắp hỏng</span>
+                                      ) : (
+                                        <span className="font-bold text-emerald-700">FALSE — OK</span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {drive.wmiReallocated !== null && drive.wmiReallocated !== undefined && (
+                                    <KV label="Reallocated" value={String(drive.wmiReallocated)} bad={Number(drive.wmiReallocated) > 0} />
+                                  )}
+                                  {drive.wmiPending !== null && drive.wmiPending !== undefined && (
+                                    <KV label="Pending" value={String(drive.wmiPending)} warn={Number(drive.wmiPending) > 0} />
+                                  )}
+                                  {drive.wmiWearLevel !== null && drive.wmiWearLevel !== undefined && (
+                                    <KV label="Wear (WMI)" value={String(drive.wmiWearLevel)} />
+                                  )}
                                 </div>
                               );
                             })()}
                           </div>
-                        )}
 
-                        {/* Debug info neu smartctl fail - hien thi ly do de user debug */}
+                          {/* COT 3: smartctl (can Admin, chi tiet nhat) */}
+                          <div className={`rounded-md border p-2.5 text-xs ${isSmartCtl && hasSmartData ? "border-emerald-200 bg-emerald-50/50" : "border-dashed border-zinc-200 bg-zinc-50/50"}`}>
+                            <div className="mb-2 flex items-center gap-1.5">
+                              <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-600 text-[10px] font-bold text-white">3</span>
+                              <span className="font-semibold text-emerald-900">smartctl</span>
+                              <span className="ml-auto text-[9px] text-zinc-500">cần Admin</span>
+                            </div>
+                            {isSmartCtl && hasSmartData ? (
+                              <div className="space-y-1">
+                                {show(drive.modelFamily) !== "N/A" && (
+                                  <KV label="Model family" value={show(drive.modelFamily)} mono />
+                                )}
+                                {show(drive.smartSerial) !== "N/A" && (
+                                  <KV label="Serial" value={show(drive.smartSerial)} mono />
+                                )}
+                                {drive.reallocated !== null && drive.reallocated !== undefined && Number(drive.reallocated) > 0 && (
+                                  <KV label="Reallocated" value={String(drive.reallocated)} bad />
+                                )}
+                                {drive.pending !== null && drive.pending !== undefined && Number(drive.pending) > 0 && (
+                                  <KV label="Pending" value={String(drive.pending)} warn />
+                                )}
+                                {drive.criticalWarning !== null && drive.criticalWarning !== undefined && Number(drive.criticalWarning) > 0 && (
+                                  <KV label="Critical Warn" value={String(drive.criticalWarning)} bad />
+                                )}
+                                {show(drive.status) !== "N/A" && (
+                                  <KV label="Trạng thái" value={show(drive.status)} />
+                                )}
+                              </div>
+                            ) : isSmartCtl ? (
+                              <p className="text-[11px] text-zinc-500">
+                                Scanner không có quyền Admin nên smartctl không truy cập được SMART raw.
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-zinc-500">Chưa chạy smartctl cho ổ này.</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* === ROW 5: Source + debug === */}
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-zinc-400">
+                          <span>Nguồn: {show(drive.source)}</span>
+                          {drive.cdiSerial && drive.cdiSerial !== "N/A" && (
+                            <span className="font-mono" title={show(drive.cdiSerial)}>SN: {show(drive.cdiSerial)}</span>
+                          )}
+                        </div>
+
                         {drive.debug && (
                           <details className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs">
                             <summary className="cursor-pointer font-semibold text-red-800">
@@ -1203,12 +1251,6 @@ exit
                               )}
                             </div>
                           </details>
-                        )}
-                        {/* Source label (smartctl vs WMI) - luon hien thi */}
-                        {show(drive.source) !== "N/A" && (
-                          <p className="mt-1.5 text-[10px] text-zinc-400">
-                            Nguồn: {show(drive.source)}
-                          </p>
                         )}
                       </div>
                     );
