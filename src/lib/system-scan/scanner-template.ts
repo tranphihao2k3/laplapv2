@@ -951,7 +951,6 @@ public static class CDI {
             cdiDiskStatus = $null
             # Debug info: luu ly do neu scan fail, hien thi len UI
             debug = $null
-            debug = $null
         }
 
         # === BUOC 0: Doc CDI (CrystalDiskInfo) neu co the - uu tien cao nhat ===
