@@ -28,6 +28,7 @@ import {
   Wrench,
   Music2,
   Cpu,
+  Mail,
 } from "lucide-react";
 
 import { NavDocuments } from "@/components/nav-documents";
@@ -92,6 +93,7 @@ const documents = [
   // (rbac-presets.ts + seed-rbac.mjs). Gán quyền cho vai trò làm ở "Vai trò" / "Phân quyền".
   { name: "Nhân sự shop", url: "/quanly/shop-staff", icon: Users, group: "Hệ thống" },
   { name: "Tạo tài khoản", url: "/quanly/admin/users", icon: UserPlus, group: "Hệ thống" },
+  { name: "Newsletter", url: "/quanly/newsletter", icon: Mail, group: "Hệ thống" },
   { name: "Cài đặt", url: "/quanly/settings", icon: Settings, group: "Hệ thống" },
   { name: "Audit logs", url: "/quanly/audit-logs", icon: FileClock, group: "Hệ thống" },
 ];

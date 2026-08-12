@@ -265,6 +265,22 @@ export const auditLogsService = createCrud({
   autoStampOrg: true,
 });
 
+// ===== Newsletter =====
+export const newsletterSubscribersService = createCrud({
+  table: "newsletter_subscribers",
+  searchColumns: ["email"],
+  allowedSortColumns: ["email", "created_at", "confirmed_at"],
+  defaultOrder: { column: "created_at", ascending: false },
+  autoStampOrg: false, // bang nay multi-tenant nhung khong can org (admin system-wide)
+});
+
+export const newsletterOutboxService = createCrud({
+  table: "newsletter_outbox",
+  allowedSortColumns: ["scheduled_at", "sent_at", "created_at", "attempts"],
+  defaultOrder: { column: "scheduled_at", ascending: true },
+  autoStampOrg: false,
+});
+
 // ===== Logic riêng — re-export từ file đặc thù =====
 export { checkoutService } from "./checkout-service";
 export { repairCheckoutService } from "./repair-checkout-service";

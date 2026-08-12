@@ -15,6 +15,9 @@ export function Newsletter() {
   const [showBrands, setShowBrands] = useState(false);
   const [loading, setLoading] = useState(false);
   const [brands, setBrands] = useState<Brand[]>([]);
+  // State cho "vừa gửi xong" -> hien nut "Gui lai email xac nhan".
+  const [lastSubmittedEmail, setLastSubmittedEmail] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
 
   // Lazy-load brands khi user chuyen sang mode "selected".
   useEffect(() => {
@@ -62,6 +65,7 @@ export function Newsletter() {
         throw new Error(json?.error?.message ?? `Lỗi ${res.status}`);
       }
       toast.success(json.data?.message ?? "Đăng ký thành công! Kiểm tra email để xác nhận.");
+      setLastSubmittedEmail(email.trim());
       setEmail("");
       setSelectedBrands(new Set());
       setMode("all");
@@ -213,6 +217,43 @@ export function Newsletter() {
                 </button>
               </div>
             </form>
+
+            {/* Resend confirm link - chi hien sau khi submit thanh cong */}
+            {lastSubmittedEmail && (
+              <div className="mt-4 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-left">
+                <p className="text-xs text-white/60">
+                  Không nhận được email xác nhận cho <strong className="text-white/80">{lastSubmittedEmail}</strong>?
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (resendLoading || !lastSubmittedEmail) return;
+                    setResendLoading(true);
+                    try {
+                      const r = await fetch("/api/v1/newsletter/resend-confirm", {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ email: lastSubmittedEmail }),
+                      });
+                      const j = await r.json();
+                      if (r.ok && j?.ok) {
+                        toast.success(j.data?.message ?? "Đã gửi lại email.");
+                      } else {
+                        toast.error(j?.error?.message ?? "Không thể gửi lại.");
+                      }
+                    } catch {
+                      toast.error("Lỗi mạng. Vui lòng thử lại.");
+                    } finally {
+                      setResendLoading(false);
+                    }
+                  }}
+                  disabled={resendLoading}
+                  className="mt-2 text-xs font-medium text-white/80 underline underline-offset-2 hover:text-white disabled:opacity-60"
+                >
+                  {resendLoading ? "Đang gửi..." : "Gửi lại email xác nhận"}
+                </button>
+              </div>
+            )}
 
             <p className="mt-4 text-xs text-white/30">
               Không spam. Hủy đăng ký bất kỳ lúc nào qua link trong email.
