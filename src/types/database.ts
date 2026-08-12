@@ -388,6 +388,52 @@ export type TradeInRequestRow = {
 };
 
 export type RepairServicePriceType = "fixed" | "from" | "range" | "contact";
+// Newsletter
+export type NewsletterSubscriberRow = {
+  id: UUID;
+  email: string;
+  brand_ids: UUID[] | null;
+  is_active: boolean | null;
+  confirmed: boolean | null;
+  confirm_token: string | null;
+  unsubscribe_token: string;
+  confirmed_at: Timestamp | null;
+  unsubscribed_at: Timestamp | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: Timestamp | null;
+  updated_at: Timestamp | null;
+};
+
+export type NewsletterOutboxRow = {
+  id: UUID;
+  product_id: UUID;
+  product_name: string;
+  product_slug: string | null;
+  product_brand_id: UUID | null;
+  product_brand_name: string | null;
+  product_price: number | null;
+  product_url: string;
+  status: string | null;
+  attempts: number | null;
+  last_error: string | null;
+  dedupe_key: string | null;
+  scheduled_at: Timestamp | null;
+  sent_at: Timestamp | null;
+  created_at: Timestamp | null;
+};
+
+export type NewsletterSendLogRow = {
+  id: UUID;
+  outbox_id: UUID;
+  subscriber_id: UUID;
+  email: string;
+  resend_message_id: string | null;
+  status: string | null;
+  error: string | null;
+  sent_at: Timestamp | null;
+};
+
 export type RepairServiceRow = {
   id: UUID;
   organization_id: UUID | null;
@@ -752,6 +798,27 @@ export type Database = {
         Row: RepairServiceRow;
         Insert: Insertable<RepairServiceRow, "name">;
         Update: Updatable<RepairServiceRow>;
+        Relationships: [];
+      };
+      newsletter_subscribers: {
+        Row: NewsletterSubscriberRow;
+        Insert: Insertable<NewsletterSubscriberRow, "email" | "unsubscribe_token">;
+        Update: Updatable<NewsletterSubscriberRow>;
+        Relationships: [];
+      };
+      newsletter_outbox: {
+        Row: NewsletterOutboxRow;
+        Insert: Insertable<
+          NewsletterOutboxRow,
+          "product_id" | "product_name" | "product_url"
+        >;
+        Update: Updatable<NewsletterOutboxRow>;
+        Relationships: [];
+      };
+      newsletter_send_log: {
+        Row: NewsletterSendLogRow;
+        Insert: Insertable<NewsletterSendLogRow, "outbox_id" | "subscriber_id" | "email" | "status">;
+        Update: Updatable<NewsletterSendLogRow>;
         Relationships: [];
       };
       settings: {
