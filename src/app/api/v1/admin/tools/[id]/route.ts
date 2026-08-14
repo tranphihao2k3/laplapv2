@@ -1,15 +1,16 @@
 /**
  * PATCH /api/v1/admin/tools/[id] — update metadata (khong doi file).
- * DELETE /api/v1/admin/tools/[id] — delete tool + R2 file.
+ * DELETE /api/v1/admin/tools/[id] — delete tool + Supabase Storage file.
  */
 
 import { NextRequest } from "next/server";
 import { ok, fail } from "@/lib/api/response";
 import { requirePermission } from "@/lib/api/guard";
 import { updateTool, deleteTool, findToolById } from "@/lib/tools/repository";
-import { deleteToolFile } from "@/lib/tools/r2";
+import { deleteToolFile } from "@/lib/storage/supabase";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function PATCH(
   req: NextRequest,
@@ -55,17 +56,17 @@ export async function DELETE(
     // Lay r2_key truoc khi xoa row DB (sau khi xoa thi khong con tra cuu duoc).
     const tool = await findToolById(id);
     if (!tool) return fail("NOT_FOUND", "Tool not found", 404);
-    const r2Key = tool.r2_key;
+    const storageKey = tool.r2_key;
 
-    // Xoa R2 file (ignore neu 404).
+    // Xoa Storage file (ignore neu 404).
     try {
-      await deleteToolFile(r2Key);
+      await deleteToolFile(storageKey);
     } catch (e) {
-      console.warn(`[tools/delete] R2 delete failed for ${id}:`, e);
+      console.warn(`[tools/delete] Storage delete failed for ${id}:`, e);
     }
 
     await deleteTool(id);
-    return ok({ deleted: true, id, r2Key });
+    return ok({ deleted: true, id, storageKey });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return fail("INTERNAL", msg, 500);

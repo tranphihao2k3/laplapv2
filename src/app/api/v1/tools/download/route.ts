@@ -1,12 +1,12 @@
 /**
  * GET /api/v1/tools/download?toolId=cpu-z
  *
- * Server proxy stream file tool tu R2 ve client.
+ * Server proxy stream file tool tu Supabase Storage ve client.
  *
  * LUONG:
  * 1. Validate toolId.
  * 2. Query DB `tools` -> lay r2_key, sha256, exec_name, extract.
- * 3. Head R2 object (check ton tai).
+ * 3. Download tu Supabase Storage bucket "tools" (private).
  * 4. Stream body ve client kem metadata headers.
  *
  * Metadata headers (PS1 can de verify SHA256 / extract / launch):
@@ -22,9 +22,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { findToolById, verifyModeOf } from "@/lib/tools/repository";
-import { getToolFile } from "@/lib/tools/r2";
+import { downloadToolFile } from "@/lib/storage/supabase";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -52,21 +53,21 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Lay object tu R2.
-  let obj;
+  // Lay file tu Supabase Storage.
+  let buffer: ArrayBuffer;
   try {
-    obj = await getToolFile(tool.r2_key);
+    buffer = await downloadToolFile(tool.r2_key);
   } catch (e) {
-    console.error(`[tools/download] R2 get failed for ${toolId}:`, e);
+    console.error(`[tools/download] Storage get failed for ${toolId}:`, e);
     return NextResponse.json(
       { ok: false, error: "Storage unavailable" },
       { status: 502 },
     );
   }
 
-  if (!obj) {
+  if (!buffer || buffer.byteLength === 0) {
     return NextResponse.json(
-      { ok: false, error: "File missing in R2" },
+      { ok: false, error: "File missing in Storage" },
       { status: 404 },
     );
   }
@@ -77,8 +78,7 @@ export async function GET(req: NextRequest) {
 
   // Build headers.
   const headers = new Headers({
-    "Content-Type":
-      obj.httpMetadata?.contentType || "application/octet-stream",
+    "Content-Type": "application/octet-stream",
     "Content-Disposition": `attachment; filename="${filename}"`,
     "X-Tool-Id": tool.id,
     "X-Tool-Sha256": tool.sha256,
@@ -87,14 +87,12 @@ export async function GET(req: NextRequest) {
     "X-Tool-Exec": tool.exec_name,
     "X-Tool-Args": JSON.stringify(tool.launch_args),
     "X-Tool-Requires-Admin": String(tool.requires_admin),
+    "Content-Length": String(buffer.byteLength),
     "Cache-Control": "public, max-age=300",
   });
-  if (obj.size) {
-    headers.set("Content-Length", String(obj.size));
-  }
 
-  // Stream body.
-  return new Response(obj.body, {
+  // Return buffer as Response.
+  return new Response(buffer, {
     status: 200,
     headers,
   });

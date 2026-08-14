@@ -1,27 +1,34 @@
-import { NextRequest } from "next/server";
-import { handleError } from "@/lib/api/response";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
-
-export const dynamic = "force-dynamic";
-
 /**
+ * GET /api/v1/system-scan/download-smartctl
+ *
  * Endpoint download smartctl.exe (signed binary tu smartmontools).
  *
  * LUONG UPLOAD (admin lam 1 lan):
- *   Upload smartctl.exe vao R2 key 'tools/smartctl/7.5/smartctl.exe'.
+ *   Upload smartctl.exe len Supabase Storage key 'tools/smartctl/7.5/smartctl.exe'.
  *
  * LUONG DOWNLOAD:
- *   1. Lay binary truc tiep tu R2 (zero-egress, nhanh).
- *   2. Neu R2 miss -> fallback sourceforge ZIP (public mirror).
+ *   1. Lay binary truc tiep tu Supabase Storage bucket "tools" (private).
+ *   2. Neu Storage miss -> fallback sourceforge ZIP (public mirror).
  *   3. Verify magic bytes (catch SF tro ve HTML error page).
- *
- * R2 bucket: 'laplap-tools' (binding TOOLS_BUCKET).
+ *   4. Cache lai vao Storage de lan sau doc nhanh.
  */
 
-const R2_KEY = "tools/smartctl/7.5/smartctl.exe";
+import { NextRequest } from "next/server";
+import { handleError } from "@/lib/api/response";
+import {
+  downloadToolFile,
+  putToolFile,
+  headToolFile,
+} from "@/lib/storage/supabase";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 120; // 120s cho download + extract ZIP
+
+const STORAGE_PATH = "tools/smartctl/7.5/smartctl.exe";
 const EXPECTED_VERSION = "7.5";
 
-/** Sourceforge mirrors (fallback neu R2 miss). */
+/** Sourceforge mirrors (fallback neu Storage miss). */
 const SMARTCTL_FALLBACK_URLS: Array<{
   url: string;
   mirror: string;
@@ -38,24 +45,6 @@ const SMARTCTL_FALLBACK_URLS: Array<{
     userAgent: "Mozilla/5.0",
   },
 ];
-
-type R2Bucket = {
-  put(key: string, body: ArrayBuffer | ReadableStream, opts?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
-  get(key: string): Promise<{
-    body: ReadableStream;
-    size: number;
-    httpMetadata?: { contentType?: string };
-  } | null>;
-};
-
-async function getBucket(): Promise<R2Bucket | null> {
-  try {
-    const ctx = (await getCloudflareContext({ async: true })) as unknown as { env: { TOOLS_BUCKET?: R2Bucket } };
-    return ctx?.env?.TOOLS_BUCKET ?? null;
-  } catch {
-    return null;
-  }
-}
 
 async function fetchWithUA(url: string, userAgent?: string): Promise<Response> {
   return fetch(url, {
@@ -74,7 +63,7 @@ async function fetchWithUA(url: string, userAgent?: string): Promise<Response> {
 function isWindowsExe(data: ArrayBuffer): boolean {
   if (data.byteLength < 64) return false;
   const view = new Uint8Array(data.slice(0, 2));
-  return view[0] === 0x4D && view[1] === 0x5A;
+  return view[0] === 0x4d && view[1] === 0x5a;
 }
 
 /**
@@ -137,56 +126,32 @@ async function sha256Hex(data: ArrayBuffer): Promise<string> {
     .join("");
 }
 
-async function streamToArrayBuffer(stream: ReadableStream): Promise<ArrayBuffer> {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    total += value.length;
-  }
-  const buffer = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    buffer.set(c, offset);
-    offset += c.length;
-  }
-  return buffer.buffer;
-}
-
 export async function GET(req: NextRequest) {
   try {
     const token = req.nextUrl.searchParams.get("token")?.trim() || "anon";
-    const bucket = await getBucket();
 
-    // ===== PATH 1: R2 (primary - nhanh nhat) =====
-    if (bucket) {
-      try {
-        const obj = await bucket.get(R2_KEY);
-        if (obj && obj.body) {
-          const buffer = await streamToArrayBuffer(obj.body);
-          if (isWindowsExe(buffer)) {
-            console.log(`[smartctl] R2 hit for ${token}: ${obj.size} bytes`);
-            return new Response(buffer, {
-              headers: {
-                "Content-Type": "application/x-msdownload",
-                "Content-Length": String(buffer.byteLength),
-                "Content-Disposition": `attachment; filename="smartctl.exe"`,
-                "X-Smartctl-Source": "r2",
-                "X-Smartctl-Version": EXPECTED_VERSION,
-                "Cache-Control": "public, max-age=86400",
-              },
-            });
-          }
-          console.warn(`[smartctl] R2 object not a valid EXE (${obj.size} bytes)`);
+    // ===== PATH 1: Supabase Storage (primary - nhanh nhat) =====
+    try {
+      const head = await headToolFile(STORAGE_PATH);
+      if (head && head.size > 0) {
+        const buffer = await downloadToolFile(STORAGE_PATH);
+        if (isWindowsExe(buffer)) {
+          console.log(`[smartctl] Storage hit for ${token}: ${buffer.byteLength} bytes`);
+          return new Response(buffer, {
+            headers: {
+              "Content-Type": "application/x-msdownload",
+              "Content-Length": String(buffer.byteLength),
+              "Content-Disposition": `attachment; filename="smartctl.exe"`,
+              "X-Smartctl-Source": "supabase-storage",
+              "X-Smartctl-Version": EXPECTED_VERSION,
+              "Cache-Control": "public, max-age=86400",
+            },
+          });
         }
-      } catch (e) {
-        console.warn("[smartctl] R2 read failed:", e);
+        console.warn(`[smartctl] Storage object not a valid EXE (${buffer.byteLength} bytes)`);
       }
-    } else {
-      console.warn("[smartctl] TOOLS_BUCKET binding not available");
+    } catch (e) {
+      console.warn("[smartctl] Storage read failed:", e);
     }
 
     // ===== PATH 2: Fallback tu SourceForge ZIP =====
@@ -233,24 +198,20 @@ export async function GET(req: NextRequest) {
       console.error(`[smartctl] All paths failed: ${lastError}`);
       return Response.json(
         {
-          error: "Cannot fetch smartctl from R2 or any mirror",
+          error: "Cannot fetch smartctl from Storage or any mirror",
           lastError,
-          hint: "Scanner will fall back to WMI SMART data. Ask admin to upload smartctl.exe to R2 key 'tools/smartctl/7.5/smartctl.exe'.",
+          hint: "Scanner will fall back to WMI SMART data. Ask admin to upload smartctl.exe to Supabase Storage key 'tools/smartctl/7.5/smartctl.exe'.",
         },
         { status: 502 },
       );
     }
 
-    // ===== PATH 3: Cache vao R2 de lan sau =====
-    if (bucket) {
-      try {
-        await bucket.put(R2_KEY, exeBuffer, {
-          httpMetadata: { contentType: "application/x-msdownload" },
-        });
-        console.log(`[smartctl] Cached ${exeBuffer.byteLength} bytes to R2`);
-      } catch (e) {
-        console.warn("[smartctl] R2 cache write failed:", e);
-      }
+    // ===== PATH 3: Cache vao Supabase Storage de lan sau =====
+    try {
+      await putToolFile(STORAGE_PATH, exeBuffer, "application/x-msdownload");
+      console.log(`[smartctl] Cached ${exeBuffer.byteLength} bytes to Supabase Storage`);
+    } catch (e) {
+      console.warn("[smartctl] Storage cache write failed:", e);
     }
 
     const hash = await sha256Hex(exeBuffer);

@@ -1,10 +1,10 @@
 /**
  * PATCH  /api/v1/speaker-songs/:id  — Cập nhật metadata bài hát (admin)
- * DELETE /api/v1/speaker-songs/:id  — Xoá bài hát + file R2 (admin)
+ * DELETE /api/v1/speaker-songs/:id  — Xoá bài hát + file Supabase Storage (admin)
  */
 import { NextRequest } from "next/server";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOrg } from "@/lib/api/guard";
 import { ok, handleError } from "@/lib/api/response";
 import { getAudioBaseUrl, withResolvedAudioUrl } from "@/lib/speaker-audio";
@@ -59,7 +59,7 @@ export async function DELETE(
 
     const serviceClient = createSupabaseServiceClient();
 
-    // Lấy file_key trước để cleanup R2
+    // Lấy file_key trước để cleanup Storage
     const { data: song, error: fetchErr } = await serviceClient
       .from("speaker_songs")
       .select("file_key")
@@ -76,14 +76,13 @@ export async function DELETE(
 
     if (delErr) throw delErr;
 
-    // Xoá file trên R2 (best-effort)
+    // Xoá file trên Supabase Storage (best-effort)
     if (song?.file_key) {
       try {
-        const { env } = await getCloudflareContext();
-        const bucket = (env as unknown as { AUDIO_BUCKET: R2Bucket }).AUDIO_BUCKET;
-        if (bucket) await bucket.delete(song.file_key);
-      } catch {
-        console.warn("[speaker-songs] Không thể xoá file R2:", song.file_key);
+        const adminClient = createAdminClient();
+        await adminClient.storage.from("speaker-audio").remove([song.file_key]);
+      } catch (e) {
+        console.warn("[speaker-songs] Không thể xoá file Storage:", song.file_key, e);
       }
     }
 

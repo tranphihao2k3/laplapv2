@@ -20,7 +20,7 @@
  * LUONG:
  * 1. Auth: requirePermission('admin.manage_tools').
  * 2. Parse formData.
- * 3. Put file vao R2 'tools/<id>/<version>/<file>'.
+ * 3. Put file vao Supabase Storage 'tools/<id>/<version>/<file>'.
  * 4. Compute SHA256 (real hash).
  * 5. Insert row vao table `tools`.
  * 6. Return tool metadata.
@@ -32,12 +32,14 @@ import { requirePermission } from "@/lib/api/guard";
 import {
   putToolFile,
   computeSha256,
-  isValidR2Key,
+  isValidStorageKey,
   buildToolKey,
-} from "@/lib/tools/r2";
+} from "@/lib/storage/supabase";
 import { insertTool } from "@/lib/tools/repository";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300; // 5 phút cho upload 200MB
 
 const MAX_SIZE = 200 * 1024 * 1024; // 200MB
 
@@ -75,8 +77,8 @@ export async function POST(req: NextRequest) {
     const extracted = String(formData.get("extract") ?? "true").toLowerCase() === "true";
     const r2Key = buildToolKey(id, version, fileName);
 
-    if (!isValidR2Key(r2Key)) {
-      return fail("INVALID_R2_KEY", `Invalid r2_key: ${r2Key}`, 400);
+    if (!isValidStorageKey(r2Key)) {
+      return fail("INVALID_STORAGE_KEY", `Invalid storage key: ${r2Key}`, 400);
     }
 
     // Doc file thanh ArrayBuffer (compute hash + upload).
@@ -97,12 +99,12 @@ export async function POST(req: NextRequest) {
       ? overrideSha
       : sha256;
 
-    // Upload R2.
+    // Upload Supabase Storage.
     try {
       await putToolFile(r2Key, arrayBuffer, file.type || "application/octet-stream");
     } catch (e) {
-      console.error("[tools/upload] R2 put failed:", e);
-      return fail("UPLOAD_FAILED", "R2 upload failed", 500);
+      console.error("[tools/upload] Storage upload failed:", e);
+      return fail("UPLOAD_FAILED", "Storage upload failed", 500);
     }
 
     const launchArgsStr = String(formData.get("launch_args") ?? "[]").trim();

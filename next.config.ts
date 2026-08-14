@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -48,7 +49,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
-// Cho phép truy cập binding của Cloudflare khi chạy `next dev` (chỉ dev, no-op ở prod).
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();

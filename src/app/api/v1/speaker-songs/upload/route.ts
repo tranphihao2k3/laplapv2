@@ -1,7 +1,7 @@
 /**
  * POST /api/v1/speaker-songs/upload
  *
- * Upload file âm thanh lên Cloudflare R2 bucket (AUDIO_BUCKET binding).
+ * Upload file âm thanh lên Supabase Storage bucket "speaker-audio" (public).
  * Yêu cầu đăng nhập và thuộc tổ chức (requireOrg).
  *
  * Body: multipart/form-data
@@ -12,12 +12,12 @@
  * Response: { file_url, file_key, file_size_bytes, original_name }
  */
 import { NextRequest } from "next/server";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { requireOrg } from "@/lib/api/guard";
 import { ok, fail, handleError } from "@/lib/api/response";
-import { buildAudioUrl, getAudioBaseUrl } from "@/lib/speaker-audio";
+import { putAudioFile, getAudioBaseUrl } from "@/lib/storage/supabase";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // 60s cho upload 30MB
 
 const ALLOWED_MIME = new Set([
   "audio/mpeg",
@@ -32,12 +32,6 @@ const ALLOWED_MIME = new Set([
 ]);
 
 const MAX_SIZE = 30 * 1024 * 1024; // 30 MB
-
-// Cloudflare Workers: vars và bindings đều nằm trong env object,
-// KHÔNG accessible qua process.env (chỉ NEXT_PUBLIC_* được OpenNext inject).
-type CfEnv = {
-  AUDIO_BUCKET: R2Bucket;
-};
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,42 +58,22 @@ export async function POST(req: NextRequest) {
       return fail("FILE_TOO_LARGE", "File quá lớn (tối đa 30MB)", 422);
     }
 
-    // ── Lấy env từ Cloudflare context ────────────────────────────
-    // vars (AUDIO_BASE_URL) và bindings (AUDIO_BUCKET) đều nằm ở đây
-    const { env } = await getCloudflareContext();
-    const cfEnv = env as unknown as CfEnv;
-
-    const bucket = cfEnv.AUDIO_BUCKET;
-    if (!bucket) {
-      return fail("CONFIG_ERROR", "R2 bucket AUDIO_BUCKET chưa được bind trong wrangler.jsonc", 500);
-    }
-
-    // Base URL chỉ dùng để dựng file_url tiện lợi cho client. KHÔNG chặn upload
-    // nếu thiếu: file_key mới là nguồn sự thật, URL luôn được dựng lại lúc đọc.
-    const audioBaseUrl = await getAudioBaseUrl();
-
-    // ── Upload ───────────────────────────────────────────────────
+    // ── Upload lên Supabase Storage ──────────────────────────────
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "mp3";
     const fileKey = `speaker-songs/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
     const arrayBuffer = await file.arrayBuffer();
 
-    await bucket.put(fileKey, arrayBuffer, {
-      httpMetadata: {
-        contentType: file.type,
-        cacheControl: "public, max-age=31536000",
-      },
-      customMetadata: {
-        originalName: file.name,
-        uploadedBy: user.id,
-        title,
-      },
-    });
+    const result = await putAudioFile(fileKey, arrayBuffer, file.type);
+
+    const audioBaseUrl = await getAudioBaseUrl();
+    const fileUrl = result.publicUrl ?? `${audioBaseUrl}/${fileKey}`;
 
     return ok({
-      file_url: buildAudioUrl(fileKey, audioBaseUrl),
+      file_url: fileUrl,
       file_key: fileKey,
-      file_size_bytes: file.size,
+      file_size_bytes: result.size,
       original_name: file.name,
+      uploaded_by: user.id,
     });
   } catch (e) {
     return handleError(e);

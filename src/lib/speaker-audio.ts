@@ -1,34 +1,29 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
-
-// Cloudflare Workers: vars nằm trong env object, KHÔNG đọc được qua process.env
-// (chỉ NEXT_PUBLIC_* được OpenNext inject).
-type CfEnv = { AUDIO_BASE_URL?: string };
+/**
+ * Speaker audio URL helpers.
+ *
+ * Storage: Supabase Storage bucket "speaker-audio" (public read).
+ * URL format: `${SUPABASE_URL}/storage/v1/object/public/speaker-audio/<file_key>`
+ */
 
 /**
- * Lấy URL gốc public của R2 bucket chứa file nhạc (từ wrangler.jsonc vars).
- * Trả về "" nếu chưa cấu hình hoặc còn là placeholder.
+ * Lay base URL cho speaker audio (public Supabase Storage bucket).
+ * URL format: https://<project>.supabase.co/storage/v1/object/public/speaker-audio
  */
 export async function getAudioBaseUrl(): Promise<string> {
-  try {
-    const { env } = await getCloudflareContext();
-    const base = ((env as unknown as CfEnv).AUDIO_BASE_URL ?? "").trim().replace(/\/$/, "");
-    // "replace_me" là placeholder trong wrangler.jsonc — coi như chưa cấu hình.
-    if (!base || base.includes("replace_me")) return "";
-    return base;
-  } catch {
-    return "";
-  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  if (!url || url.includes("replace_me")) return "";
+  return `${url.replace(/\/$/, "")}/storage/v1/object/public/speaker-audio`;
 }
 
 /**
  * Dựng URL phát nhạc từ file_key + base URL hiện tại.
  *
  * Vì sao không dùng thẳng `file_url` đã lưu trong DB: URL đó được ghi cứng lúc
- * upload, nên khi đổi domain R2 (hoặc lúc upload base URL còn là placeholder)
+ * upload, nên khi đổi domain Supabase (hoặc lúc upload base URL còn là placeholder)
  * thì mọi bản ghi cũ trỏ sai vĩnh viễn. Dựng lại từ file_key khiến dữ liệu cũ
  * tự đúng mà không cần migrate.
  *
- * @param fileKey  Key trong R2 bucket (nguồn sự thật).
+ * @param fileKey  Key trong Supabase Storage bucket (nguồn sự thật).
  * @param baseUrl  Base URL lấy từ getAudioBaseUrl().
  * @param fallback file_url đã lưu — chỉ dùng khi thiếu key/base.
  */
