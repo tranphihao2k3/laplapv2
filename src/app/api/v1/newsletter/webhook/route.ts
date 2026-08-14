@@ -67,10 +67,14 @@ async function verifyWebhookSignature(
   // Signed content: `${id}.${timestamp}.${body}`
   const content = `${svixId}.${svixTimestamp}.${rawBody}`;
 
-  // Compute HMAC-SHA256 bằng Web Crypto API (có sẵn trong Workers).
+  // crypto.subtle.importKey yêu cầu BufferSource (ArrayBuffer, không phải ArrayBufferLike).
+  // Uint8Array<ArrayBufferLike> của TS 5.6+ không tương thích trực tiếp — copy sang
+  // một Uint8Array mới backed bởi ArrayBuffer (worker runtime đều có).
+  const keyBuffer = new Uint8Array(keyBytes.byteLength);
+  keyBuffer.set(keyBytes);
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    keyBytes,
+    keyBuffer,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
