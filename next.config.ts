@@ -3,9 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   images: {
-    // Cloudflare Workers (OpenNext) không có sharp → bộ tối ưu ảnh /_next/image
-    // của Next fail với ảnh lớn/quality cao (ảnh chính vỡ, thumbnail nhỏ thì OK).
-    // Serve thẳng ảnh từ CDN Supabase (vốn đã tối ưu qua CDN) cho chắc chắn hiển thị.
     unoptimized: true,
     remotePatterns: [
       {
@@ -20,6 +17,20 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns"],
+    // Bắt buộc trên Cloudflare Workers (3 MiB free plan):
+    // - Externalize mọi package chứa native bindings / RPC / Node-only API
+    //   để Worker bundle KHÔNG inline chúng vào server-functions/handler.mjs.
+    // - Nếu thiếu, esbuild (mặc định) sẽ gộp toàn bộ @supabase/* + resend
+    //   + svix + axios + node:* polyfills → handler.mjs phình 15-20 MB → vượt 3 MiB.
+    // Docs: https://nextjs.org/docs/app/api-reference/config/next-config-js/serverExternalPackages
+    serverExternalPackages: [
+      "@supabase/ssr",
+      "@supabase/supabase-js",
+      "resend",
+      "svix",
+      "axios",
+      "@react-email/*",
+    ],
   },
 };
 
