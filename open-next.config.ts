@@ -1,9 +1,8 @@
 import { defineCloudflareConfig } from "@opennextjs/cloudflare";
 
-export default defineCloudflareConfig({
-  // BẮT BUỘC trên Cloudflare Free (3 MiB gzip limit):
-  // Em đã đo `handler.mjs` mặc định ~17-20 MiB UNCOMPRESSED, gzip vẫn > 3 MiB.
-  // `minify: true` (esbuild minification) cắt còn ~2-3 MiB gzip, vừa khít limit.
-  // CLI flag tương đương: npx opennextjs-cloudflare build --minify
-  minify: true,
-});
+// Cloudflare Workers Free plan có giới hạn 3 MiB gzip cho Worker bundle.
+// opennextjs-cloudflare CLI mặc định đã bật `--minify` (xem build.ts dòng
+// `minify: !args.noMinify`). KHÔNG có option `minify` trong
+// `defineCloudflareConfig` — option này chỉ tồn tại ở CLI flag `--noMinify`.
+// Vì vậy giữ config rỗng là đúng; thêm option ở đây sẽ bị TS ignore.
+export default defineCloudflareConfig();

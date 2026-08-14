@@ -12,6 +12,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf:build:only": "opennextjs-cloudflare build",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
@@ -54,9 +55,7 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.53.1",
     "recharts": "^2.15.4",
-    "resend": "^6.19.0",
     "sonner": "^1.7.4",
-    "svix": "^1.99.1",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
