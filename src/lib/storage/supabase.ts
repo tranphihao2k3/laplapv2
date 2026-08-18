@@ -57,7 +57,7 @@ export async function putAudioFile(
   };
 }
 
-/** Lay public URL cho audio (vi base URL cua R2, gio la Supabase). */
+/** Lay public URL cho audio (Supabase Storage bucket "speaker-audio"). */
 export async function getAudioBaseUrl(): Promise<string> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   return `${url.replace(/\/$/, "")}/storage/v1/object/public/${AUDIO_BUCKET}`;

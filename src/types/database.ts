@@ -189,6 +189,13 @@ export type ProductRow = {
   tags: string[] | null;
   created_at: Timestamp | null;
   updated_at: Timestamp | null;
+  // Engagement fields cho ProductCard V2 (xem migration 026_product_engagement.sql).
+  // Tất cả optional/nullable — code cũ vẫn hoạt động khi column chưa được thêm.
+  rating_avg: number | null;
+  review_count: number | null;
+  sold_count: number | null;
+  is_new: boolean | null;
+  is_hot: boolean | null;
 };
 
 export type ProductVariantRow = {

@@ -13,18 +13,20 @@ import {
   Trophy,
   Upload,
   Flame,
+  Plug,
 } from "lucide-react";
 
 const tabs = [
-  { id: "ranking",     label: "Bảng xếp hạng", href: "/test-laptop",                icon: Trophy,   exact: true },
-  { id: "system-scan", label: "Quét hệ thống",  href: "/test-laptop/system-scan",    icon: Cpu },
-  { id: "camera-mic",  label: "Camera & Mic",   href: "/test-laptop/camera-mic",     icon: Camera },
-  { id: "speakers",    label: "Loa",            href: "/test-laptop/speakers",       icon: Volume2 },
-  { id: "display",     label: "Màn hình",       href: "/test-laptop/display",        icon: Monitor },
-  { id: "keyboard",    label: "Bàn phím",       href: "/test-laptop/keyboard",       icon: Keyboard },
-  { id: "benchmark",   label: "GPU Benchmark",  href: "/test-laptop/benchmark",      icon: Flame },
-  { id: "tools",       label: "Công cụ",        href: "/test-laptop/tools",          icon: Download },
-  { id: "submit",      label: "Lưu kết quả",    href: "/test-laptop/submit",         icon: Upload },
+  { id: "ranking",        label: "Bảng xếp hạng",     href: "/test-laptop",                       icon: Trophy,   exact: true },
+  { id: "system-scan",    label: "Quét hệ thống",      href: "/test-laptop/system-scan",           icon: Cpu },
+  { id: "camera-mic",     label: "Camera & Mic",       href: "/test-laptop/camera-mic",            icon: Camera },
+  { id: "speakers",       label: "Loa",                href: "/test-laptop/speakers",              icon: Volume2 },
+  { id: "display",        label: "Màn hình",           href: "/test-laptop/display",               icon: Monitor },
+  { id: "keyboard",       label: "Bàn phím",           href: "/test-laptop/keyboard",              icon: Keyboard },
+  { id: "benchmark",      label: "GPU Benchmark",      href: "/test-laptop/benchmark",             icon: Flame },
+  { id: "tools",          label: "Công cụ",            href: "/test-laptop/tools",                 icon: Download },
+  { id: "submit",         label: "Lưu kết quả",        href: "/test-laptop/submit",                icon: Upload },
+  { id: "mini-tool",      label: "Mini Tool",          href: "/test-laptop/mini-tool-connect",     icon: Plug },
 ];
 
 export default function TestLaptopLayout({

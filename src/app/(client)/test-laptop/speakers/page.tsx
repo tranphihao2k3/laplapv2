@@ -216,7 +216,7 @@ export default function SpeakersPage() {
         setIsPlaying(false);
         setSongsError(
           (e as DOMException)?.name === "NotSupportedError"
-            ? "Không phát được file nhạc này (thiếu file trên R2 hoặc định dạng không hỗ trợ)."
+            ? "Không phát được file nhạc này (thiếu file trên Supabase Storage hoặc định dạng không hỗ trợ)."
             : "Không phát được nhạc. Vui lòng thử lại.",
         );
       }

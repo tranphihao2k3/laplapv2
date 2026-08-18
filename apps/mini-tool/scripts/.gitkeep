@@ -1,0 +1,4 @@
+# Empty marker script. PowerShell scripts bundled with the portable build live
+# in this folder and are referenced by `src/main/ipc.ts` via
+# `process.resourcesPath/scripts/*.ps1`. Stub files are added by the optimize
+# worker later; this file only ensures the directory is tracked by git.

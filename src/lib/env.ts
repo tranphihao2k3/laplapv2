@@ -9,6 +9,10 @@ const envSchema = z.object({
 
 const serverEnvSchema = envSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  // Shared HMAC secret để tool ký payload upload lên server. Khi dev chưa set
+  // thì signature.ts fallback sang placeholder dev-only (không throw) — xem
+  // src/lib/mini-tool/signature.ts.
+  MINI_TOOL_SHARED_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

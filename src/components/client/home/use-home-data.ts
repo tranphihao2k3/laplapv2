@@ -13,6 +13,12 @@ export type PublicProduct = {
   categoryId: string | null;
   specs: Record<string, string>;
   inStock?: boolean;
+  // Engagement (optional — undefined khi DB chưa có cột ở migration 026).
+  rating?: number;
+  reviewCount?: number;
+  soldCount?: number;
+  isNew?: boolean;
+  isHot?: boolean;
 };
 
 type ProductListResponse = {

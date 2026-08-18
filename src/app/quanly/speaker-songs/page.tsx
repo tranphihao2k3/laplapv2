@@ -157,7 +157,7 @@ export default function SpeakerSongsPage() {
 
     setUploading(true);
     try {
-      // 1. Upload file to R2
+      // 1. Upload file to Supabase Storage ("speaker-audio" bucket)
       const fd = new FormData();
       fd.append("file", form.file);
       fd.append("title", form.title.trim());
@@ -397,7 +397,7 @@ export default function SpeakerSongsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Thêm bài hát mới</DialogTitle>
-            <DialogDescription>Upload file âm thanh lên R2. Hỗ trợ MP3, WAV, OGG, FLAC, AAC — tối đa 30MB.</DialogDescription>
+            <DialogDescription>Upload file âm thanh lên Supabase Storage. Hỗ trợ MP3, WAV, OGG, FLAC, AAC — tối đa 30MB.</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">
@@ -541,7 +541,7 @@ export default function SpeakerSongsPage() {
           <DialogHeader>
             <DialogTitle>Xác nhận xoá</DialogTitle>
             <DialogDescription>
-              Bài hát và file âm thanh sẽ bị xoá vĩnh viễn khỏi R2. Không thể hoàn tác.
+              Bài hát và file âm thanh sẽ bị xoá vĩnh viễn khỏi Supabase Storage. Không thể hoàn tác.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -1,5 +1,7 @@
 export { Breadcrumb } from "./breadcrumb";
 export { ProductCard } from "./product-card";
+export { ProductCardV2, type ProductCardV2Product } from "./product-card-v2";
+export { ProductCardSkeleton, ProductCardSkeletonGrid } from "./product-card-skeleton";
 export { ProductGallery } from "./product-gallery";
 export { ProductInfo } from "./product-info";
 export { ProductSpecs } from "./product-specs";

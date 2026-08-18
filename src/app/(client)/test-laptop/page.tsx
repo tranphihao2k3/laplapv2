@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Trophy, Zap, TrendingUp, Award } from "lucide-react";
+import { RefreshCw, Trophy, Zap, TrendingUp, Award, Plug } from "lucide-react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -149,6 +150,29 @@ export default function RankingTabPage() {
           </span>
         ))}
       </div>
+
+      {/* Mini Tool CTA banner */}
+      <Link
+        href="/test-laptop/mini-tool-connect"
+        className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm transition-colors hover:bg-violet-100"
+      >
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white">
+            <Plug className="h-3.5 w-3.5" />
+          </span>
+          <div>
+            <p className="font-semibold text-violet-900">
+              Bạn có máy muốn test?
+            </p>
+            <p className="text-xs text-violet-700">
+              Dùng Mini Tool để quét + benchmark + đẩy thẳng lên bảng xếp hạng.
+            </p>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700">
+          Mở Mini Tool Connect →
+        </span>
+      </Link>
 
       {/* Stats bar */}
       {!loading && rows.length > 0 && (

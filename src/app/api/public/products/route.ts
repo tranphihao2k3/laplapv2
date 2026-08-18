@@ -21,6 +21,11 @@ type ProductRow = {
   brand_id: string | null;
   category_id: string | null;
   tags: string[] | null;
+  rating_avg: number | null;
+  review_count: number | null;
+  sold_count: number | null;
+  is_new: boolean | null;
+  is_hot: boolean | null;
 };
 
 export type PublicProduct = {
@@ -35,6 +40,16 @@ export type PublicProduct = {
   tags: string[];
   specs: Record<string, string>;
   inStock: boolean;
+  /** Rating trung bình 0–5, optional — undefined khi DB chưa có column. */
+  rating?: number;
+  /** Số lượng đánh giá. */
+  reviewCount?: number;
+  /** Số lượng đã bán. */
+  soldCount?: number;
+  /** Badge "Mới về". */
+  isNew?: boolean;
+  /** Badge "Hot". */
+  isHot?: boolean;
 };
 
 const SORTS = ["newest", "price_asc", "price_desc", "name_asc"] as const;
@@ -121,19 +136,56 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    let items: PublicProduct[] = products.map((p) => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug ?? p.id,
-      image: p.thumbnail_url ?? undefined,
-      price: minPrice_.get(p.id) ?? 0,
-      createdAt: p.created_at,
-      brandId: p.brand_id,
-      categoryId: p.category_id,
-      tags: keepValidNeedTags(p.tags),
-      specs: specsByProduct.get(p.id) ?? {},
-      inStock: (stockByProduct.get(p.id) ?? 0) > 0,
-    }));
+    // Engagement (rating/sold_count/is_new/is_hot) — query riêng và best-effort.
+    // Nếu DB chưa có column (chưa apply 026) thì trả về map rỗng → V2 vẫn
+    // render OK với các field optional bị ẩn.
+    type EngagementRow = {
+      id: string;
+      rating_avg: number | null;
+      review_count: number | null;
+      sold_count: number | null;
+      is_new: boolean | null;
+      is_hot: boolean | null;
+    };
+    const engagementByProduct = new Map<string, EngagementRow>();
+    try {
+      const { data: rawEngagement, error: engagementError } = await supabase
+        .from("products")
+        .select("id,rating_avg,review_count,sold_count,is_new,is_hot")
+        .in("id", ids);
+      if (!engagementError && rawEngagement) {
+        for (const row of rawEngagement as EngagementRow[]) {
+          engagementByProduct.set(row.id, row);
+        }
+      }
+    } catch {
+      // Column chưa tồn tại → bỏ qua, V2 sẽ ẩn phần rating/sold.
+    }
+
+    let items: PublicProduct[] = products.map((p) => {
+      const eng = engagementByProduct.get(p.id);
+      const item: PublicProduct = {
+        id: p.id,
+        name: p.name,
+        slug: p.slug ?? p.id,
+        image: p.thumbnail_url ?? undefined,
+        price: minPrice_.get(p.id) ?? 0,
+        createdAt: p.created_at,
+        brandId: p.brand_id,
+        categoryId: p.category_id,
+        tags: keepValidNeedTags(p.tags),
+        specs: specsByProduct.get(p.id) ?? {},
+        inStock: (stockByProduct.get(p.id) ?? 0) > 0,
+      };
+      if (eng) {
+        if (typeof eng.rating_avg === "number") item.rating = eng.rating_avg;
+        if (typeof eng.review_count === "number") item.reviewCount = eng.review_count;
+        if (typeof eng.sold_count === "number") item.soldCount = eng.sold_count;
+        if (eng.is_new) item.isNew = true;
+        if (eng.is_hot) item.isHot = true;
+      }
+      return item;
+    });
 
     if (minPrice > 0) items = items.filter((i) => i.price >= minPrice);
     if (maxPrice > 0) items = items.filter((i) => i.price <= maxPrice);
