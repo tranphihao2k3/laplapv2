@@ -1,21 +1,19 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { RepairServiceRow } from "@/types/database";
 
-export type PublicRepairService = Pick<
-  RepairServiceRow,
-  | "id"
-  | "category"
-  | "name"
-  | "slug"
-  | "description"
-  | "price_type"
-  | "price_min"
-  | "price_max"
-  | "unit"
-  | "warranty_text"
-  | "is_featured"
->;
+export type PublicRepairService = {
+  id: string;
+  category: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  price_type: "fixed" | "range" | "contact";
+  price_min: number | null;
+  price_max: number | null;
+  unit: string | null;
+  warranty_text: string | null;
+  is_featured: boolean;
+};
 
 export async function GET() {
   try {

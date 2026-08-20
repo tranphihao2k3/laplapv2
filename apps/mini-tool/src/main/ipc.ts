@@ -1,12 +1,12 @@
 import { ipcMain, dialog, shell, app, BrowserWindow } from "electron";
 import path from "node:path";
-import { collectHardware } from "./hardware";
-import { runPwsh } from "./powershell";
+import { runPwshCommand, runPwshScript } from "./powershell";
 import { sign, getSecretFingerprint } from "./crypto";
 import { getStoredSession, setStoredSession, clearStoredSession } from "./session";
 import { buildUploadPayload, uploadToServer } from "./upload";
 import { readClipboardText } from "./clipboard";
 import { detectFurmark } from "./benchmark";
+import { streamHardware } from "./hardware";
 import { z } from "zod";
 
 const OptimizeArgs = z.object({
@@ -33,14 +33,39 @@ const SessionImportArgs = z.object({
   expiresAt: z.string().optional(),
 });
 
+// Hardware streaming: start → main process gọi PowerShell stream → mỗi phần xong
+// sẽ `webContents.send("lap:hardware:part", part)`. Renderer subscribe qua preload.
+// Track handle để có thể stop (chưa dùng ngoài UI refresh).
+const hardwareHandles = new Map<number, { stop: () => void }>();
+
 export function registerIpcHandlers(): void {
-  ipcMain.handle("lap:hardware:collect", async () => {
-    try {
-      const data = await collectHardware();
-      return { ok: true, data };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
+  ipcMain.handle("lap:hardware:collect", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const webContents = win?.webContents ?? event.sender;
+    const channel = "lap:hardware:part";
+    // Stop stream cũ nếu có (refresh liên tục).
+    const prev = hardwareHandles.get(webContents.id);
+    if (prev) prev.stop();
+    const handle = streamHardware((part) => {
+      if (webContents.isDestroyed()) return;
+      webContents.send(channel, part);
+      if (part.key === "__done__" || (part.key === "__error__" && !part.ok)) {
+        hardwareHandles.delete(webContents.id);
+      }
+    });
+    hardwareHandles.set(webContents.id, handle);
+    return { ok: true, data: { started: true } };
+  });
+
+  ipcMain.handle("lap:hardware:cancel", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const webContents = win?.webContents ?? event.sender;
+    const prev = hardwareHandles.get(webContents.id);
+    if (prev) {
+      prev.stop();
+      hardwareHandles.delete(webContents.id);
     }
+    return { ok: true };
   });
 
   ipcMain.handle("lap:bench:furmark:detect", async () => {
@@ -57,9 +82,9 @@ export function registerIpcHandlers(): void {
       if (typeof exePath !== "string" || !exePath) {
         throw new Error("Missing exePath");
       }
-      const result = await runPwsh(
-        path.join(process.resourcesPath, "scripts", "launch-furmark.ps1"),
-        [exePath],
+      const escaped = exePath.replace(/'/g, "''");
+      const result = await runPwshCommand(
+        `Start-Process '${escaped}' -Verb RunAs`,
         5000,
       );
       return { ok: true, data: result };
@@ -84,7 +109,7 @@ export function registerIpcHandlers(): void {
       const psArgs: string[] = [];
       if (parsed.data.newName) psArgs.push(parsed.data.newName);
       if (parsed.data.wallpaperPath) psArgs.push(parsed.data.wallpaperPath);
-      const result = await runPwsh(
+      const result = await runPwshScript(
         path.join(process.resourcesPath, "scripts", script),
         psArgs,
         30_000,
@@ -97,7 +122,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle("lap:optimize:clean-temp", async () => {
     try {
-      const result = await runPwsh(
+      const result = await runPwshScript(
         path.join(process.resourcesPath, "scripts", "clean-temp.ps1"),
         [],
         30_000,
@@ -110,7 +135,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle("lap:optimize:disable-bitlocker", async () => {
     try {
-      const result = await runPwsh(
+      const result = await runPwshScript(
         path.join(process.resourcesPath, "scripts", "disable-bitlocker.ps1"),
         [],
         30_000,
@@ -126,7 +151,7 @@ export function registerIpcHandlers(): void {
       if (typeof newName !== "string" || !newName) {
         throw new Error("Missing newName");
       }
-      const result = await runPwsh(
+      const result = await runPwshScript(
         path.join(process.resourcesPath, "scripts", "rename-pc.ps1"),
         [newName],
         30_000,
@@ -144,7 +169,7 @@ export function registerIpcHandlers(): void {
         if (typeof filePath !== "string" || !filePath) {
           throw new Error("Missing filePath");
         }
-        const result = await runPwsh(
+        const result = await runPwshScript(
           path.join(process.resourcesPath, "scripts", "set-wallpaper.ps1"),
           [filePath],
           15_000,

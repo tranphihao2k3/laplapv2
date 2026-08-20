@@ -36,11 +36,13 @@ import {
   useCrudUpdate,
   useCrudDelete,
 } from "@/lib/api/admin-crud";
-import type { RepairServiceRow, RepairServicePriceType } from "@/types/database";
 import {
   REPAIR_SERVICE_CATEGORIES,
   PRICE_TYPE_OPTIONS,
   formatServicePrice,
+  type RepairServiceRow,
+  type RepairServicePriceType,
+  type RepairServicePriceType as RPT,
 } from "@/lib/repair-services";
 
 type FormData = {
@@ -131,7 +133,7 @@ export default function RepairServicesAdminPage() {
       category: s.category,
       name: s.name,
       description: s.description ?? "",
-      price_type: s.price_type,
+      price_type: s.price_type as RepairServicePriceType,
       price_min: s.price_min != null ? String(s.price_min) : "",
       price_max: s.price_max != null ? String(s.price_max) : "",
       unit: s.unit ?? "",
@@ -455,7 +457,7 @@ export default function RepairServicesAdminPage() {
                 <span className="text-muted-foreground">Xem trước: </span>
                 <span className="font-semibold text-primary">
                   {formatServicePrice({
-                    price_type: form.price_type,
+                    price_type: form.price_type as RPT,
                     price_min: form.price_min ? Number(form.price_min.replace(/\D/g, "")) : null,
                     price_max: form.price_max ? Number(form.price_max.replace(/\D/g, "")) : null,
                     unit: form.unit.trim() || null,

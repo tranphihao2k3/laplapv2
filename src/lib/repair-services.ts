@@ -2,7 +2,27 @@
  * Hằng số dùng chung cho dịch vụ sửa chữa (bảng giá).
  * Dùng ở: validator (kiểm slug hợp lệ), trang admin, trang client, API public.
  */
-import type { RepairServicePriceType, RepairServiceRow } from "@/types/database";
+
+export type RepairServicePriceType = "fixed" | "from" | "range" | "contact";
+
+export type RepairServiceRow = {
+  category: string;
+  created_at: string | null;
+  description: string | null;
+  id: string;
+  is_active: boolean;
+  is_featured: boolean;
+  name: string;
+  organization_id: string | null;
+  position: number;
+  price_max: number | null;
+  price_min: number | null;
+  price_type: string;
+  slug: string | null;
+  unit: string | null;
+  updated_at: string | null;
+  warranty_text: string | null;
+};
 
 export type RepairServiceCategory = {
   slug: string;
@@ -60,7 +80,8 @@ export function formatServicePrice(
   s: Pick<RepairServiceRow, "price_type" | "price_min" | "price_max" | "unit">,
 ): string {
   const unit = s.unit ? ` ${s.unit}` : "";
-  switch (s.price_type) {
+  const priceType = s.price_type as RepairServicePriceType | string;
+  switch (priceType) {
     case "contact":
       return "Liên hệ";
     case "range":

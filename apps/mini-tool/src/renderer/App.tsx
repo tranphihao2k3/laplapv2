@@ -20,6 +20,34 @@ import { OptimizeTab } from "@/pages/OptimizeTab";
 import { TestTab } from "@/pages/TestTab";
 import { UploadTab } from "@/pages/UploadTab";
 
+interface ErrorBoundaryState {
+  error: Error | null;
+}
+
+class TabErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("[TabErrorBoundary]", error);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+          <p className="font-semibold">Đã xảy ra lỗi:</p>
+          <pre className="mt-2 whitespace-pre-wrap text-xs">{this.state.error.message}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function App() {
   const [appVersion, setAppVersion] = React.useState("0.1.0");
 
@@ -65,7 +93,9 @@ export function App() {
                 <ConnectTab />
               </TabsContent>
               <TabsContent value="hardware">
-                <HardwareTab />
+                <TabErrorBoundary>
+                  <HardwareTab />
+                </TabErrorBoundary>
               </TabsContent>
               <TabsContent value="benchmark">
                 <BenchmarkTab />

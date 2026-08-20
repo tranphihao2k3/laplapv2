@@ -9,18 +9,100 @@ export interface IpcResult<T> {
 }
 
 export interface CollectedHardware {
-  cpu: unknown | null;
-  memory: unknown | null;
-  diskLayout: unknown[] | null;
-  graphics: unknown | null;
-  system: unknown | null;
-  battery: unknown | null;
-  osInfo: unknown | null;
-  networkInterfaces: unknown[] | null;
-  baseboard: unknown | null;
-  bios: unknown | null;
+  cpu: {
+    name: string | null;
+    manufacturer: string | null;
+    cores: number | null;
+    threads: number | null;
+    baseGhz: number | null;
+    socket: string | null;
+  } | null;
+  memory: {
+    totalBytes: number | null;
+    usedBytes: number | null;
+    freeBytes: number | null;
+    slots: number | null;
+    platformMaxMhz: number | null;
+    platformCpuName: string | null;
+    modules: Array<{
+      sizeBytes: number | null;
+      speedMhz: number | null;
+      configuredMhz: number | null;
+      smbiosSpeedMhz: number | null;
+      platformMaxMhz: number | null;
+      type: string | null;
+      generation: string | null;
+      manufacturer: string | null;
+      slot: string | null;
+    }>;
+  } | null;
+  disks: Array<{
+    name: string | null;
+    model: string | null;
+    type: string | null;
+    capacityGb: number | null;
+    mediaType: string | null;
+    interfaceType: string | null;
+    pnpDeviceId: string | null;
+  }>;
+  gpu: Array<{
+    name: string | null;
+    driverVersion: string | null;
+    vramMb: number | null;
+  }>;
+  mainboard: {
+    manufacturer: string | null;
+    product: string | null;
+    serial: string | null;
+    version: string | null;
+  } | null;
+  bios: {
+    manufacturer: string | null;
+    version: string | null;
+    releaseDate: string | null;
+    smbiosVersion: string | null;
+  } | null;
+  battery: {
+    name: string | null;
+    status: string | null;
+    chemistry: string | null;
+    designCapacityMwh: number | null;
+    fullChargeCapacityMwh: number | null;
+    healthPct: number | null;
+    voltageMv: number | null;
+  } | null;
+  os: {
+    caption: string | null;
+    version: string | null;
+    build: string | null;
+    arch: string | null;
+    hostname: string | null;
+    serial: string | null;
+    activated: boolean | null;
+  } | null;
+  network: Array<{
+    name: string | null;
+    mac: string | null;
+    ipv4: string[];
+    ipv6: string[];
+    speedMbps: number | null;
+  }>;
   collectedAt: string;
+  source: "powershell";
 }
+
+export type HardwarePart =
+  | { key: "cpu"; ok: true; data: CollectedHardware["cpu"]; ts: number }
+  | { key: "memory"; ok: true; data: CollectedHardware["memory"]; ts: number }
+  | { key: "disks"; ok: true; data: CollectedHardware["disks"]; ts: number }
+  | { key: "gpu"; ok: true; data: CollectedHardware["gpu"]; ts: number }
+  | { key: "mainboard"; ok: true; data: CollectedHardware["mainboard"]; ts: number }
+  | { key: "bios"; ok: true; data: CollectedHardware["bios"]; ts: number }
+  | { key: "battery"; ok: true; data: CollectedHardware["battery"]; ts: number }
+  | { key: "os"; ok: true; data: CollectedHardware["os"]; ts: number }
+  | { key: "network"; ok: true; data: CollectedHardware["network"]; ts: number }
+  | { key: "__done__"; ok: true; ts: number }
+  | { key: string; ok: false; error: string; ts: number };
 
 export interface FurmarkDetectResult {
   found: boolean;
@@ -52,7 +134,9 @@ export interface UploadStatusData {
 
 export interface LapApi {
   hardware: {
-    collect: () => Promise<IpcResult<CollectedHardware>>;
+    collect: () => Promise<IpcResult<{ started: boolean }>>;
+    cancel: () => Promise<IpcResult<boolean>>;
+    onPart: (cb: (part: HardwarePart) => void) => () => void;
   };
   bench: {
     furmarkDetect: () => Promise<IpcResult<FurmarkDetectResult>>;

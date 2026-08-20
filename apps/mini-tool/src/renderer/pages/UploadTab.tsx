@@ -39,8 +39,8 @@ export function UploadTab() {
       capturedAt: new Date().toISOString(),
       device: {
         deviceId: window.lap.platform,
-        deviceName: (hardware?.osInfo as { hostname?: string } | null)?.hostname ?? "",
-        os: hardware?.osInfo,
+        deviceName: (hardware?.os as { hostname?: string } | null)?.hostname ?? "",
+        os: hardware?.os,
       },
       hardware: hardware ?? undefined,
       benchmark: benchmark ?? undefined,
@@ -139,7 +139,7 @@ export function UploadTab() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Session" value={summary.hasSession ? "Sẵn sàng" : "Thiếu"} ok={summary.hasSession} />
-            <Stat label="Phần cứng" value={summary.hasHardware ? `${(hardware?.diskLayout ?? []).length ?? 0} ổ` : "Thiếu"} ok={summary.hasHardware} />
+            <Stat label="Phần cứng" value={summary.hasHardware ? `${(hardware?.disks ?? []).length ?? 0} ổ` : "Thiếu"} ok={summary.hasHardware} />
             <Stat label="Benchmark" value={summary.hasBenchmark ? `${benchmark?.score} điểm` : "Chưa có"} ok={summary.hasBenchmark} />
             <Stat label="Tests" value={`${summary.passCount} OK / ${summary.failCount} lỗi`} ok={summary.testCount > 0} />
           </div>

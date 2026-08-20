@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type {
   IpcResult,
   CollectedHardware,
+  HardwarePart,
   FurmarkDetectResult,
   PwshResult,
   StoredSession,
@@ -12,7 +13,14 @@ const invoke = <T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> =
 
 const lap = {
   hardware: {
-    collect: () => invoke<CollectedHardware>("lap:hardware:collect"),
+    collect: () =>
+      invoke<{ started: boolean }>("lap:hardware:collect"),
+    cancel: () => invoke<boolean>("lap:hardware:cancel"),
+    onPart: (cb: (part: HardwarePart) => void) => {
+      const handler = (_evt: unknown, part: HardwarePart) => cb(part);
+      ipcRenderer.on("lap:hardware:part", handler);
+      return () => ipcRenderer.off("lap:hardware:part", handler);
+    },
   },
   bench: {
     furmarkDetect: () => invoke<FurmarkDetectResult>("lap:bench:furmark:detect"),

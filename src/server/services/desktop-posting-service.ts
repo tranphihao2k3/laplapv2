@@ -17,9 +17,10 @@ import { Errors, rangeOf, type Paginated } from "@/lib/api/response";
 import { requirePermissionFromRequest } from "@/lib/api/guard";
 import type { AuthContext } from "@/lib/api/guard";
 import { env } from "@/lib/env";
-import type { ProductRow } from "@/types/database";
 
 type AnySupabase = AuthContext["supabase"];
+
+export type ProductStatus = string | null;
 
 /* ───────────────────── List ───────────────────── */
 
@@ -29,7 +30,7 @@ export type PublishingProduct = {
   slug: string | null;
   shortDescription: string | null;
   thumbnailUrl: string | null;
-  status: ProductRow["status"];
+  status: ProductStatus;
   updatedAt: string | null;
   variantsCount: number;
   inStock: boolean;
@@ -48,7 +49,7 @@ type PublishingProductRow = {
   slug: string | null;
   short_description: string | null;
   thumbnail_url: string | null;
-  status: ProductRow["status"];
+  status: ProductStatus;
   updated_at: string | null;
 };
 

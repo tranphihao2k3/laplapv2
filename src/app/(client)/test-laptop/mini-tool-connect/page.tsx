@@ -19,6 +19,8 @@ import {
   ArrowLeft,
   ArrowRight,
   ExternalLink,
+  Plus,
+  Copy,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -226,6 +228,9 @@ export default function MiniToolConnectPage() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [createdSid, setCreatedSid] = useState<string | null>(null);
+
   const [jsonInput, setJsonInput] = useState("");
   const [parsedPayload, setParsedPayload] = useState<Record<string, unknown> | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -269,6 +274,50 @@ export default function MiniToolConnectPage() {
     const extracted = extractSid(value);
     setSid(extracted ? extracted : null);
   }, []);
+
+  const handleCreateSession = useCallback(async () => {
+    setCreatingSession(true);
+    setSessionError(null);
+    setCreatedSid(null);
+    try {
+      const res = await fetch("/api/v1/mini-tool/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          redirectAfterUpload: "/test-laptop/ranking",
+        }),
+      });
+      const json = (await res.json()) as
+        | { ok: true; data: { sessionId: string; verifyUrl: string; uploadUrl: string; webUrl: string; expiresAt: string; ttlSeconds: number } }
+        | { ok: false; error: { code?: string; message: string } };
+      if (!res.ok || !("ok" in json) || !json.ok) {
+        const msg = (json && "error" in json && json.error?.message) || `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      const sidValue = json.data.sessionId;
+      setCreatedSid(sidValue);
+      setPasted(sidValue);
+      setSid(sidValue);
+      toast.success("Đã tạo session. Copy URL bên dưới rồi dán vào Mini Tool.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Không tạo được session";
+      setSessionError(msg);
+      toast.error("Tạo session thất bại: " + msg);
+    } finally {
+      setCreatingSession(false);
+    }
+  }, []);
+
+  const handleCopyCreatedSid = useCallback(async () => {
+    if (!createdSid) return;
+    try {
+      const url = `${window.location.origin}/api/v1/mini-tool/session?sid=${createdSid}`;
+      await navigator.clipboard.writeText(url);
+      toast.success("Đã copy URL session vào clipboard.");
+    } catch {
+      toast.error("Không copy được vào clipboard.");
+    }
+  }, [createdSid]);
 
   const verifySession = useCallback(async (sidToCheck: string) => {
     setConnecting(true);
@@ -481,6 +530,67 @@ export default function MiniToolConnectPage() {
           Dán session URL/ID từ Mini Tool, sau đó dán JSON kết quả để đẩy lên bảng xếp hạng.
         </p>
       </div>
+
+      {/* Bước 0 — Tạo phiên (server-side) */}
+      <Section className="mb-5 border-violet-200 bg-violet-50/30">
+        <SectionHeader
+          icon={Plus}
+          title="Tạo phiên kết nối"
+          badge={
+            createdSid ? (
+              <Badge variant="outline" className="border-green-200 text-[10px] text-green-700">
+                SID: {createdSid.slice(0, 8)}…
+              </Badge>
+            ) : null
+          }
+          tone="violet"
+        />
+        <p className="text-xs text-muted-foreground">
+          Bấm nút dưới để tạo mã session mới (hết hạn sau 2 giờ). Copy URL
+          và dán vào Mini Tool, hoặc dùng nút trong Mini Tool để kết nối.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            onClick={handleCreateSession}
+            disabled={creatingSession}
+            className="gap-2"
+          >
+            {creatingSession ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Đang tạo…
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                Tạo phiên kết nối
+              </>
+            )}
+          </Button>
+          {createdSid && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCopyCreatedSid}
+              className="gap-2"
+            >
+              <Copy className="h-4 w-4" />
+              Copy URL session
+            </Button>
+          )}
+        </div>
+        {createdSid && (
+          <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
+              URL session (paste vào Mini Tool)
+            </p>
+            <p className="mt-1 break-all font-mono text-[11px] text-zinc-800">
+              {`${typeof window !== "undefined" ? window.location.origin : ""}/api/v1/mini-tool/session?sid=${createdSid}`}
+            </p>
+          </div>
+        )}
+      </Section>
 
       {/* Step progress */}
       <div className="mb-6 flex items-center gap-2 overflow-x-auto">

@@ -44,6 +44,7 @@ interface OptimizeAction {
 }
 
 interface ActionState {
+  _id: string;
   isLoading: boolean;
   setLoading: (v: boolean) => void;
 }
@@ -52,8 +53,13 @@ function runPwshAction(
   state: ActionState,
   promise: () => Promise<{ ok: boolean; error?: string }>,
   onSuccess?: (msg: string) => void,
+  setLoading?: (id: string, v: boolean) => void,
 ): Promise<void> {
-  state.setLoading(true);
+  if (setLoading) {
+    setLoading(state._id, true);
+  } else {
+    state.setLoading(true);
+  }
   return promise()
     .then((res) => {
       if (res.ok) {
@@ -64,10 +70,16 @@ function runPwshAction(
       }
     })
     .catch((err: Error) => toast.error(err.message))
-    .finally(() => state.setLoading(false)) as unknown as Promise<void>;
+    .finally(() => {
+      if (setLoading) {
+        setLoading(state._id, false);
+      } else {
+        state.setLoading(false);
+      }
+    }) as unknown as Promise<void>;
 }
 
-function buildAction(state: ActionState): OptimizeAction[] {
+function buildAction(setLoading: (id: string, v: boolean) => void): OptimizeAction[] {
   return [
     {
       id: "clean-temp",
@@ -75,7 +87,7 @@ function buildAction(state: ActionState): OptimizeAction[] {
       description:
         "Xoá file tạm trong %TEMP%, %LOCALAPPDATA%\\Temp, C:\\Windows\\Temp và C:\\Windows\\Prefetch.",
       icon: <Trash2 className="h-4 w-4" />,
-      run: () =>
+      run: (state) =>
         runPwshAction(
           state,
           async () => {
@@ -85,6 +97,7 @@ function buildAction(state: ActionState): OptimizeAction[] {
               : { ok: false, error: res.error ?? "Lỗi không xác định" };
           },
           () => "Đã dọn file tạm",
+          setLoading,
         ),
     },
     {
@@ -127,7 +140,7 @@ function buildAction(state: ActionState): OptimizeAction[] {
         "Giải mã ổ C: — cần quyền admin. Có thể mất nhiều giờ tuỳ dung lượng ổ.",
       icon: <ShieldOff className="h-4 w-4" />,
       dangerous: true,
-      run: () =>
+      run: (state) =>
         runPwshAction(
           state,
           async () => {
@@ -137,6 +150,7 @@ function buildAction(state: ActionState): OptimizeAction[] {
               : { ok: false, error: res.error ?? "Lỗi không xác định" };
           },
           () => "Đã yêu cầu tắt BitLocker (chạy nền)",
+          setLoading,
         ),
     },
     {
@@ -146,7 +160,7 @@ function buildAction(state: ActionState): OptimizeAction[] {
       icon: <PencilLine className="h-4 w-4" />,
       dangerous: true,
       renderTrigger: (s) => <RenamePcTrigger loading={s.isLoading} />,
-      run: () =>
+      run: (state) =>
         runPwshAction(
           state,
           async () => {
@@ -162,6 +176,7 @@ function buildAction(state: ActionState): OptimizeAction[] {
               : { ok: false, error: res.error ?? "Lỗi không xác định" };
           },
           () => "Đã đổi tên máy (khởi động lại để áp dụng)",
+          setLoading,
         ),
     },
     {
@@ -171,7 +186,7 @@ function buildAction(state: ActionState): OptimizeAction[] {
       icon: <ImageIcon className="h-4 w-4" />,
       dangerous: true,
       renderTrigger: (s) => <SetWallpaperTrigger loading={s.isLoading} />,
-      run: () =>
+      run: (state) =>
         runPwshAction(
           state,
           async () => {
@@ -187,6 +202,7 @@ function buildAction(state: ActionState): OptimizeAction[] {
               : { ok: false, error: res.error ?? "Lỗi không xác định" };
           },
           () => "Đã đổi hình nền",
+          setLoading,
         ),
     },
   ];
@@ -319,7 +335,12 @@ function ConfirmActionButton({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Huỷ</AlertDialogCancel>
-          <AlertDialogAction onClick={() => void action.run(state)}>
+          <AlertDialogAction
+            onClick={() => {
+              state.setLoading(true);
+              void action.run(state);
+            }}
+          >
             Xác nhận
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -330,23 +351,18 @@ function ConfirmActionButton({
 
 export function OptimizeTab() {
   const { ktvMode } = useSessionStore();
-  const [loadingId, setLoadingId] = React.useState<string | null>(null);
-  const stateRef = React.useRef<ActionState>({
-    isLoading: false,
-    setLoading: (v: boolean) => setLoadingId(v ? loadingId : null),
-  });
+  const [loadingSet, setLoadingSet] = React.useState<Set<string>>(new Set());
 
-  // Keep the ref in sync with latest loadingId
-  React.useEffect(() => {
-    stateRef.current = {
-      get isLoading() {
-        return loadingId !== null;
-      },
-      setLoading: (v: boolean) => setLoadingId(v ? loadingId : null),
-    };
-  }, [loadingId]);
+  const setLoading = React.useCallback((id: string, v: boolean) => {
+    setLoadingSet((prev) => {
+      const next = new Set(prev);
+      if (v) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
 
-  const actions = React.useMemo(() => buildAction(stateRef.current), [loadingId]);
+  const actions = React.useMemo(() => buildAction({ setLoading }), [setLoading]);
 
   return (
     <div className="space-y-5">
@@ -366,11 +382,8 @@ export function OptimizeTab() {
         {actions.map((action) => {
           const visible = !action.notImplemented || ktvMode;
           if (!visible) return null;
-          const isLoading = loadingId === action.id;
-          const state: ActionState = {
-            isLoading,
-            setLoading: (v: boolean) => setLoadingId(v ? action.id : null),
-          };
+          const isLoading = loadingSet.has(action.id);
+          const state: ActionState = { _id: action.id, isLoading, setLoading: (v) => setLoading(action.id, v) };
           return (
             <Card key={action.id} className="flex flex-col">
               <CardHeader className="space-y-1">

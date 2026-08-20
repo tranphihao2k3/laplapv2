@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Play, Pause, Loader2, CheckCircle2, XCircle, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, Loader2, CheckCircle2, XCircle, Volume2, VolumeX, Speaker } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,14 +19,99 @@ interface Song {
 
 const FALLBACK_SONGS: Song[] = [
   {
-    id: "fallback-1",
-    title: "Test Tone 440Hz (mặc định)",
-    artist: null,
-    file_url:
-      "data:audio/wav;base64,UklGRiQFAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YVgFAAB+f8CBAYH/gQGBgP+BgYGAP4GBgYA/gYGBgD+BgYGAP4GBgYB",
-    duration_seconds: 1,
+    id: "tone-440",
+    title: "Test Tone 440Hz",
+    artist: "LapLap Tool",
+    file_url: "generate:440",
+    duration_seconds: 3,
+  },
+  {
+    id: "tone-880",
+    title: "Test Tone 880Hz",
+    artist: "LapLap Tool",
+    file_url: "generate:880",
+    duration_seconds: 3,
+  },
+  {
+    id: "chirp",
+    title: "Chirp Test (20Hz-20kHz)",
+    artist: "LapLap Tool",
+    file_url: "generate:chirp",
+    duration_seconds: 5,
   },
 ];
+
+function generateTestTone(frequency: number, durationSec = 3, sampleRate = 44100): string {
+  const numSamples = sampleRate * durationSec;
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, numSamples * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const envelope = Math.min(1, t * 10) * Math.min(1, (durationSec - t) * 10);
+    const sample = Math.sin(2 * Math.PI * frequency * t) * envelope * 0.8;
+    view.setInt16(offset, Math.round(sample * 32767), true);
+    offset += 2;
+  }
+
+  const blob = new Blob([buffer], { type: "audio/wav" });
+  return URL.createObjectURL(blob);
+}
+
+function generateChirp(durationSec = 5, sampleRate = 44100): string {
+  const numSamples = sampleRate * durationSec;
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, numSamples * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const ratio = t / durationSec;
+    const freq = 20 + (20000 - 20) * ratio;
+    const envelope = Math.min(1, t * 5) * Math.min(1, (durationSec - t) * 5);
+    const sample = Math.sin(2 * Math.PI * freq * t) * envelope * 0.6;
+    view.setInt16(offset, Math.round(sample * 32767), true);
+    offset += 2;
+  }
+
+  const blob = new Blob([buffer], { type: "audio/wav" });
+  return URL.createObjectURL(blob);
+}
 
 export function SpeakerTester() {
   const { upsertTest } = useSessionStore();
@@ -49,9 +134,13 @@ export function SpeakerTester() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { data?: { items?: Song[] } };
         const items = json.data?.items ?? [];
-        setSongs(items.length > 0 ? items : FALLBACK_SONGS);
-      } catch (err) {
-        setError("Không tải được danh sách bài test. Sử dụng bài mặc định.");
+        if (items.length > 0) {
+          setSongs(items);
+        } else {
+          setSongs(FALLBACK_SONGS);
+        }
+      } catch {
+        setError("Không tải được danh sách bài test. Dùng bài mặc định.");
         setSongs(FALLBACK_SONGS);
       } finally {
         setLoadingSongs(false);
@@ -66,19 +155,44 @@ export function SpeakerTester() {
     };
   }, []);
 
+  const getAudioSrc = (song: Song): string => {
+    if (song.file_url.startsWith("generate:")) {
+      const type = song.file_url.replace("generate:", "");
+      if (type === "440") return generateTestTone(440, 3);
+      if (type === "880") return generateTestTone(880, 3);
+      if (type === "chirp") return generateChirp(5);
+      return generateTestTone(440, 3);
+    }
+    return song.file_url;
+  };
+
   const handleTogglePlay = async () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !songs[currentIdx]) return;
     try {
       if (playing) {
         audio.pause();
         setPlaying(false);
       } else {
+        const src = getAudioSrc(songs[currentIdx]);
+        if (audio.src !== src && src.startsWith("blob:")) {
+          audio.src = src;
+          audio.load();
+        }
         await audio.play();
         setPlaying(true);
       }
     } catch (err) {
       toast.error((err as Error).message);
+    }
+  };
+
+  const handleSelect = (idx: number) => {
+    setCurrentIdx(idx);
+    setPlaying(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
   };
 
@@ -95,6 +209,9 @@ export function SpeakerTester() {
     );
   };
 
+  const passCount = Object.values(results).filter((v) => v === "pass").length;
+  const failCount = Object.values(results).filter((v) => v === "fail").length;
+
   return (
     <Card>
       <CardHeader>
@@ -103,7 +220,7 @@ export function SpeakerTester() {
           Test loa
         </CardTitle>
         <CardDescription>
-          Phát từng bài và đánh dấu nghe rõ / có vấn đề. Kết quả sẽ được lưu vào bản upload.
+          Phát từng bài và đánh dấu nghe rõ / có vấn đề. Dùng bài mặc định nếu API không tải được.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -136,10 +253,7 @@ export function SpeakerTester() {
                 <Button
                   size="sm"
                   variant={currentIdx === i && playing ? "default" : "outline"}
-                  onClick={() => {
-                    setCurrentIdx(i);
-                    setPlaying(false);
-                  }}
+                  onClick={() => handleSelect(i)}
                 >
                   {currentIdx === i && playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   {currentIdx === i && playing ? "Đang phát" : "Chọn"}
@@ -173,7 +287,7 @@ export function SpeakerTester() {
         {songs[currentIdx] ? (
           <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
             <Button onClick={handleTogglePlay} disabled={!songs[currentIdx]}>
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {playing ? <Pause className="h-4 w-4" /> : <Speaker className="h-4 w-4" />}
               {playing ? "Tạm dừng" : "Phát"}
             </Button>
             <div className="min-w-0 flex-1">
@@ -186,14 +300,19 @@ export function SpeakerTester() {
             </div>
             <audio
               ref={audioRef}
-              src={songs[currentIdx].file_url}
               preload="metadata"
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
               onEnded={() => setPlaying(false)}
-              controls
-              className="h-8 max-w-[240px]"
+              className="hidden"
             />
+          </div>
+        ) : null}
+
+        {passCount > 0 || failCount > 0 ? (
+          <div className="flex items-center gap-3 text-xs">
+            <Badge variant="secondary">{passCount} OK</Badge>
+            <Badge variant="destructive">{failCount} lỗi</Badge>
           </div>
         ) : null}
 
