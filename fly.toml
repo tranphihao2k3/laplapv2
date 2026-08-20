@@ -1,9 +1,13 @@
-# fly.toml — Fly.io configuration for laplapv2
-app = "laplapv2"
-primary_region = "sin"
+# fly.toml app configuration file generated for laplapv2 on 2026-08-17T12:46:55Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'laplapv2'
+primary_region = 'sin'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [deploy]
   release_command = "node -e \"console.log('Release OK')\""
@@ -33,29 +37,26 @@ primary_region = "sin"
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = false
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
 
   [http_service.concurrency]
-    type = "connections"
+    type = 'connections'
     hard_limit = 200
     soft_limit = 180
 
   [[http_service.checks]]
-    grace_period = "10s"
-    interval = "15s"
-    method = "GET"
-    timeout = "5s"
-    path = "/"
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '20s'
+    method = 'GET'
+    path = '/api/health'
+    protocol = 'http'
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+  size = 'shared-cpu-1x'
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
-  cpu_kind = "shared"
-
-# Persistent volume cho Supabase uploads (optional)
-# [[mounts]]
-#   source = "laplap_data"
-#   destination = "/data"
+  memory_mb = 512
