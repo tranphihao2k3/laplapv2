@@ -16,7 +16,7 @@ import { useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate, useMyShops } 
 import { createClient } from "@/lib/supabase/client";
 import { buildCategoryTree, findTemplateForCategory, getAncestors } from "@/lib/category-tree";
 import { GiftProductPicker, type GiftProductLite } from "@/components/admin/gift-product-picker";
-import { AIPasteBox, type ParseSuggestions } from "@/components/admin/ai-paste-box";
+import { AIPasteBox, type ParseSuggestions, type ParseResult } from "@/components/admin/ai-paste-box";
 import { Section } from "@/components/ui/section";
 import { ConfirmDeleteDialog } from "@/components/admin/confirm-delete-dialog";
 
@@ -395,7 +395,11 @@ export default function ProductsAdminPage() {
     setOpen(true);
   };
 
-  const applyAISuggestions = (s: ParseSuggestions) => {
+  const applyAISuggestions = (result: ParseResult, groupIdx: number) => {
+    const group = result.groups[groupIdx];
+    if (!group) return;
+    const s = group.base;
+
     if (s.name) setName(s.name);
     if (s.slug) {
       const existed = activeProducts.some((p) => p.slug === s.slug && p.id !== editingProduct?.id);
@@ -445,21 +449,43 @@ export default function ProductsAdminPage() {
         bao_hanh: prev.bao_hanh || `${s.warranty_months} tháng`,
       }));
     }
-    if (s.selling_price != null && s.selling_price > 0) {
-      setQuickPrice(s.selling_price);
-      if (!editingProduct && variants.length === 0) {
-        const defaultSku = s.name ? slugify(s.name).toUpperCase() : "VAR-DEFAULT";
-        setVariants([
-          {
-            sku: defaultSku,
-            name: "Mặc định",
-            selling_price: s.selling_price,
-            cost_price: Math.round(s.selling_price * 0.85),
-            is_active: true,
-            initial_stock: 1,
-          },
-        ]);
+    // ── Auto-fill variants từ group ──────────────────────────────────────
+    // Group có variant_count > 1 → tạo nhiều variant (mỗi option 1 variant).
+    // Group có 1 phần tử → fallback như cũ: tạo 1 variant "Mặc định" với giá group.
+    if (!editingProduct) {
+      if (group.variant_count > 1 && group.variants.length > 1) {
+        const newVariants = group.variants.map((v) => ({
+          sku: v.sku,
+          name: v.variant_name || "Mặc định",
+          selling_price: v.selling_price ?? 0,
+          cost_price: v.cost_price ?? Math.round((v.selling_price ?? 0) * 0.85),
+          is_active: true,
+          initial_stock: 1,
+        }));
+        setVariants(newVariants);
+        // Giá nhanh = giá variant đầu tiên
+        if (group.variants[0].selling_price != null) {
+          setQuickPrice(group.variants[0].selling_price);
+        }
+      } else if (s.selling_price != null && s.selling_price > 0) {
+        setQuickPrice(s.selling_price);
+        if (variants.length === 0) {
+          const defaultSku = s.name ? slugify(s.name).toUpperCase() : "VAR-DEFAULT";
+          setVariants([
+            {
+              sku: defaultSku,
+              name: "Mặc định",
+              selling_price: s.selling_price,
+              cost_price: Math.round(s.selling_price * 0.85),
+              is_active: true,
+              initial_stock: 1,
+            },
+          ]);
+        }
       }
+    } else if (s.selling_price != null && s.selling_price > 0) {
+      // Edit mode: chỉ update quickPrice, không động đến variants hiện có
+      setQuickPrice(s.selling_price);
     }
     if (s.gift_products?.length) {
       setSelectedGifts((prev) => {

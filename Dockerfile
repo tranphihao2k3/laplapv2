@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# build-rebuild: 2026-08-21T16:13-force-rebuild-for-env
 
 # ─────────────────────────────────────────────────────────────
 # Stage 1: Install dependencies
