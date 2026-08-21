@@ -39,6 +39,37 @@ export const parsedProductSchema = z.object({
 
 export type ParsedProduct = z.infer<typeof parsedProductSchema>;
 
+/**
+ * Schema cho parse NHIỀU sản phẩm (multi-block hoặc multi-option).
+ * Ưu tiên `products` (mảng) — fallback `product` (đơn) để tương thích ngược.
+ */
+export const multiParsedProductSchema = z.object({
+  // Một khối duy nhất (multi-options cho 1 model) hoặc nhiều khối (nhiều sản phẩm).
+  // Đặt cùng `variant_group` cho các option của CÙNG 1 model → server sẽ gộp thành
+  // 1 product cha + nhiều variants.
+  products: z
+    .array(parsedProductSchema)
+    .describe(
+      "Mảng các sản phẩm. Mỗi phần tử là 1 ParsedProduct. " +
+        "QUAN TRỌNG: Nếu text liệt kê NHIỀU CẤU HÌNH của CÙNG 1 model (VD 'Dell 7420: RAM 8GB giá 6tr, RAM 16GB giá 8tr'), " +
+        "trả về NHIỀU phần tử với cùng `variant_group` (cùng brand + model chuẩn hoá). " +
+        "Nếu text liệt kê NHIỀU MODEL khác nhau (VD '1. Dell 7420...\\n2. HP 840 G5...'), " +
+        "mỗi model là 1 phần tử với `variant_group` KHÁC NHAU.",
+    ),
+  variant_group: z
+    .record(z.string(), z.string())
+    .describe(
+      "Map { productIndex (string 0/1/2) → variant_group_id }. " +
+        "Cùng `variant_group_id` cho các option cùng model → server gộp thành variants. " +
+        "Mặc định: mỗi index là group riêng (không gộp). " +
+        "Chỉ đặt cùng group khi text mô tả các option khác nhau của CÙNG 1 model (khác RAM/SSD/màu). " +
+        "variant_group_id nên là brand+model viết thường không dấu, VD 'dell-latitude-7420', 'hp-elitebook-840-g5'.",
+    ),
+});
+
+export type MultiParsedProduct = z.infer<typeof multiParsedProductSchema>;
+export type VariantGroupMap = Record<string, string>;
+
 export type AIProvider = "gemini" | "openai";
 
 export type SpecTemplateForAI = {
@@ -155,6 +186,19 @@ ${NEED_TAGS.map((t) => `  • ${t.slug}: ${t.aiHint}`).join("\n")}
 - Suy luận từ cấu hình (CPU/GPU/RAM/trọng lượng) và tên dòng máy. Ví dụ: laptop có RTX 4060 + nặng → ["gaming", "do-hoa"]; MacBook Air M2 → ["van-phong", "mong-nhe", "do-hoa"]; Dell Latitude i5 8GB → ["van-phong"].
 - Nếu không chắc, ít nhất gán "van-phong" cho laptop phổ thông. TUYỆT ĐỐI không tạo slug ngoài danh sách.
 
+QUY TẮC MULTI-PRODUCT / MULTI-VARIANT (rất quan trọng):
+- Bạn PHẢI trả về object có shape { products: [...], variant_group: {...} }.
+- "products" là mảng. Mỗi phần tử là 1 sản phẩm đầy đủ (đúng schema ở trên).
+- TÁCH SẢN PHẨM: Nếu text có nhiều sản phẩm / nhiều cấu hình, mỗi cái là 1 phần tử trong mảng:
+  • Nhiều MODEL khác nhau (mỗi model 1 khối riêng trong text): mỗi model = 1 phần tử.
+  • Nhiều OPTION/CẤU HÌNH của CÙNG 1 model (VD "Dell 7420: 8GB/256GB giá 6tr, 16GB/512GB giá 8tr"): mỗi cấu hình = 1 phần tử, CÙNG variant_group_id.
+- Nếu text chỉ có 1 sản phẩm → trả mảng 1 phần tử, variant_group_id là brand+model chuẩn hoá.
+- "variant_group" là object { "<index>": "<group_id>" }, trong đó index là vị trí trong mảng products (0, 1, 2...), group_id là chuỗi slug từ brand+model.
+  • VD: 3 option của Dell 7420 → variant_group = { "0": "dell-latitude-7420", "1": "dell-latitude-7420", "2": "dell-latitude-7420" }
+  • 2 model khác nhau → variant_group = { "0": "dell-latitude-7420", "1": "hp-elitebook-840-g5" }
+- Nếu CHỈ 1 sản phẩm và bạn không chắc có option khác, vẫn wrap trong mảng 1 phần tử.
+- group_id viết thường, không dấu, gạch ngang. Cùng brand+model → cùng group_id.
+
 LUÔN trả về JSON hợp lệ đúng schema.`;
 
 function formatTemplatesForPrompt(templates: SpecTemplateForAI[]) {
@@ -188,45 +232,55 @@ async function parseWithGemini(
   text: string,
   templates: SpecTemplateForAI[],
   apiKey: string,
-): Promise<ParsedProduct> {
+): Promise<MultiParsedProduct> {
   const model = "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  // specs là free-form object — Gemini cần "type: object" với propertyOrdering bỏ.
-  // Để cho phép keys động theo template, không liệt kê properties cụ thể.
+  // Schema response dạng { products: [...], variant_group: {...} }.
+  // specs là free-form object → wrap thành string (specs_json) để Gemini chấp nhận.
   const responseSchema = {
     type: "object",
     properties: {
-      name: { type: "string" },
-      category_hint: { type: "string" },
-      spec_template_id: { type: "string", nullable: true },
-      brand_hint: { type: "string", nullable: true },
-      short_description: { type: "string" },
-      description: { type: "string" },
-      selling_price: { type: "number", nullable: true },
-      cost_price: { type: "number", nullable: true },
-      warranty_months: { type: "number", nullable: true },
-      condition: { type: "string", nullable: true },
-      tags: { type: "array", items: { type: "string" } },
-      need_tags: { type: "array", items: { type: "string" } },
-      gifts: { type: "array", items: { type: "string" } },
-      specs_json: {
-        type: "string",
-        description: "JSON.stringify của object specs với keys khớp template đã chọn",
+      products: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            category_hint: { type: "string" },
+            spec_template_id: { type: "string", nullable: true },
+            brand_hint: { type: "string", nullable: true },
+            short_description: { type: "string" },
+            description: { type: "string" },
+            selling_price: { type: "number", nullable: true },
+            cost_price: { type: "number", nullable: true },
+            warranty_months: { type: "number", nullable: true },
+            condition: { type: "string", nullable: true },
+            tags: { type: "array", items: { type: "string" } },
+            need_tags: { type: "array", items: { type: "string" } },
+            gifts: { type: "array", items: { type: "string" } },
+            specs_json: { type: "string" },
+            performance_review: { type: "string" },
+          },
+          required: [
+            "name",
+            "category_hint",
+            "short_description",
+            "description",
+            "tags",
+            "need_tags",
+            "gifts",
+            "specs_json",
+            "performance_review",
+          ],
+        },
       },
-      performance_review: { type: "string" },
+      variant_group: {
+        type: "object",
+        additionalProperties: { type: "string" },
+      },
     },
-    required: [
-      "name",
-      "category_hint",
-      "short_description",
-      "description",
-      "tags",
-      "need_tags",
-      "gifts",
-      "specs_json",
-      "performance_review",
-    ],
+    required: ["products", "variant_group"],
   };
 
   const res = await fetch(url, {
@@ -253,14 +307,14 @@ async function parseWithGemini(
   const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText) throw new Error("Gemini không trả nội dung");
   const parsed = unpackSpecsJson(JSON.parse(rawText));
-  return parsedProductSchema.parse(normalizeSpecs(parsed));
+  return normalizeMulti(normalizeSpecs(parsed));
 }
 
 async function parseWithOpenAI(
   text: string,
   templates: SpecTemplateForAI[],
   apiKey: string,
-): Promise<ParsedProduct> {
+): Promise<MultiParsedProduct> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -288,13 +342,23 @@ async function parseWithOpenAI(
   const rawText = json.choices?.[0]?.message?.content;
   if (!rawText) throw new Error("OpenAI không trả nội dung");
   const parsed = unpackSpecsJson(JSON.parse(rawText));
-  return parsedProductSchema.parse(normalizeSpecs(parsed));
+  return normalizeMulti(normalizeSpecs(parsed));
 }
 
-/** Gemini chỉ hỗ trợ object có shape cố định → ta yêu cầu nó trả specs dưới dạng string JSON rồi parse lại ở đây. */
+/** Gemini chỉ hỗ trợ object có shape cố định → ta yêu cầu nó trả specs dưới dạng string JSON rồi parse lại ở đây.
+ * Hỗ trợ cả 2 dạng:
+ *  - Cũ (1 sản phẩm): { specs_json: "...", ... }
+ *  - Mới (multi): { products: [{ specs_json: "..." }, ...], variant_group: {...} }
+ */
 function unpackSpecsJson(input: unknown): unknown {
   if (!input || typeof input !== "object") return input;
   const obj = input as Record<string, unknown>;
+  if (Array.isArray(obj.products)) {
+    for (const p of obj.products) {
+      unpackSpecsJson(p);
+    }
+    return obj;
+  }
   if (typeof obj.specs_json === "string" && obj.specs === undefined) {
     try {
       obj.specs = JSON.parse(obj.specs_json);
@@ -325,13 +389,75 @@ function normalizeSpecs(input: unknown): unknown {
   return obj;
 }
 
-export async function parseProductText(
+/**
+ * Normalize response thành MultiParsedProduct.
+ * - Nếu AI trả object 1 sản phẩm (cũ), wrap thành mảng 1 phần tử.
+ * - Validate từng sản phẩm bằng parsedProductSchema.
+ * - variant_group: map { "<index>": "<group>" }; nếu thiếu thì mỗi index là group riêng.
+ */
+function normalizeMulti(input: unknown): MultiParsedProduct {
+  const raw = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  let products: ParsedProduct[] = [];
+  let variantGroupRaw: Record<string, string> = {};
+
+  if (Array.isArray(raw.products)) {
+    // Validate từng phần tử (best-effort: nếu 1 cái fail, bỏ qua, không cản cả mảng).
+    for (const p of raw.products) {
+      try {
+        products.push(parsedProductSchema.parse(normalizeSpecs(p)));
+      } catch (err) {
+        // Log nhẹ để debug nhưng vẫn tiếp tục
+        console.warn("[product-parser] Bỏ qua sản phẩm không hợp lệ:", err);
+      }
+    }
+    if (raw.variant_group && typeof raw.variant_group === "object") {
+      variantGroupRaw = raw.variant_group as Record<string, string>;
+    }
+  } else if (raw.name) {
+    // Tương thích ngược: AI trả về 1 object sản phẩm (cũ).
+    try {
+      products = [parsedProductSchema.parse(normalizeSpecs(raw))];
+      variantGroupRaw = { "0": slugifyGroupId(raw.name as string) };
+    } catch {
+      products = [];
+    }
+  }
+
+  if (products.length === 0) {
+    throw new Error("AI không trả về sản phẩm nào hợp lệ");
+  }
+
+  // Đảm bảo mỗi index có group_id (default = chính index đó).
+  const variant_group: Record<string, string> = {};
+  for (let i = 0; i < products.length; i++) {
+    const g = variantGroupRaw[String(i)] || variantGroupRaw[String(products[i].name)] || "";
+    variant_group[String(i)] = g || slugifyGroupId(products[i].name);
+  }
+
+  return multiParsedProductSchema.parse({ products, variant_group });
+}
+
+/** Slug hoá tên sản phẩm thành group_id (không dấu, snake-case). */
+function slugifyGroupId(name: string): string {
+  return (name || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+/**
+ * Gọi Gemini/OpenAI với fallback key. Trả về MultiParsedProduct.
+ * Internal helper — callers nên dùng parseProductsText().
+ */
+async function tryProviders(
   text: string,
   provider: AIProvider,
-  templates: SpecTemplateForAI[] = [],
-): Promise<ParsedProduct> {
-  if (!text.trim()) throw new Error("Text rỗng");
-
+  templates: SpecTemplateForAI[],
+): Promise<MultiParsedProduct> {
   const geminiKeys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
@@ -340,10 +466,9 @@ export async function parseProductText(
   ].filter((k): k is string => !!k);
 
   const openaiKey = process.env.OPENAI_API_KEY;
-
   const errors: string[] = [];
 
-  const tryGemini = async (): Promise<ParsedProduct> => {
+  const tryGemini = async (): Promise<MultiParsedProduct> => {
     if (geminiKeys.length === 0) {
       throw new Error("Chưa cấu hình bất kỳ GEMINI_API_KEY nào");
     }
@@ -358,7 +483,7 @@ export async function parseProductText(
     throw new Error("Tất cả key Gemini đều thất bại");
   };
 
-  const tryOpenAI = async (): Promise<ParsedProduct> => {
+  const tryOpenAI = async (): Promise<MultiParsedProduct> => {
     if (!openaiKey) {
       throw new Error("Chưa cấu hình OPENAI_API_KEY");
     }
@@ -375,7 +500,6 @@ export async function parseProductText(
     try {
       return await tryGemini();
     } catch {
-      // Fallback sang OpenAI nếu có key
       if (openaiKey) {
         try {
           return await tryOpenAI();
@@ -385,19 +509,43 @@ export async function parseProductText(
       }
       throw new Error(`Tất cả key Gemini đều thất bại và không có OpenAI key dự phòng. Chi tiết lỗi:\n${errors.join("\n")}`);
     }
-  } else {
-    try {
-      return await tryOpenAI();
-    } catch {
-      // Fallback sang Gemini nếu có key
-      if (geminiKeys.length > 0) {
-        try {
-          return await tryGemini();
-        } catch {
-          throw new Error(`OpenAI & Gemini fallback đều thất bại. Chi tiết lỗi:\n${errors.join("\n")}`);
-        }
-      }
-      throw new Error(`OpenAI thất bại và không có Gemini key dự phòng. Chi tiết lỗi:\n${errors.join("\n")}`);
-    }
   }
+  try {
+    return await tryOpenAI();
+  } catch {
+    if (geminiKeys.length > 0) {
+      try {
+        return await tryGemini();
+      } catch {
+        throw new Error(`OpenAI & Gemini fallback đều thất bại. Chi tiết lỗi:\n${errors.join("\n")}`);
+      }
+    }
+    throw new Error(`OpenAI thất bại và không có Gemini key dự phòng. Chi tiết lỗi:\n${errors.join("\n")}`);
+  }
+}
+
+/**
+ * Parse text thành NHIỀU sản phẩm (kèm variant_group để server gộp variants).
+ * Đây là API chính cho `parse-product`.
+ */
+export async function parseProductsText(
+  text: string,
+  provider: AIProvider,
+  templates: SpecTemplateForAI[] = [],
+): Promise<MultiParsedProduct> {
+  if (!text.trim()) throw new Error("Text rỗng");
+  return await tryProviders(text, provider, templates);
+}
+
+/**
+ * Backward-compat: parse 1 sản phẩm (lấy phần tử đầu tiên từ parseProductsText).
+ * Khuyến khích dùng parseProductsText() cho multi-product flow mới.
+ */
+export async function parseProductText(
+  text: string,
+  provider: AIProvider,
+  templates: SpecTemplateForAI[] = [],
+): Promise<ParsedProduct> {
+  const multi = await parseProductsText(text, provider, templates);
+  return multi.products[0];
 }
