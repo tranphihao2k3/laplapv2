@@ -1,29 +1,45 @@
 /**
  * Speaker audio URL helpers.
  *
- * Storage: Supabase Storage bucket "speaker-audio" (public read).
- * URL format: `${SUPABASE_URL}/storage/v1/object/public/speaker-audio/<file_key>`
+ * Storage: ghi trực tiếp lên Fly Volume (mount /data/audio). File được phục vụ
+ * qua Next.js route /api/v1/audio/[...key] — không còn đụng Supabase Storage.
+ *
+ * Base URL dựng từ NEXT_PUBLIC_APP_URL; nếu thiếu/sai (placeholder
+ * `replace_me`, dev local,...) thì fallback theo host của request hiện tại
+ * (x-forwarded-proto/host → origin). Nhờ đó máy nào có env khác nhau vẫn
+ * phát được nhạc, không rơi về URL rác cũ trong DB (R2 / Supabase cũ).
  */
+import type { NextRequest } from "next/server";
 
-/**
- * Lay base URL cho speaker audio (public Supabase Storage bucket).
- * URL format: https://<project>.supabase.co/storage/v1/object/public/speaker-audio
- */
-export async function getAudioBaseUrl(): Promise<string> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  if (!url || url.includes("replace_me")) return "";
-  return `${url.replace(/\/$/, "")}/storage/v1/object/public/speaker-audio`;
+/** Lay base URL cho audio stream (Next.js). */
+export async function getAudioBaseUrl(req?: NextRequest): Promise<string> {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const fromEnv = envUrl && !envUrl.includes("replace_me")
+    ? envUrl.replace(/\/$/, "")
+    : "";
+  if (fromEnv) return `${fromEnv}/api/v1/audio`;
+
+  // Fallback: dựng từ request host (khi chạy route handler). Khi gọi từ
+  // server-only context (script/CLI) không có req thì trả "" — caller phải
+  // tự quyết định.
+  if (req) return `${resolveOrigin(req)}/api/v1/audio`;
+  return "";
+}
+
+/** Dựng origin từ NextRequest (ưu tiên x-forwarded-proto/host). */
+function resolveOrigin(req: NextRequest): string {
+  const fwdProto = req.headers.get("x-forwarded-proto");
+  const fwdHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  const proto = fwdProto?.split(",")[0]?.trim() || req.nextUrl.protocol.replace(":", "");
+  const host = fwdHost?.split(",")[0]?.trim() || req.nextUrl.host;
+  if (!host) return "";
+  return `${proto}://${host}`;
 }
 
 /**
  * Dựng URL phát nhạc từ file_key + base URL hiện tại.
  *
- * Vì sao không dùng thẳng `file_url` đã lưu trong DB: URL đó được ghi cứng lúc
- * upload, nên khi đổi domain Supabase (hoặc lúc upload base URL còn là placeholder)
- * thì mọi bản ghi cũ trỏ sai vĩnh viễn. Dựng lại từ file_key khiến dữ liệu cũ
- * tự đúng mà không cần migrate.
- *
- * @param fileKey  Key trong Supabase Storage bucket (nguồn sự thật).
+ * @param fileKey  Key trên Fly Volume (vd "speaker-songs/xxx.mp3").
  * @param baseUrl  Base URL lấy từ getAudioBaseUrl().
  * @param fallback file_url đã lưu — chỉ dùng khi thiếu key/base.
  */

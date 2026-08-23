@@ -1,6 +1,15 @@
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getStoreInfo, type LegalInfo } from "@/lib/store-info";
 
+/**
+ * Thông tin liên hệ cửa hàng (gọn nhẹ) — lấy từ bảng `shops`.
+ * Dùng cho header, navbar, footer... khi không cần legal info.
+ *
+ * Nếu bảng `shops` rỗng (chưa cấu hình trong /quanly/settings) thì
+ * fallback về `getStoreInfo()` (settings table) để vẫn có thông tin
+ * cơ bản name/phone/email/address cho trang public.
+ */
 export type ShopInfo = {
   name: string;
   phone: string | null;
@@ -8,7 +17,6 @@ export type ShopInfo = {
   address: string | null;
 };
 
-// Giá trị mặc định khi chưa cấu hình cửa hàng trong /quanly/settings.
 const FALLBACK: ShopInfo = {
   name: "LapLap",
   phone: null,
@@ -16,13 +24,6 @@ const FALLBACK: ShopInfo = {
   address: null,
 };
 
-/**
- * Thông tin liên hệ cửa hàng, lấy từ bảng `shops` (chỉnh ở tab
- * "Thông tin cửa hàng" của /quanly/settings). Dùng cho footer, trang sản phẩm...
- *
- * `cache()` để nhiều component trong cùng 1 request chỉ query 1 lần.
- * Bọc try/catch để không làm sập trang public nếu DB / env chưa sẵn sàng.
- */
 export const getShopInfo = cache(async (): Promise<ShopInfo> => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,17 +36,40 @@ export const getShopInfo = cache(async (): Promise<ShopInfo> => {
       .limit(1)
       .maybeSingle();
 
-    if (!data) return FALLBACK;
+    if (data) {
+      return {
+        name: data.name ?? FALLBACK.name,
+        phone: data.phone ?? null,
+        email: data.email ?? null,
+        address: data.address ?? null,
+      };
+    }
+  } catch {
+    // rơi xuống fallback settings
+  }
+
+  // Fallback: dùng settings (group "store").
+  try {
+    const store = await getStoreInfo();
     return {
-      name: data.name ?? FALLBACK.name,
-      phone: data.phone ?? null,
-      email: data.email ?? null,
-      address: data.address ?? null,
+      name: store.name,
+      phone: store.phone || null,
+      email: store.email || null,
+      address: store.address || null,
     };
   } catch {
     return FALLBACK;
   }
 });
+
+/**
+ * Trả về thông tin pháp lý (NN 52/2013 + 85/2021) — dùng cho footer/trang pháp lý.
+ * Re-export từ store-info để caller không phải đụng 2 module.
+ */
+export async function getLegalInfo(): Promise<LegalInfo> {
+  const store = await getStoreInfo();
+  return store.legal;
+}
 
 // Chuẩn hoá SĐT về dạng dùng cho href="tel:" (bỏ khoảng trắng, dấu chấm...).
 export function telHref(phone: string | null | undefined): string | null {

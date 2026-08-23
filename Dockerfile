@@ -28,8 +28,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 COPY . .
 RUN npx next build
@@ -57,6 +59,10 @@ RUN apt-get update -qq && \
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Volume mount sẽ được gắn tại runtime bởi Fly. Tạo sẵn thư mục và chmod
+# 777 để user nextjs (uid 1001) đọc/ghi được khi Fly mount vào.
+RUN mkdir -p /data/audio && chmod 777 /data/audio
 
 USER nextjs
 EXPOSE 3000

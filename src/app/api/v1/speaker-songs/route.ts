@@ -17,7 +17,9 @@ const createSchema = z.object({
   artist: z.string().max(255).optional().nullable(),
   // file_key là nguồn sự thật; file_url chỉ để tương thích (cột NOT NULL trong
   // DB) và luôn được dựng lại từ file_key khi đọc — xem @/lib/speaker-audio.
-  file_url: z.string().url().optional(),
+  // Khi upload local-volume, upload route trả về relative path "/api/v1/audio/..."
+  // — đó là URL nội bộ do Next.js stream, không phải absolute URL.
+  file_url: z.string().optional(),
   file_key: z.string().min(1),
   file_size_bytes: z.coerce.number().int().nonnegative().optional().nullable(),
   duration_seconds: z.coerce.number().int().nonnegative().optional().nullable(),
@@ -55,7 +57,7 @@ export async function GET(req: NextRequest) {
     // Dựng lại file_url từ file_key + AUDIO_BASE_URL hiện tại thay vì tin URL
     // đã ghi cứng trong DB — nhờ đó các bản ghi upload lúc base URL còn sai
     // (pub-replace_me…) vẫn phát được, và đổi domain R2 không làm hỏng dữ liệu.
-    const baseUrl = await getAudioBaseUrl();
+    const baseUrl = await getAudioBaseUrl(req);
     const items = withResolvedAudioUrl(data ?? [], baseUrl);
 
     return ok(paginated(items, count ?? 0, page, pageSize));
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     // Cột file_url là NOT NULL: nếu client không gửi thì tự dựng từ file_key.
     // Giá trị này chỉ mang tính lưu trữ — khi đọc luôn dựng lại từ file_key.
-    const baseUrl = await getAudioBaseUrl();
+    const baseUrl = await getAudioBaseUrl(req);
     const row = {
       ...body,
       file_url: buildAudioUrl(body.file_key, baseUrl, body.file_url) || body.file_url || "",

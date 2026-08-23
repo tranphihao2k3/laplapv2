@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns"],
+    // Next.js 15.5+ chạy standalone có internal proxy layer riêng với body cap
+    // mặc định 10MB. Nếu upload > 10MB mà chưa bump limit này, Next sẽ
+    // silently truncate body trước khi đến route handler → multipart bị cắt →
+    // "Failed to parse body as FormData". Phải khớp hoặc lớn hơn Fly proxy
+    // (40mb trong fly.toml) để audio upload 30MB đi qua trọn vẹn.
+    proxyClientMaxBodySize: "40mb",
+    // Tên cũ vẫn còn xuất hiện trong warning log của Next 15.5.21 → set luôn
+    // để chắc chắn, không ảnh hưởng middleware vì route upload đã được bypass.
+    middlewareClientMaxBodySize: "40mb",
   },
   // serverExternalPackages đã được promote từ experimental ra top-level từ Next.js 15.0.
   // Cloudflare build log cũ warning: "Unrecognized key(s) in object: 'serverExternalPackages'

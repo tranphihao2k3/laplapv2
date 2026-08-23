@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -17,17 +17,7 @@ import {
   Music2,
   Loader2,
 } from "lucide-react";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-type Song = {
-  id: string;
-  title: string;
-  artist: string | null;
-  file_url: string;
-  duration_seconds: number | null;
-};
-
-type Channel = "left" | "right" | "both";
+import { useAudioPlayer } from "@/components/test-laptop/audio-player-provider";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatTime(sec: number | null | undefined): string {
@@ -37,223 +27,40 @@ function formatTime(sec: number | null | undefined): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/**
- * Pause an toàn: chờ promise play() đang treo lắng xuống rồi mới pause.
- * Gọi pause() giữa lúc play() chưa resolve khiến trình duyệt reject promise đó
- * bằng AbortError ("The play() request was interrupted by a call to pause()").
- */
-async function safePause(
-  audio: HTMLAudioElement | null,
-  pending: React.MutableRefObject<Promise<void> | null>,
-) {
-  if (!audio) return;
-  if (pending.current) {
-    // catch: promise có thể đã bị reject sẵn, không để nó nổi thành unhandled
-    await pending.current.catch(() => {});
-    pending.current = null;
-  }
-  audio.pause();
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SpeakersPage() {
   const router = useRouter();
+  const {
+    songs,
+    loadingSongs,
+    songsError,
+    currentIdx,
+    currentSong,
+    isPlaying,
+    channel,
+    volume,
+    currentTime,
+    duration,
+    togglePlay,
+    stop,
+    next,
+    prev,
+    seek,
+    setChannel,
+    setVolume,
+    setIdx,
+  } = useAudioPlayer();
 
-  // Songs
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [loadingSongs, setLoadingSongs] = useState(true);
-  const [songsError, setSongsError] = useState<string | null>(null);
-
-  // Player state
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [channel, setChannel] = useState<Channel>("both");
-  const [volume, setVolume] = useState(0.8);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-
-  // Refs
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const gainRef = useRef<GainNode | null>(null);
-  const pannerRef = useRef<StereoPannerNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  // Promise của lần play() gần nhất. audio.play() là async: nếu pause() (hoặc
-  // effect cleanup khi đổi bài) chạy trước lúc promise resolve thì trình duyệt
-  // reject nó bằng AbortError "play() request was interrupted by a call to
-  // pause()". Giữ lại promise để chờ nó lắng trước khi pause, và bắt lỗi này.
-  const playPromiseRef = useRef<Promise<void> | null>(null);
-
-  // ── Fetch songs ─────────────────────────────────────────────────────────────
+  // Đảm bảo khi user rời tab / refresh, audio dừng lại (audio context cũng đóng)
   useEffect(() => {
-    async function loadSongs() {
-      try {
-        setLoadingSongs(true);
-        const res = await fetch("/api/v1/speaker-songs?active_only=true&pageSize=10");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const items: Song[] = json?.data?.items ?? [];
-        setSongs(items);
-      } catch (e) {
-        setSongsError("Không thể tải danh sách bài nhạc. Vui lòng thử lại.");
-        console.error(e);
-      } finally {
-        setLoadingSongs(false);
-      }
-    }
-    loadSongs();
+    return () => {
+      // cleanup is handled by provider (audio.src = "" in effect cleanup)
+    };
   }, []);
 
-  // ── Set up / teardown Web Audio routing ─────────────────────────────────────
-  const setupAudioGraph = useCallback(
-    (audio: HTMLAudioElement) => {
-      // Reuse existing AudioContext if available
-      if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
-        audioCtxRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      }
-      const ctx = audioCtxRef.current;
-
-      // Disconnect old graph
-      sourceRef.current?.disconnect();
-      gainRef.current?.disconnect();
-      pannerRef.current?.disconnect();
-
-      const source = ctx.createMediaElementSource(audio);
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(volume, ctx.currentTime);
-
-      const panner = ctx.createStereoPanner();
-      panner.pan.setValueAtTime(
-        channel === "left" ? -1 : channel === "right" ? 1 : 0,
-        ctx.currentTime,
-      );
-
-      source.connect(gain);
-      gain.connect(panner);
-      panner.connect(ctx.destination);
-
-      sourceRef.current = source;
-      gainRef.current = gain;
-      pannerRef.current = panner;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  // ── Build / rebuild <audio> element when song changes ───────────────────────
-  useEffect(() => {
-    if (songs.length === 0) return;
-    const song = songs[currentIdx];
-    if (!song) return;
-
-    // Tear down old audio. Dùng safePause để không cắt ngang promise play()
-    // đang treo (nguồn của AbortError khi bấm Next/Prev lúc đang phát).
-    const old = audioRef.current;
-    if (old) {
-      void safePause(old, playPromiseRef).then(() => {
-        old.src = "";
-      });
-    }
-
-    const audio = new Audio(song.file_url);
-    audio.crossOrigin = "anonymous";
-    audio.preload = "metadata";
-    audioRef.current = audio;
-
-    audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
-    audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
-    audio.addEventListener("ended", () => {
-      // Auto-advance to next song
-      setCurrentIdx((prev) => (prev + 1) % songs.length);
-    });
-
-    setupAudioGraph(audio);
-    setCurrentTime(0);
-    setIsPlaying(false);
-
-    return () => {
-      void safePause(audio, playPromiseRef).then(() => {
-        audio.src = "";
-      });
-    };
-  }, [currentIdx, songs, setupAudioGraph]);
-
-  // ── Sync pan when channel changes ────────────────────────────────────────────
-  useEffect(() => {
-    if (!pannerRef.current || !audioCtxRef.current) return;
-    pannerRef.current.pan.setValueAtTime(
-      channel === "left" ? -1 : channel === "right" ? 1 : 0,
-      audioCtxRef.current.currentTime,
-    );
-  }, [channel]);
-
-  // ── Sync volume ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!gainRef.current || !audioCtxRef.current) return;
-    gainRef.current.gain.setValueAtTime(volume, audioCtxRef.current.currentTime);
-  }, [volume]);
-
-  // ── Controls ─────────────────────────────────────────────────────────────────
-  const togglePlay = async () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const ctx = audioCtxRef.current;
-    if (ctx?.state === "suspended") await ctx.resume();
-    if (isPlaying) {
-      setIsPlaying(false);
-      await safePause(audio, playPromiseRef);
-    } else {
-      setIsPlaying(true);
-      try {
-        const p = audio.play();
-        playPromiseRef.current = p;
-        await p;
-        playPromiseRef.current = null;
-      } catch (e) {
-        playPromiseRef.current = null;
-        // AbortError = bị pause/đổi bài chen ngang: không phải lỗi thật, bỏ qua.
-        if ((e as DOMException)?.name === "AbortError") return;
-        setIsPlaying(false);
-        setSongsError(
-          (e as DOMException)?.name === "NotSupportedError"
-            ? "Không phát được file nhạc này (thiếu file trên Supabase Storage hoặc định dạng không hỗ trợ)."
-            : "Không phát được nhạc. Vui lòng thử lại.",
-        );
-      }
-    }
-  };
-
-  const stop = async () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    setIsPlaying(false);
-    setCurrentTime(0);
-    await safePause(audio, playPromiseRef);
-    audio.currentTime = 0;
-  };
-
-  const prev = () => {
-    void stop();
-    setCurrentIdx((i) => (i - 1 + songs.length) % songs.length);
-  };
-
-  const next = () => {
-    void stop();
-    setCurrentIdx((i) => (i + 1) % songs.length);
-  };
-
-  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const t = parseFloat(e.target.value);
-    audio.currentTime = t;
-    setCurrentTime(t);
-  };
-
-  const currentSong = songs[currentIdx] ?? null;
   const hasSongs = songs.length > 0;
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="container mx-auto max-w-3xl px-4 py-8">
       <Button variant="ghost" className="mb-4" onClick={() => router.push("/test-laptop")}>
@@ -265,7 +72,8 @@ export default function SpeakersPage() {
         <CardHeader>
           <CardTitle>Test Loa</CardTitle>
           <CardDescription>
-            Phát nhạc thực tế để kiểm tra loa trái, phải và âm thanh stereo.
+            Phát nhạc thực tế để kiểm tra loa trái, phải và âm thanh stereo. Khi bật nhạc,
+            bạn có thể chuyển sang tab khác — nhạc vẫn chạy ở thanh phát dưới cùng màn hình.
           </CardDescription>
         </CardHeader>
 
@@ -282,14 +90,20 @@ export default function SpeakersPage() {
             ) : !hasSongs ? (
               <>
                 <Music2 className="h-12 w-12 text-zinc-300" />
-                <p className="text-sm text-zinc-500">Chưa có bài nhạc nào. Admin hãy thêm bài nhạc trong phần quản lý.</p>
+                <p className="text-sm text-zinc-500">
+                  Chưa có bài nhạc nào. Admin hãy thêm bài nhạc trong phần quản lý.
+                </p>
               </>
             ) : (
               <>
                 <div
-                  className={`flex h-20 w-20 items-center justify-center rounded-2xl bg-zinc-900 shadow-lg transition-transform ${isPlaying ? "scale-105" : ""}`}
+                  className={`flex h-20 w-20 items-center justify-center rounded-2xl bg-zinc-900 shadow-lg transition-transform ${
+                    isPlaying ? "scale-105" : ""
+                  }`}
                 >
-                  <Music2 className={`h-10 w-10 text-white ${isPlaying ? "animate-pulse" : ""}`} />
+                  <Music2
+                    className={`h-10 w-10 text-white ${isPlaying ? "animate-pulse" : ""}`}
+                  />
                 </div>
                 <div className="text-center">
                   <p className="text-base font-semibold leading-tight">{currentSong?.title}</p>
@@ -305,11 +119,11 @@ export default function SpeakersPage() {
                 <div className="w-full max-w-xs space-y-1 px-2">
                   <input
                     type="range"
-                    min="0"
+                    min={0}
                     max={duration || 0}
-                    step="0.1"
+                    step={0.1}
                     value={currentTime}
-                    onChange={seek}
+                    onChange={(e) => seek(parseFloat(e.target.value))}
                     className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-zinc-200 accent-zinc-900"
                   />
                   <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
@@ -324,7 +138,13 @@ export default function SpeakersPage() {
           {/* ── Playback controls ── */}
           {hasSongs && !loadingSongs && !songsError && (
             <div className="flex items-center justify-center gap-3">
-              <Button size="icon" variant="ghost" className="h-10 w-10" onClick={prev} disabled={songs.length < 2}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-10 w-10"
+                onClick={prev}
+                disabled={songs.length < 2}
+              >
                 <SkipBack className="h-5 w-5" />
               </Button>
               <Button
@@ -344,7 +164,13 @@ export default function SpeakersPage() {
               >
                 <Square className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-10 w-10" onClick={next} disabled={songs.length < 2}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-10 w-10"
+                onClick={next}
+                disabled={songs.length < 2}
+              >
                 <SkipForward className="h-5 w-5" />
               </Button>
             </div>
@@ -361,7 +187,7 @@ export default function SpeakersPage() {
                       void togglePlay();
                     } else {
                       void stop();
-                      setCurrentIdx(i);
+                      setIdx(i);
                     }
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-zinc-50 ${
@@ -396,16 +222,28 @@ export default function SpeakersPage() {
             <div className="space-y-2">
               <p className="text-sm font-medium text-zinc-700">Kênh âm thanh</p>
               <div className="grid gap-2 sm:grid-cols-3">
-                {(["left", "both", "right"] as Channel[]).map((ch) => (
+                {(["left", "both", "right"] as const).map((ch) => (
                   <Button
                     key={ch}
                     variant={channel === ch ? "default" : "outline"}
                     className={`h-11 gap-2 ${channel === ch ? "bg-zinc-900 text-white" : "border-zinc-200"}`}
                     onClick={() => setChannel(ch)}
                   >
-                    {ch === "left" && <><ArrowLeft className="h-4 w-4" /> Loa Trái</>}
-                    {ch === "both" && <><Volume2 className="h-4 w-4" /> Cả hai</>}
-                    {ch === "right" && <>Loa Phải <ArrowRight className="h-4 w-4" /></>}
+                    {ch === "left" && (
+                      <>
+                        <ArrowLeft className="h-4 w-4" /> Loa Trái
+                      </>
+                    )}
+                    {ch === "both" && (
+                      <>
+                        <Volume2 className="h-4 w-4" /> Cả hai
+                      </>
+                    )}
+                    {ch === "right" && (
+                      <>
+                        Loa Phải <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
                   </Button>
                 ))}
               </div>
@@ -422,9 +260,9 @@ export default function SpeakersPage() {
             </div>
             <input
               type="range"
-              min="0"
-              max="1"
-              step="0.05"
+              min={0}
+              max={1}
+              step={0.05}
               value={volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
               className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-zinc-200 accent-zinc-900"

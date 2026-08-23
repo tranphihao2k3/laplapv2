@@ -17,6 +17,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/tra-cuu-bao-hanh`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${baseUrl}/about`, changeFrequency: "yearly", priority: 0.4 },
     { url: `${baseUrl}/contact`, changeFrequency: "yearly", priority: 0.4 },
+    // Các trang chính sách pháp lý — Nghị định 52/2013 + 85/2021.
+    { url: `${baseUrl}/chinh-sach-bao-hanh`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${baseUrl}/chinh-sach-doi-tra`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${baseUrl}/chinh-sach-giao-hang`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${baseUrl}/chinh-sach-thanh-toan`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${baseUrl}/chinh-sach-bao-mat`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${baseUrl}/dieu-khoan-su-dung`, changeFrequency: "yearly", priority: 0.2 },
+    {
+      url: `${baseUrl}/chinh-sach-giai-quyet-khieu-nai`,
+      changeFrequency: "yearly",
+      priority: 0.2,
+    },
+    { url: `${baseUrl}/cau-hoi-thuong-gap`, changeFrequency: "monthly", priority: 0.5 },
   ];
 
   // Sản phẩm active — có thể thất bại lúc build (env fallback), nên bọc try/catch.

@@ -8,6 +8,9 @@ primary_region = 'sin'
 
 [build]
   dockerfile = 'Dockerfile'
+  [build.args]
+    NEXT_PUBLIC_SUPABASE_URL = "https://bmvgnhgxbkrhixydsqjh.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_2FmsuicKIKS6liLNmng90A_JYhdm3v_"
 
 [deploy]
   release_command = "node -e \"console.log('Release OK')\""
@@ -29,6 +32,10 @@ primary_region = 'sin'
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
+  # Cho phép upload file âm thanh tối đa 30MB (Fly proxy mặc định ~1MB).
+  # Cần tăng để multipart upload (audio files) hoạt động — Next.js sẽ raise
+  # "Failed to parse body as FormData" nếu proxy cắt body.
+  request_body_size_limit = '40mb'
 
   [http_service.concurrency]
     type = 'connections'
@@ -44,8 +51,14 @@ primary_region = 'sin'
     protocol = 'http'
 
 [[vm]]
-  size = 'shared-cpu-1x'
-  memory = '512mb'
-  cpu_kind = 'shared'
-  cpus = 1
-  memory_mb = 512
+size = 'shared-cpu-1x'
+memory = '512mb'
+cpu_kind = 'shared'
+cpus = 1
+memory_mb = 512
+
+# Volume cho file audio (vài bài demo, ~vài GB).
+# Mount vào container tại /data/audio — code đọc/ghi qua đường dẫn này.
+[[mounts]]
+source = 'laplap_audio'
+destination = '/data/audio'
