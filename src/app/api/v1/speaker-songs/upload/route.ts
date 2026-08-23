@@ -14,7 +14,7 @@
 import { NextRequest } from "next/server";
 import { requireOrg } from "@/lib/api/guard";
 import { ok, fail, handleError } from "@/lib/api/response";
-import { putAudioFile, getAudioBaseUrl } from "@/lib/storage/supabase";
+import { putAudioFileLocal, buildAudioKey } from "@/lib/storage/local";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 60s cho upload 30MB
@@ -58,22 +58,19 @@ export async function POST(req: NextRequest) {
       return fail("FILE_TOO_LARGE", "File quá lớn (tối đa 30MB)", 422);
     }
 
-    // ── Upload lên Supabase Storage ──────────────────────────────
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "mp3";
-    const fileKey = `speaker-songs/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+    // ── Ghi file lên local volume (mount /data/audio) ──────────
+    const fileKey = buildAudioKey(file.name);
     const arrayBuffer = await file.arrayBuffer();
 
-    const result = await putAudioFile(fileKey, arrayBuffer, file.type);
-
-    const audioBaseUrl = await getAudioBaseUrl();
-    const fileUrl = result.publicUrl ?? `${audioBaseUrl}/${fileKey}`;
+    const result = await putAudioFileLocal(fileKey, arrayBuffer);
 
     return ok({
-      file_url: fileUrl,
-      file_key: fileKey,
+      file_url: result.publicUrl,
+      file_key: result.path,
       file_size_bytes: result.size,
       original_name: file.name,
       uploaded_by: user.id,
+      storage: "local-volume",
     });
   } catch (e) {
     return handleError(e);

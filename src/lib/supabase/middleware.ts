@@ -12,6 +12,10 @@ export async function updateSession(request: NextRequest) {
     "/api/v1/system-scan/poll",
     "/api/warranty-lookup",
     "/api/public",
+    // Upload routes that use multipart/form-data — bypass middleware
+    // because @supabase/ssr's createServerClient may try to peek at the
+    // request body and break streaming.
+    "/api/v1/speaker-songs/upload",
   ];
   
   if (publicApiRoutes.some(route => pathname.startsWith(route))) {

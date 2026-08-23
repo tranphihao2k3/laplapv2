@@ -3,17 +3,18 @@
  * Fix tất cả bài hát có file_url sai (R2 URL cũ → Supabase Storage URL).
  * Xoá file này sau khi dùng xong.
  */
+import { NextRequest } from "next/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { ok, handleError } from "@/lib/api/response";
 import { getAudioBaseUrl } from "@/lib/speaker-audio";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    const realBase = await getAudioBaseUrl();
+    const realBase = await getAudioBaseUrl(req);
     if (!realBase) {
-      return ok({ fixed: 0, message: "NEXT_PUBLIC_SUPABASE_URL chưa cấu hình" });
+      return ok({ fixed: 0, message: "NEXT_PUBLIC_APP_URL chưa cấu hình" });
     }
 
     const db = createSupabaseServiceClient();

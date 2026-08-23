@@ -1,14 +1,9 @@
 /**
- * Supabase Storage — thay thế cho Cloudflare R2.
+ * Supabase Storage — hiện chỉ còn TOOLS_BUCKET (private, signed URL).
  *
- * Mapping:
- *   - AUDIO_BUCKET   -> Supabase Storage bucket "speaker-audio" (public read)
- *   - TOOLS_BUCKET   -> Supabase Storage bucket "tools" (private + signed URL)
- *
- * LUONG UPLOAD (audio):
- *   1. Admin POST /api/v1/speaker-songs/upload (multipart).
- *   2. Server upload file len Supabase Storage key 'speaker-songs/<id>.mp3'.
- *   3. Insert row vao table `speaker_songs` (ghi file_key + file_url public).
+ * File audio đã chuyển sang ghi trực tiếp lên Fly Volume (mount /data/audio)
+ * qua @/lib/storage/local. Public URL của audio do Next.js route
+ * /api/v1/audio/[...key] phục vụ.
  *
  * LUONG UPLOAD (tools):
  *   1. Admin POST /api/v1/admin/tools/upload (multipart).
@@ -22,52 +17,12 @@
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const AUDIO_BUCKET = "speaker-audio";
 const TOOLS_BUCKET = "tools";
 
 export interface UploadResult {
   path: string;
   size: number;
   publicUrl?: string;
-}
-
-/** Upload file audio (public bucket). */
-export async function putAudioFile(
-  path: string,
-  body: ArrayBuffer | Uint8Array | Blob,
-  contentType?: string,
-): Promise<UploadResult> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.storage
-    .from(AUDIO_BUCKET)
-    .upload(path, body, {
-      contentType: contentType ?? "audio/mpeg",
-      upsert: false,
-      cacheControl: "31536000",
-    });
-
-  if (error) throw new Error(`Supabase Storage upload failed: ${error.message}`);
-
-  const { data: pub } = supabase.storage.from(AUDIO_BUCKET).getPublicUrl(path);
-
-  return {
-    path: data.path,
-    size: (body as ArrayBuffer).byteLength ?? 0,
-    publicUrl: pub.publicUrl,
-  };
-}
-
-/** Lay public URL cho audio (Supabase Storage bucket "speaker-audio"). */
-export async function getAudioBaseUrl(): Promise<string> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return `${url.replace(/\/$/, "")}/storage/v1/object/public/${AUDIO_BUCKET}`;
-}
-
-/** Dựng URL phát nhạc từ file_key (key trong Supabase Storage). */
-export function buildAudioUrl(fileKey: string | null | undefined, baseUrl: string): string {
-  const key = fileKey?.trim().replace(/^\//, "");
-  if (!key || !baseUrl) return "";
-  return `${baseUrl}/${key}`;
 }
 
 /** Upload file tool (private bucket). */

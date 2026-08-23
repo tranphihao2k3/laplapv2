@@ -4,10 +4,10 @@
  */
 import { NextRequest } from "next/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOrg } from "@/lib/api/guard";
 import { ok, handleError } from "@/lib/api/response";
 import { getAudioBaseUrl, withResolvedAudioUrl } from "@/lib/speaker-audio";
+import { deleteAudioFileLocal } from "@/lib/storage/local";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const updateSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   artist: z.string().max(255).nullable().optional(),
-  file_url: z.string().url().optional(),
+  file_url: z.string().optional(),
   duration_seconds: z.coerce.number().int().nonnegative().nullable().optional(),
   position: z.coerce.number().int().nonnegative().optional(),
   is_active: z.boolean().optional(),
@@ -41,7 +41,7 @@ export async function PATCH(
 
     if (error) throw error;
     // Trả về URL dựng lại từ file_key để client luôn nhận link phát được.
-    const baseUrl = await getAudioBaseUrl();
+    const baseUrl = await getAudioBaseUrl(req);
     return ok(withResolvedAudioUrl([data], baseUrl)[0]);
   } catch (e) {
     return handleError(e);
@@ -76,13 +76,12 @@ export async function DELETE(
 
     if (delErr) throw delErr;
 
-    // Xoá file trên Supabase Storage (best-effort)
+    // Xoá file trên Fly Volume (best-effort)
     if (song?.file_key) {
       try {
-        const adminClient = createAdminClient();
-        await adminClient.storage.from("speaker-audio").remove([song.file_key]);
+        await deleteAudioFileLocal(song.file_key);
       } catch (e) {
-        console.warn("[speaker-songs] Không thể xoá file Storage:", song.file_key, e);
+        console.warn("[speaker-songs] Không thể xoá file local volume:", song.file_key, e);
       }
     }
 

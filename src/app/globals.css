@@ -439,6 +439,56 @@
   @apply bg-muted/20;
 }
 
+/* ============================================================
+   Policy prose — style cho nội dung các trang chính sách pháp lý.
+   Dùng className="policy-prose" trên wrapper của content.
+   ============================================================ */
+.policy-prose h3 {
+  @apply mt-6 mb-3 text-base font-bold text-slate-900;
+}
+.policy-prose h4 {
+  @apply mt-5 mb-2 text-sm font-semibold text-slate-800;
+}
+.policy-prose p {
+  @apply mb-3 leading-relaxed text-slate-700;
+}
+.policy-prose ul {
+  @apply mb-4 ml-5 list-disc space-y-1.5 text-slate-700;
+}
+.policy-prose ol {
+  @apply mb-4 ml-5 list-decimal space-y-1.5 text-slate-700;
+}
+.policy-prose li::marker {
+  @apply text-slate-400;
+}
+.policy-prose strong {
+  @apply font-semibold text-slate-900;
+}
+.policy-prose em {
+  @apply text-slate-800;
+}
+.policy-prose a {
+  @apply font-medium text-blue-600 underline-offset-4 hover:underline;
+}
+.policy-prose blockquote {
+  @apply my-4 border-l-4 border-amber-300 bg-amber-50/60 px-4 py-3 italic text-slate-700;
+}
+.policy-prose table {
+  @apply my-4 w-full overflow-hidden rounded-lg border border-slate-200 text-sm;
+}
+.policy-prose thead {
+  @apply bg-slate-100;
+}
+.policy-prose th {
+  @apply px-3 py-2 text-left font-semibold text-slate-800;
+}
+.policy-prose td {
+  @apply border-t border-slate-100 px-3 py-2 text-slate-700;
+}
+.policy-prose code {
+  @apply rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[12px] text-slate-800;
+}
+
 /* ====== In hoá đơn: chỉ in vùng #receipt-print, ẩn phần còn lại ====== */
 @media print {
   /* Ẩn toàn bộ trang, chỉ chừa nhánh chứa hoá đơn */
@@ -485,5 +535,12 @@
    đè lên vùng màu — overlay đã là fixed inset-0 nên không cần trang cuộn nữa.
    Class này được toggle trong src/app/(client)/test-laptop/display/page.tsx. */
 body.display-fullscreen {
-  overflow: hidden;
+  /* Khoá cả chiều dọc lẫn chiều ngang ở cả <html> và <body> — một số trình duyệt
+     (vd Chromium) hiển scrollbar ở <html> thay vì <body>, nên chỉ set overflow
+     cho body là chưa đủ. Khi portal render <div> fullscreen ở document.body,
+     mọi ancestor đều bị khoá để không còn thanh scroll nào có thể xuất hiện. */
+  overflow: hidden !important;
+}
+html:has(body.display-fullscreen) {
+  overflow: hidden !important;
 }
