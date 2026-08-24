@@ -18,6 +18,10 @@ import {
 } from "@/components/ui/select";
 import { httpGet, httpPost } from "@/lib/api/http";
 import type { Paginated } from "@/lib/api/response";
+import {
+  HelpTip,
+  InventoryHelpSection,
+} from "@/app/quanly/inventory/_components/inventory-help";
 
 type Warehouse = { id: string; name: string; code: string | null };
 type Variant = { id: string; name: string | null; sku: string | null };
@@ -108,15 +112,19 @@ export default function TransferPage() {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
+      <InventoryHelpSection variant="transfer" />
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <ArrowRightLeft className="h-6 w-6 text-primary" />
-            <div>
-              <CardTitle>Chuyển kho</CardTitle>
-              <CardDescription>
-                Chuyển hàng giữa các kho. Hệ thống sẽ tự động cập nhật tồn kho và ghi nhận giao dịch.
-              </CardDescription>
+            <div className="flex items-center gap-2">
+              <div>
+                <CardTitle>Chuyển kho</CardTitle>
+                <CardDescription>
+                  Chuyển hàng giữa các kho. Hệ thống sẽ tự động cập nhật tồn kho và ghi nhận giao dịch.
+                </CardDescription>
+              </div>
+              <HelpTip content="Tạo phiếu chuyển kho: kho nguồn bị trừ tồn ngay, kho đích được cộng ngay. Phát sinh 2 dòng inventory_transactions (out + in)." />
             </div>
           </div>
         </CardHeader>
@@ -124,7 +132,10 @@ export default function TransferPage() {
           {/* Kho nguồn - Kho đích */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Kho nguồn</Label>
+              <div className="flex items-center gap-1">
+                <Label>Kho nguồn</Label>
+                <HelpTip content="Kho bị trừ tồn khi chuyển. Chọn kho đang chứa sản phẩm cần chuyển đi." />
+              </div>
               <Select value={fromWarehouse} onValueChange={setFromWarehouse}>
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn kho nguồn" />
@@ -137,7 +148,10 @@ export default function TransferPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Kho đích</Label>
+              <div className="flex items-center gap-1">
+                <Label>Kho đích</Label>
+                <HelpTip content="Kho được cộng tồn khi nhận hàng chuyển đến. Bắt buộc khác kho nguồn." />
+              </div>
               <Select value={toWarehouse} onValueChange={setToWarehouse}>
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn kho đích" />
