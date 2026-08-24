@@ -1,4 +1,4 @@
-type AuditAction = "create" | "update" | "delete" | "action";
+type AuditAction = "create" | "update" | "delete" | "action" | "bulk_delete";
 
 type AuditInput = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
