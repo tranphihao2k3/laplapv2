@@ -3,22 +3,31 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Edit, Save, X, FileText, Cpu, Gift, Layers3 } from "lucide-react";
+import { Plus, Trash2, Edit, Save, X, FileText, Cpu, Gift, Layers3, Eye, Pencil, ClipboardCopy, LayoutGrid, List, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
-import { useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate, useMyShops } from "@/lib/api/admin-crud";
+import { useCrudBulkDelete, useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate, useMyShops } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { createClient } from "@/lib/supabase/client";
 import { buildCategoryTree, findTemplateForCategory, getAncestors } from "@/lib/category-tree";
 import { GiftProductPicker, type GiftProductLite } from "@/components/admin/gift-product-picker";
 import { AIPasteBox, type ParseSuggestions, type ParseResult } from "@/components/admin/ai-paste-box";
 import { Section } from "@/components/ui/section";
 import { ConfirmDeleteDialog } from "@/components/admin/confirm-delete-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ProductCard, ProductCardSkeleton, type ProductCardData } from "./_components/product-card";
 
 type Product = {
   id: string;
@@ -114,8 +123,11 @@ function getErrorMessage(error: unknown) {
 export default function ProductsAdminPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [open, setOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  // ID sản phẩm đang chờ xác nhận xoá (cho grid view — không có trigger riêng).
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   // Form states
   const [name, setName] = useState("");
@@ -144,7 +156,8 @@ export default function ProductsAdminPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [quickStock, setQuickStock] = useState<number | "">("");
   // Tab cho ô mô tả chi tiết: chỉnh sửa HTML thô / xem preview render
-  const [descriptionTab, setDescriptionTab] = useState<"edit" | "preview">("edit");
+  // Mặc định mở "preview" để user thấy ngay layout thật, click "Chỉnh sửa" khi cần soạn.
+  const [descriptionTab, setDescriptionTab] = useState<"edit" | "preview">("preview");
 
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -188,11 +201,43 @@ export default function ProductsAdminPage() {
   const createProduct = useCrudCreate<Product, Record<string, unknown>>("products");
   const updateProduct = useCrudUpdate<Product, Record<string, unknown>>("products");
   const deleteProduct = useCrudDelete("products");
+  const bulkDeleteProducts = useCrudBulkDelete("products");
   const createVariant = useCrudCreate<Record<string, unknown>, Record<string, unknown>>("product-variants");
   const updateVariant = useCrudUpdate<Record<string, unknown>, Record<string, unknown>>("product-variants");
   const deleteVariant = useCrudDelete("product-variants");
+  const bulkDeleteVariants = useCrudBulkDelete("product-variants");
+  const selection = useBulkSelection();
 
   const activeProducts = productsQuery.data?.items ?? [];
+  const pageIds = useMemo(() => activeProducts.map((p) => p.id), [activeProducts]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDeleteProducts() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteProducts.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được sản phẩm nào (có thể do khoá ngoại: còn biến thể / đơn hàng / sửa chữa)");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} sản phẩm`);
+      }
+      selection.clear();
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "error" in e
+          ? (e as { error?: { message?: string } }).error?.message
+          : e instanceof Error
+            ? e.message
+            : "Có lỗi xảy ra";
+      toast.error(msg || "Có lỗi xảy ra");
+    }
+  }
   const brands = brandsQuery.data?.items ?? [];
   const categories = categoriesQuery.data?.items ?? [];
   const specTemplates = specTemplatesQuery.data?.items ?? [];
@@ -203,6 +248,23 @@ export default function ProductsAdminPage() {
 
   const brandMap = useMemo(() => new Map(brands.map((b) => [b.id, b.name])), [brands]);
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+  // Map variant đầu tiên của mỗi product → dùng để grid card hiển thị SKU + giá mà không cần vào trang chi tiết
+  const variantInfoMap = useMemo(() => {
+    const list = (variantsQuery.data?.items ?? []) as VariantRow[];
+    const sorted = [...list].sort((a, b) => String(a.sku ?? "").localeCompare(String(b.sku ?? "")));
+    const map = new Map<string, { sku: string; price: number | null; compareAt: number | null; active: boolean | null }>();
+    for (const v of sorted) {
+      const productId = String(v.product_id ?? "");
+      if (!productId || map.has(productId)) continue;
+      map.set(productId, {
+        sku: v.sku ?? "",
+        price: typeof v.selling_price === "number" ? v.selling_price : null,
+        compareAt: null,
+        active: typeof v.is_active === "boolean" ? v.is_active : null,
+      });
+    }
+    return map;
+  }, [variantsQuery.data]);
 
   const sortedProducts = useMemo(() => {
     const normalize = (value: string) =>
@@ -728,17 +790,166 @@ export default function ProductsAdminPage() {
               placeholder="Tìm sản phẩm..."
               className="w-full sm:w-64"
             />
+            <TooltipProvider delayDuration={200}>
+              <div className="inline-flex rounded-md border bg-background p-0.5 shadow-sm">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant={viewMode === "grid" ? "default" : "outline"}
+                      size="icon"
+                      className="h-9 w-9 rounded-sm"
+                      aria-label="Dạng lưới"
+                      aria-pressed={viewMode === "grid"}
+                      onClick={() => setViewMode("grid")}
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Dạng lưới</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant={viewMode === "table" ? "default" : "outline"}
+                      size="icon"
+                      className="h-9 w-9 rounded-sm"
+                      aria-label="Dạng bảng"
+                      aria-pressed={viewMode === "table"}
+                      onClick={() => setViewMode("table")}
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Dạng bảng</TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
             <Button onClick={startCreate} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Thêm sản phẩm
             </Button>
           </div>
         </CardHeader>
         <CardContent>
+          {viewMode === "grid" ? (
+            /* ===== Grid view (áp dụng cho cả desktop & mobile) ===== */
+            <div>
+              {sortedProducts.length === 0 ? (
+                productsQuery.isLoading ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <ProductCardSkeleton key={i} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border bg-card">
+                    <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                      <Package className="h-10 w-10 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Chưa có sản phẩm nào</p>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {sortedProducts.map((prod, index) => {
+                    const brand = prod.brand_id ? brandMap.get(prod.brand_id) ?? null : null;
+                    const category = prod.category_id ? categoryMap.get(prod.category_id) ?? null : null;
+                    const variantInfo = variantInfoMap.get(prod.id);
+                    const cardData: ProductCardData = {
+                      id: prod.id,
+                      name: prod.name,
+                      slug: prod.slug ?? null,
+                      sku: variantInfo?.sku || prod.slug || null,
+                      brand_name: brand,
+                      category_name: category,
+                      price: variantInfo?.price ?? null,
+                      compare_at_price: variantInfo?.compareAt ?? null,
+                      image_url: prod.thumbnail_url ?? null,
+                      stock_qty: null,
+                      is_active: prod.status === "active" ? true : prod.status === "archived" ? false : null,
+                      status: prod.status,
+                    };
+                    return (
+                      <div key={prod.id} className="relative">
+                        <label className="absolute left-2 top-2 z-10 inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded border bg-background/90 shadow-sm hover:bg-background">
+                          <Checkbox
+                            checked={selection.isSelected(prod.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) selection.add(prod.id);
+                              else selection.remove(prod.id);
+                            }}
+                            aria-label={`Chọn ${prod.name}`}
+                            className="h-4 w-4"
+                          />
+                        </label>
+                        <ProductCard
+                          product={cardData}
+                          index={(page - 1) * 20 + index + 1}
+                          onEdit={() => void startEdit(prod)}
+                          onDelete={() => setConfirmingDeleteId(prod.id)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Bulk toolbar cho grid view (chỉ hiện khi có chọn) */}
+              <div className="mt-4">
+                <BulkActionsToolbar
+                  count={selection.count}
+                  entityLabel="sản phẩm"
+                  onClear={selection.clear}
+                  onRequestDelete={() => {
+                    if (window.confirm(`Xoá ${selection.count} sản phẩm đã chọn? Hành động không thể hoàn tác và có thể fail nếu còn biến thể/đơn hàng liên quan.`)) {
+                      void handleBulkDeleteProducts();
+                    }
+                  }}
+                  isPending={bulkDeleteProducts.isPending}
+                />
+              </div>
+
+              {/* Dialog xác nhận xoá dùng chung cho grid view (mỗi card chỉ gọi setConfirmingDeleteId). */}
+              <ConfirmDeleteDialog
+                entity="products"
+                id={confirmingDeleteId ?? ""}
+                open={confirmingDeleteId !== null}
+                onOpenChange={(o) => {
+                  if (!o) setConfirmingDeleteId(null);
+                }}
+              />
+            </div>
+          ) : (
+            <>
           {/* ===== Desktop: bảng đầy đủ (ẩn trên mobile) ===== */}
           <div className="hidden md:block overflow-x-auto">
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="sản phẩm"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} sản phẩm đã chọn? Hành động không thể hoàn tác và có thể fail nếu còn biến thể/đơn hàng liên quan.`)) {
+                void handleBulkDeleteProducts();
+              }
+            }}
+            isPending={bulkDeleteProducts.isPending}
+          />
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allOnPageSelected}
+                      onCheckedChange={() => selection.toggleAll(pageIds)}
+                      aria-label="Chọn tất cả"
+                      ref={(el) => {
+                        if (el && "indeterminate" in el) {
+                          (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                        }
+                      }}
+                    />
+                  </TableHead>
                   <TableHead className="w-14">STT</TableHead>
                   <TableHead>Sản phẩm</TableHead>
                   <TableHead>Mã/SKU đại diện</TableHead>
@@ -761,8 +972,16 @@ export default function ProductsAdminPage() {
                     const b = prod.brand_id ? brandMap.get(prod.brand_id) : null;
                     const c = prod.category_id ? categoryMap.get(prod.category_id) : null;
                     const variantsCount = prod.variants_count ?? 0;
+                    const checked = selection.isSelected(prod.id);
                     return (
-                      <TableRow key={prod.id}>
+                      <TableRow key={prod.id} data-state={checked ? "selected" : undefined}>
+                        <TableCell>
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => selection.toggle(prod.id)}
+                            aria-label={`Chọn ${prod.name}`}
+                          />
+                        </TableCell>
                         <TableCell>{index + 1}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -1170,35 +1389,92 @@ export default function ProductsAdminPage() {
                     <div className="inline-flex rounded-md border bg-muted/40 p-0.5 text-xs">
                       <button
                         type="button"
-                        onClick={() => setDescriptionTab("edit")}
-                        className={`px-2.5 py-1 rounded ${descriptionTab === "edit" ? "bg-background shadow-sm font-semibold" : "text-muted-foreground"}`}
+                        onClick={() => setDescriptionTab("preview")}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded ${descriptionTab === "preview" ? "bg-background shadow-sm font-semibold" : "text-muted-foreground"}`}
                       >
-                        Chỉnh sửa
+                        <Eye className="h-3.5 w-3.5" /> Xem trước
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDescriptionTab("preview")}
-                        className={`px-2.5 py-1 rounded ${descriptionTab === "preview" ? "bg-background shadow-sm font-semibold" : "text-muted-foreground"}`}
+                        onClick={() => setDescriptionTab("edit")}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded ${descriptionTab === "edit" ? "bg-background shadow-sm font-semibold" : "text-muted-foreground"}`}
                       >
-                        Xem trước
+                        <Pencil className="h-3.5 w-3.5" /> Chỉnh sửa
                       </button>
                     </div>
                   </div>
                   {descriptionTab === "edit" ? (
-                    <textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder='Có thể paste HTML từ AI hoặc viết tay. VD: <h3>Cấu hình</h3><ul><li>CPU: i7-1255U</li></ul>'
-                      className="flex min-h-[160px] sm:min-h-[260px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
+                    <>
+                      <textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder='Có thể paste HTML từ AI hoặc viết tay. VD: <h3>Cấu hình</h3><ul><li>CPU: i7-1255U</li></ul>'
+                        className="flex min-h-[160px] sm:min-h-[260px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                      {/* Live mini preview để soạn mà biết layout hiện ra sao */}
+                      {description.trim() ? (
+                        <details className="rounded-md border bg-muted/20 px-3 py-2 text-xs">
+                          <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5">
+                            <Eye className="h-3.5 w-3.5" /> Preview trực tiếp (đang hiển thị)
+                          </summary>
+                          <div
+                            className="product-description-preview mt-2 prose prose-sm max-w-none text-foreground"
+                            dangerouslySetInnerHTML={{ __html: description }}
+                          />
+                        </details>
+                      ) : null}
+                    </>
                   ) : description ? (
-                    <div
-                      className="product-description-preview min-h-[160px] sm:min-h-[260px] rounded-md border bg-card px-4 py-3 text-sm"
-                      dangerouslySetInnerHTML={{ __html: description }}
-                    />
+                    <>
+                      <div
+                        className="product-description-preview min-h-[160px] sm:min-h-[260px] rounded-md border bg-card px-4 py-3 text-sm"
+                        dangerouslySetInnerHTML={{ __html: description }}
+                      />
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">
+                          Đây là giao diện hiển thị thật trên trang khách hàng.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(description ?? "");
+                                toast.success("Đã sao chép HTML vào clipboard");
+                              } catch {
+                                toast.error("Không thể sao chép — trình duyệt chặn clipboard");
+                              }
+                            }}
+                          >
+                            <ClipboardCopy className="mr-1 h-3 w-3" /> Sao chép HTML
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setDescriptionTab("edit")}
+                          >
+                            <Pencil className="mr-1 h-3 w-3" /> Sửa mô tả
+                          </Button>
+                        </div>
+                      </div>
+                    </>
                   ) : (
-                    <div className="min-h-[160px] sm:min-h-[260px] rounded-md border border-dashed bg-muted/20 px-4 py-3 text-xs text-muted-foreground flex items-center justify-center">
-                      Chưa có nội dung mô tả — chuyển sang &quot;Chỉnh sửa&quot; để viết.
+                    <div className="min-h-[160px] sm:min-h-[260px] rounded-md border border-dashed bg-muted/20 px-4 py-3 text-xs text-muted-foreground flex flex-col items-center justify-center gap-2 text-center">
+                      <span>Chưa có nội dung mô tả.</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setDescriptionTab("edit")}
+                      >
+                        <Pencil className="mr-1 h-3 w-3" /> Bắt đầu soạn mô tả
+                      </Button>
                     </div>
                   )}
                 </div>
