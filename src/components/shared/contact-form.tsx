@@ -74,10 +74,10 @@ export function ContactForm() {
 
   if (status === "success") {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50/60 px-6 py-12 text-center">
-        <CheckCircle2 className="mb-4 h-12 w-12 text-emerald-600" />
-        <h3 className="text-xl font-bold text-emerald-900">Đã gửi thành công!</h3>
-        <p className="mt-2 max-w-md text-sm text-emerald-800">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50/60 px-6 py-12 text-center dark:border-emerald-800 dark:bg-emerald-950/40">
+        <CheckCircle2 className="mb-4 h-12 w-12 text-emerald-600 dark:text-emerald-400" />
+        <h3 className="text-xl font-bold text-emerald-900 dark:text-emerald-100">Đã gửi thành công!</h3>
+        <p className="mt-2 max-w-md text-sm text-emerald-800 dark:text-emerald-200/80">
           Cảm ơn bạn đã liên hệ. Đội ngũ LapLap sẽ phản hồi trong vòng 24 giờ làm việc (trừ
           Chủ nhật & ngày lễ).
         </p>
@@ -188,9 +188,9 @@ export function ContactForm() {
         )}
       </Button>
 
-      <p className="text-xs leading-relaxed text-slate-500">
+      <p className="text-xs leading-relaxed text-muted-foreground">
         Khi gửi liên hệ, bạn đồng ý với{" "}
-        <a href="/chinh-sach-bao-mat" className="underline">
+        <a href="/chinh-sach-bao-mat" className="underline hover:text-foreground">
           Chính sách bảo mật
         </a>{" "}
         của chúng tôi. Thông tin của bạn chỉ được dùng để phản hồi yêu cầu hỗ trợ.

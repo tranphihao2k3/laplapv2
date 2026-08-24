@@ -63,7 +63,7 @@ export function RepairTicketPicker({ onPick }: RepairTicketPickerProps) {
         <DialogHeader>
           <DialogTitle>Chọn máy sửa đã hoàn thành</DialogTitle>
           <DialogDescription>
-            Chọn phiếu sửa có trạng thái "Đã sửa xong" để thêm phí sửa vào hóa đơn
+            Chọn phiếu sửa có trạng thái &ldquo;Đã sửa xong&rdquo; để thêm phí sửa vào hóa đơn
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

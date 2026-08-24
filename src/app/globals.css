@@ -101,6 +101,30 @@
 }
 
 @layer utilities {
+  /* POS receipt — đảm bảo khi in ra luôn đúng khổ giấy */
+  .receipt[data-paper="thermal80"] {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  .receipt[data-paper="thermal58"] {
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  .receipt[data-paper="a4"] {
+    max-width: 210mm;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+  /* Khi in: chỉ in vùng #receipt-print */
+  @media print {
+    @page {
+      margin: 4mm;
+    }
+    .receipt[data-paper="thermal80"],
+    .receipt[data-paper="thermal58"] {
+      width: 100%;
+      max-width: none;
+    }
+  }
+
   /* Clip path reveal from bottom */
   .clip-reveal {
     clip-path: inset(0 0 100% 0);
@@ -442,51 +466,72 @@
 /* ============================================================
    Policy prose — style cho nội dung các trang chính sách pháp lý.
    Dùng className="policy-prose" trên wrapper của content.
+   Màu sắc dùng currentColor + CSS vars để tương thích dark mode.
    ============================================================ */
+.policy-prose {
+  color: hsl(var(--foreground));
+}
 .policy-prose h3 {
-  @apply mt-6 mb-3 text-base font-bold text-slate-900;
+  @apply mt-6 mb-3 text-base font-bold text-foreground;
 }
 .policy-prose h4 {
-  @apply mt-5 mb-2 text-sm font-semibold text-slate-800;
+  @apply mt-5 mb-2 text-sm font-semibold text-foreground/90;
 }
 .policy-prose p {
-  @apply mb-3 leading-relaxed text-slate-700;
+  @apply mb-3 leading-relaxed;
+  color: hsl(var(--muted-foreground));
 }
 .policy-prose ul {
-  @apply mb-4 ml-5 list-disc space-y-1.5 text-slate-700;
+  @apply mb-4 ml-5 list-disc space-y-1.5;
+  color: hsl(var(--muted-foreground));
 }
 .policy-prose ol {
-  @apply mb-4 ml-5 list-decimal space-y-1.5 text-slate-700;
+  @apply mb-4 ml-5 list-decimal space-y-1.5;
+  color: hsl(var(--muted-foreground));
 }
 .policy-prose li::marker {
-  @apply text-slate-400;
+  color: hsl(var(--muted-foreground));
 }
 .policy-prose strong {
-  @apply font-semibold text-slate-900;
+  @apply font-semibold text-foreground;
 }
 .policy-prose em {
-  @apply text-slate-800;
+  @apply text-foreground/90;
 }
 .policy-prose a {
-  @apply font-medium text-blue-600 underline-offset-4 hover:underline;
+  @apply font-medium underline-offset-4 hover:underline;
+  color: hsl(217 91% 60%);
+}
+.dark .policy-prose a {
+  color: hsl(217 91% 70%);
 }
 .policy-prose blockquote {
-  @apply my-4 border-l-4 border-amber-300 bg-amber-50/60 px-4 py-3 italic text-slate-700;
+  @apply my-4 border-l-4 border-amber-300 px-4 py-3 italic;
+  background-color: hsl(48 96% 89% / 0.3);
+  color: hsl(var(--muted-foreground));
+}
+.dark .policy-prose blockquote {
+  background-color: hsl(48 96% 15% / 0.3);
 }
 .policy-prose table {
-  @apply my-4 w-full overflow-hidden rounded-lg border border-slate-200 text-sm;
+  @apply my-4 w-full overflow-hidden rounded-lg border text-sm;
+  border-color: hsl(var(--border));
 }
 .policy-prose thead {
-  @apply bg-slate-100;
+  background-color: hsl(var(--muted));
 }
 .policy-prose th {
-  @apply px-3 py-2 text-left font-semibold text-slate-800;
+  @apply px-3 py-2 text-left font-semibold text-foreground;
 }
 .policy-prose td {
-  @apply border-t border-slate-100 px-3 py-2 text-slate-700;
+  @apply border-t px-3 py-2;
+  border-color: hsl(var(--border));
+  color: hsl(var(--muted-foreground));
 }
 .policy-prose code {
-  @apply rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[12px] text-slate-800;
+  @apply rounded px-1.5 py-0.5 font-mono text-[12px];
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 /* ====== In hoá đơn: chỉ in vùng #receipt-print, ẩn phần còn lại ====== */

@@ -117,9 +117,9 @@ export default function WarrantyLookupPage() {
   };
 
   return (
-    <div className="bg-white">
+    <div className="bg-background">
       {/* Hero */}
-      <section className="relative overflow-hidden border-b bg-zinc-950 text-white">
+      <section className="relative overflow-hidden border-b border-border bg-zinc-950 text-white dark:bg-zinc-950">
         <div
           className="pointer-events-none absolute inset-0 opacity-10"
           style={{
@@ -144,40 +144,40 @@ export default function WarrantyLookupPage() {
 
       <div className="container mx-auto max-w-3xl px-4 pb-16">
         {/* Search box */}
-        <div className="relative z-10 -mt-14 rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl sm:p-5">
+        <div className="relative z-10 -mt-14 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-xl sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
-              <ScanLine className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
+              <ScanLine className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="VD: SN12345678 hoặc 0901234567"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                className="h-11 pl-10 text-base border-zinc-200 focus-visible:ring-zinc-900"
+                className="h-11 pl-10 text-base focus-visible:ring-zinc-900"
               />
             </div>
             <Button
               onClick={handleSearch}
               disabled={loading}
               size="lg"
-              className="h-11 bg-zinc-900 px-6 text-white hover:bg-zinc-700"
+              className="h-11 bg-zinc-900 px-6 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               <Search className="mr-2 h-5 w-5" />
               {loading ? "Đang tìm..." : "Tra cứu"}
             </Button>
           </div>
-          <p className="mt-2 px-1 text-xs text-zinc-400">
+          <p className="mt-2 px-1 text-xs text-muted-foreground">
             Hỗ trợ tra cứu bằng số serial, IMEI hoặc số điện thoại mua hàng.
           </p>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="mt-6 flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-zinc-500" />
+          <div className="mt-6 flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             <div>
-              <p className="font-medium text-zinc-900">Không tìm thấy</p>
-              <p className="text-sm text-zinc-500">{error}</p>
+              <p className="font-medium text-foreground">Không tìm thấy</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           </div>
         )}
@@ -186,24 +186,24 @@ export default function WarrantyLookupPage() {
         {result && (
           <div className="mt-6 space-y-4">
             {result.customer && (
-              <div className="flex flex-wrap items-center gap-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-200 text-zinc-700">
+              <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-muted/40 p-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-foreground">
                   <Phone className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate font-semibold text-zinc-900">{result.customer.full_name ?? "Khách hàng"}</p>
-                  <p className="text-sm text-zinc-500">{result.customer.phone}</p>
+                  <p className="truncate font-semibold text-foreground">{result.customer.full_name ?? "Khách hàng"}</p>
+                  <p className="text-sm text-muted-foreground">{result.customer.phone}</p>
                 </div>
-                <div className="ml-auto flex items-center gap-2 rounded-lg bg-zinc-200 px-3 py-1.5 text-sm">
-                  <Package className="h-4 w-4 text-zinc-500" />
-                  <span className="font-semibold text-zinc-900">{result.total}</span>
-                  <span className="text-zinc-500">sản phẩm</span>
+                <div className="ml-auto flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 text-sm">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold text-foreground">{result.total}</span>
+                  <span className="text-muted-foreground">sản phẩm</span>
                 </div>
               </div>
             )}
 
             {result.warranties.length === 0 ? (
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-10 text-center text-zinc-400">
+              <div className="rounded-xl border border-border bg-muted/40 p-10 text-center text-muted-foreground">
                 Không có sản phẩm bảo hành nào gắn với thông tin này.
               </div>
             ) : (
@@ -213,20 +213,20 @@ export default function WarrantyLookupPage() {
                 return (
                   <div
                     key={w.id}
-                    className="group relative overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-all hover:shadow-md"
+                    className="group relative overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md"
                   >
                     <div className={`absolute inset-y-0 left-0 w-1.5 ${s.bar}`} />
                     <div className="p-5 pl-6">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-zinc-50 ring-1 ring-zinc-100">
-                            <Package className="h-6 w-6 text-zinc-400" />
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border">
+                            <Package className="h-6 w-6 text-muted-foreground" />
                           </div>
                           <div className="min-w-0 pt-0.5">
-                            <p className="font-bold leading-tight text-zinc-900 sm:text-lg">{w.product_name}</p>
-                            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
-                              {w.product_sku && <span className="font-mono bg-zinc-100 px-1.5 py-0.5 rounded">SKU: {w.product_sku}</span>}
-                              {w.serial_number && <span className="font-mono bg-zinc-100 px-1.5 py-0.5 rounded">S/N: {w.serial_number}</span>}
+                            <p className="font-bold leading-tight text-foreground sm:text-lg">{w.product_name}</p>
+                            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                              {w.product_sku && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">SKU: {w.product_sku}</span>}
+                              {w.serial_number && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">S/N: {w.serial_number}</span>}
                             </div>
                           </div>
                         </div>
@@ -236,11 +236,11 @@ export default function WarrantyLookupPage() {
                       </div>
 
                       {/* Visual Timeline */}
-                      <div className="mt-6 rounded-xl bg-zinc-50/80 p-5 ring-1 ring-zinc-100">
+                      <div className="mt-6 rounded-xl bg-muted/40 p-5 ring-1 ring-border">
                         <div className="flex items-center justify-between mb-4">
                           <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">Kích hoạt</p>
-                            <p className="mt-0.5 font-semibold text-zinc-900">{fmtDate(w.warranty_start)}</p>
+                            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Kích hoạt</p>
+                            <p className="mt-0.5 font-semibold text-foreground">{fmtDate(w.warranty_start)}</p>
                           </div>
                           
                           {w.days_left !== null && w.days_left >= 0 && (
@@ -254,7 +254,7 @@ export default function WarrantyLookupPage() {
                           
                           {w.days_left !== null && w.days_left < 0 && (
                             <div className="text-center">
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-zinc-200 px-3 py-1 text-sm font-bold text-zinc-600 shadow-sm">
+                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-bold text-foreground shadow-sm">
                                 <AlertCircle className="h-4 w-4" />
                                 Hết hạn {Math.abs(w.days_left)} ngày
                               </div>
@@ -262,14 +262,14 @@ export default function WarrantyLookupPage() {
                           )}
 
                           <div className="text-right">
-                            <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">Hết hạn</p>
-                            <p className="mt-0.5 font-semibold text-zinc-900">{fmtDate(w.warranty_end)}</p>
+                            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Hết hạn</p>
+                            <p className="mt-0.5 font-semibold text-foreground">{fmtDate(w.warranty_end)}</p>
                           </div>
                         </div>
                         
                         <div className="relative pt-3 pb-1">
                           {/* Track */}
-                          <div className="flex h-3 w-full overflow-hidden rounded-full bg-zinc-200/80 inset-shadow-sm">
+                          <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted inset-shadow-sm">
                             {/* Fill */}
                             <div
                               className={`h-full ${s.bar} transition-all duration-1000 ease-out`}
@@ -283,26 +283,26 @@ export default function WarrantyLookupPage() {
                               className="absolute top-0 -ml-1.5 flex flex-col items-center"
                               style={{ left: `${pct}%` }}
                             >
-                              <div className="h-4 w-3 rounded-t-sm bg-zinc-800" />
-                              <div className="h-1 w-1 mt-0.5 rounded-full bg-zinc-800" />
+                              <div className="h-4 w-3 rounded-t-sm bg-zinc-800 dark:bg-zinc-200" />
+                              <div className="h-1 w-1 mt-0.5 rounded-full bg-zinc-800 dark:bg-zinc-200" />
                             </div>
                           )}
                         </div>
                       </div>
 
                       {/* Info grid */}
-                      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-100 pt-4 text-sm sm:grid-cols-3">
+                      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 text-sm sm:grid-cols-3">
                         <div>
-                          <p className="text-xs text-zinc-400">Số hóa đơn</p>
-                          <p className="font-medium font-mono text-zinc-900">{w.order_number || "—"}</p>
+                          <p className="text-xs text-muted-foreground">Số hóa đơn</p>
+                          <p className="font-medium font-mono text-foreground">{w.order_number || "—"}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-zinc-400">Ngày mua</p>
-                          <p className="font-medium text-zinc-900">{fmtDate(w.purchase_date)}</p>
+                          <p className="text-xs text-muted-foreground">Ngày mua</p>
+                          <p className="font-medium text-foreground">{fmtDate(w.purchase_date)}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-zinc-400">Thời hạn</p>
-                          <p className="font-medium text-zinc-900">{w.warranty_months} tháng</p>
+                          <p className="text-xs text-muted-foreground">Thời hạn</p>
+                          <p className="font-medium text-foreground">{w.warranty_months} tháng</p>
                         </div>
                       </div>
                     </div>
@@ -312,9 +312,9 @@ export default function WarrantyLookupPage() {
             )}
 
             {/* Note */}
-            <div className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-zinc-500" />
-              <p className="text-sm text-zinc-600">
+            <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
                 Để được bảo hành, vui lòng mang theo hóa đơn mua hàng và sản phẩm đến cửa hàng gần nhất.
               </p>
             </div>
@@ -329,12 +329,12 @@ export default function WarrantyLookupPage() {
               { icon: Search, title: "Tra cứu", desc: "Hệ thống tìm trong vài giây" },
               { icon: Shield, title: "Xem kết quả", desc: "Tình trạng & thời hạn bảo hành" },
             ].map((step, i) => (
-              <div key={i} className="rounded-xl border border-zinc-200 bg-white p-5 text-center">
-                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
+              <div key={i} className="rounded-xl border border-border bg-card p-5 text-center text-card-foreground">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-muted text-foreground">
                   <step.icon className="h-5 w-5" />
                 </div>
-                <p className="font-semibold text-zinc-900">{step.title}</p>
-                <p className="mt-1 text-sm text-zinc-400">{step.desc}</p>
+                <p className="font-semibold text-foreground">{step.title}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{step.desc}</p>
               </div>
             ))}
           </div>
@@ -342,22 +342,22 @@ export default function WarrantyLookupPage() {
 
         {/* Support */}
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-foreground">
               <Headphones className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm text-zinc-400">Hotline hỗ trợ</p>
-              <p className="font-semibold text-zinc-900">1900 xxxx</p>
+              <p className="text-sm text-muted-foreground">Hotline hỗ trợ</p>
+              <p className="font-semibold text-foreground">1900 xxxx</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-foreground">
               <MapPin className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm text-zinc-400">Trung tâm bảo hành</p>
-              <p className="font-semibold text-zinc-900">Mang sản phẩm đến cửa hàng gần nhất</p>
+              <p className="text-sm text-muted-foreground">Trung tâm bảo hành</p>
+              <p className="font-semibold text-foreground">Mang sản phẩm đến cửa hàng gần nhất</p>
             </div>
           </div>
         </div>

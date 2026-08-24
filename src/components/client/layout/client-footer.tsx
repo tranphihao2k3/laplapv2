@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { getStoreInfo } from "@/lib/store-info";
-import { getShopInfo, telHref, getLegalInfo } from "@/lib/shop-info";
+import { telHref } from "@/lib/shop-info";
 import { StoreContactInfo } from "@/components/shared/store-contact-info";
 
 const FOOTER_LINKS = {
@@ -33,14 +33,9 @@ const FOOTER_LINKS = {
 
 
 export async function ClientFooter() {
-  // Dùng song song: shop_info cho tên/contact gọn, store_info cho legal.
-  // shop_info đã fallback sang store_info ở lib/shop-info.ts.
-  const [shop, _store, legal] = await Promise.all([
-    getShopInfo(),
-    getStoreInfo(),
-    getLegalInfo(),
-  ]);
-  const tel = telHref(shop.phone);
+  // Dùng getStoreInfo() — đã bao gồm legal info (MST, ĐKKD, GCN...).
+  const store = await getStoreInfo();
+  const tel = telHref(store.phone);
 
   return (
     <footer className="border-t bg-muted/30">
@@ -50,7 +45,7 @@ export async function ClientFooter() {
           <div className="space-y-4 sm:col-span-2 lg:col-span-2">
             <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight">
               <span className="text-primary">Lap</span>
-              <span>Lap</span>
+              <span className="text-foreground">Lap</span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cam kết sản phẩm chính
@@ -59,16 +54,16 @@ export async function ClientFooter() {
 
             <StoreContactInfo compact />
 
-            <p className="text-xs leading-relaxed text-slate-500">
-              <strong>{legal.business_name}</strong>
+            <p className="text-xs leading-relaxed text-muted-foreground/80">
+              <strong className="text-foreground">{store.legal.business_name}</strong>
               <br />
-              MST: <strong className="text-foreground">{legal.tax_id}</strong> · ĐKKD:{" "}
+              MST: <strong className="text-foreground">{store.legal.tax_id}</strong> · ĐKKD:{" "}
               <strong className="text-foreground">
-                {legal.business_registration_number}
+                {store.legal.business_registration_number}
               </strong>
               <br />
               Người chịu trách nhiệm nội dung:{" "}
-              <strong className="text-foreground">{legal.legal_representative}</strong>
+              <strong className="text-foreground">{store.legal.legal_representative}</strong>
             </p>
           </div>
 
@@ -97,7 +92,7 @@ export async function ClientFooter() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1 text-sm text-muted-foreground">
             <p>
-              © {new Date().getFullYear()} {shop.name}. Tất cả quyền được bảo lưu.
+              © {new Date().getFullYear()} {store.name}. Tất cả quyền được bảo lưu.
             </p>
             <p className="text-xs">
               Đã thông báo/đăng ký với{" "}

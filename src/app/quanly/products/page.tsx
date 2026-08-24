@@ -833,8 +833,8 @@ export default function ProductsAdminPage() {
         </CardHeader>
         <CardContent>
           {viewMode === "grid" ? (
-            /* ===== Grid view (áp dụng cho cả desktop & mobile) ===== */
             <>
+            {/* ===== Grid view (áp dụng cho cả desktop & mobile) ===== */}
             <div>
               {sortedProducts.length === 0 ? (
                 productsQuery.isLoading ? (
