@@ -113,7 +113,7 @@ export function useCrudBulkDelete(entity: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ids: string[]) =>
-      httpPost<{ deleted: string[] }>(`/v1/${entity}/bulk-delete`, { ids }),
+      httpPost<{ deleted: string[]; missing: string[] }>(`/v1/admin/bulk-delete`, { entity, ids }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-crud", entity] });
     },

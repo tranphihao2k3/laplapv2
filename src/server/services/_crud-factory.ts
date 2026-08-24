@@ -115,5 +115,42 @@ export function createCrud<T extends TableName>(cfg: CrudConfig<T>) {
     return { id };
   }
 
-  return { list, getById, create, update, remove, table };
+  /** Xoá nhiều bản ghi theo danh sách id. Trả về ids đã xoá + ids không xoá được (FK / không tồn tại / RLS chặn).
+   *  Xoá tuần tự từng id để 1 row vi phạm FK không làm fail cả batch.
+   */
+  async function bulkRemove(db: DB, ids: string[]): Promise<{ deleted: string[]; missing: string[] }> {
+    if (!Array.isArray(ids) || ids.length === 0) return { deleted: [], missing: [] };
+    const validIds = [...new Set(ids.filter((x) => typeof x === "string" && x.trim().length > 0))];
+    if (validIds.length === 0) return { deleted: [], missing: [] };
+
+    const deleted: string[] = [];
+    const skipped: string[] = [];
+
+    // Xoá tuần tự từng id: sp nào vi phạm FK thì bỏ qua, sp nào OK thì xoá.
+    // Lý do: 1 lệnh delete .in(...) duy nhất sẽ fail cả batch khi 1 row vi phạm FK (Postgres 23503).
+    for (const id of validIds) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (db.from(table) as any).delete().eq("id", id).select("id");
+      if (error) {
+        const code = (error as { code?: string }).code;
+        const message = error.message ?? "";
+        if (code === "23503") {
+          // FK violation: bỏ qua, báo cáo missing
+          skipped.push(id);
+        } else if (/No rows found|0 rows/i.test(message)) {
+          // Postgres không trả về row khi delete không match
+          skipped.push(id);
+        } else {
+          // Lỗi khác (mạng, RLS...) vẫn ném ra để caller xử lý.
+          throw error;
+        }
+      } else {
+        deleted.push(id);
+      }
+    }
+
+    return { deleted, missing: skipped };
+  }
+
+  return { list, getById, create, update, remove, bulkRemove, table };
 }
