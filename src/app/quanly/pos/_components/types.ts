@@ -45,6 +45,8 @@ export type CartLine = {
   quantity: number;
   /** Tồn kho khả dụng tại cửa hàng đang chọn (tại thời điểm thêm vào giỏ). */
   stock: number;
+  /** Ghi chú riêng cho dòng (vd: yêu cầu đặc biệt). */
+  note?: string | null;
 };
 
 export type PaymentMethod = "cash" | "card" | "transfer" | "ewallet";
@@ -56,6 +58,31 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   ewallet: "Ví điện tử",
 };
 
+/**
+ * Một phần thanh toán trong hóa đơn — dùng cho split payment.
+ * Một đơn có thể trả bằng nhiều phương thức (vd: 200k tiền mặt + 1.5tr chuyển khoản).
+ */
+export type PaymentPart = {
+  method: PaymentMethod;
+  amount: number;
+  transaction_code?: string | null;
+};
+
+/**
+ * Đơn giữ tạm (hold bill) — lưu trong memory, không gọi API server.
+ * Cho phép thu ngân tạm dừng đơn để phục vụ khách khác, sau đó quay lại.
+ */
+export type HeldBill = {
+  id: string;
+  name: string;
+  createdAt: string;
+  shopId: string;
+  customer: Customer | null;
+  lines: CartLine[];
+  discount: number;
+  note: string;
+};
+
 export function formatVND(n: number): string {
   if (!Number.isFinite(n)) return "0 ₫";
   return new Intl.NumberFormat("vi-VN", {
@@ -63,4 +90,37 @@ export function formatVND(n: number): string {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(n);
+}
+
+export function formatNumber(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  return new Intl.NumberFormat("vi-VN").format(n);
+}
+
+/**
+ * Tính tiền thối khi trả tiền mặt. Đảm bảo không âm.
+ */
+export function calcChange(received: number, total: number): number {
+  return Math.max(0, received - total);
+}
+
+/**
+ * Tính tổng tiền hàng (chưa trừ giảm giá).
+ */
+export function calcSubtotal(lines: CartLine[]): number {
+  return lines.reduce((sum, l) => sum + l.unit_price * l.quantity, 0);
+}
+
+/**
+ * Tính tổng cộng = tạm tính - giảm giá (không âm).
+ */
+export function calcTotal(subtotal: number, discount: number): number {
+  return Math.max(0, subtotal - discount);
+}
+
+/**
+ * Tính số lượng sản phẩm trên đơn.
+ */
+export function calcItemCount(lines: CartLine[]): number {
+  return lines.reduce((n, l) => n + l.quantity, 0);
 }
