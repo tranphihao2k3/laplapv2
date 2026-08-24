@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,7 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate } from "@/lib/api/admin-crud";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useCrudBulkDelete, useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
+import { IdCell, RowIndexCell } from "@/components/admin/table-cells";
 import { buildCategoryTree } from "@/lib/category-tree";
 
 type Category = { id: string; name: string; parent_id: string | null; position?: number | null };
@@ -106,9 +109,35 @@ export default function SpecTemplatesAdminPage() {
   const createMutation = useCrudCreate<SpecTemplate, Record<string, unknown>>("spec-templates");
   const updateMutation = useCrudUpdate<SpecTemplate, Record<string, unknown>>("spec-templates");
   const deleteMutation = useCrudDelete("spec-templates");
+  const bulkDeleteMutation = useCrudBulkDelete("spec-templates");
+  const selection = useBulkSelection();
 
   const templates = templatesQuery.data?.items ?? [];
   const categories = categoriesQuery.data?.items ?? [];
+
+  const pageIds = useMemo(() => templates.map((t) => t.id), [templates]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} spec template`);
+      }
+      selection.clear();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  }
 
   const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
 
@@ -211,27 +240,63 @@ export default function SpecTemplatesAdminPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="spec template"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} spec template đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[56px] text-center">STT</TableHead>
                 <TableHead>Tên mẫu</TableHead>
                 <TableHead>Danh mục</TableHead>
                 <TableHead>Fields</TableHead>
+                <TableHead>Mã</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {templates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     {templatesQuery.isLoading ? "Đang tải..." : "Không có dữ liệu"}
                   </TableCell>
                 </TableRow>
               ) : (
-                templates.map((item) => {
+                templates.map((item, idx) => {
                   const childCount = item.category_id ? descendantCount.get(item.category_id) ?? 0 : 0;
+                  const checked = selection.isSelected(item.id);
                   return (
-                  <TableRow key={item.id}>
+                  <TableRow key={item.id} data-state={checked ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => selection.toggle(item.id)}
+                        aria-label={`Chọn ${item.name}`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <RowIndexCell index={idx + 1} />
+                    </TableCell>
                     <TableCell>{item.name}</TableCell>
                     <TableCell>
                       {item.category_id ? (
@@ -248,6 +313,9 @@ export default function SpecTemplatesAdminPage() {
                       )}
                     </TableCell>
                     <TableCell className="max-w-[420px] truncate font-mono text-xs">{JSON.stringify(item.fields ?? [])}</TableCell>
+                    <TableCell>
+                      <IdCell id={item.id} />
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button size="sm" variant="outline" onClick={() => startEdit(item)}>

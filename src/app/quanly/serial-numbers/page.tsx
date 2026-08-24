@@ -19,8 +19,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { httpPost } from "@/lib/api/http";
 
 type SerialNumber = {
@@ -92,9 +94,31 @@ export default function SerialNumbersAdminPage() {
   const createMutation = useCrudCreate<SerialNumber, SerialNumberInput>("serial-numbers");
   const updateMutation = useCrudUpdate<SerialNumber, SerialNumberInput>("serial-numbers");
   const deleteMutation = useCrudDelete("serial-numbers");
+  const bulkDeleteMutation = useCrudBulkDelete("serial-numbers");
+  const selection = useBulkSelection();
 
   const items = listQuery.data?.items ?? [];
   const allItems = allQuery.data?.items ?? [];
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} serial number`);
+      }
+      selection.clear();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  }
 
   const filteredItems = useMemo(() => {
     if (statusFilter === "all") return items;
@@ -105,6 +129,10 @@ export default function SerialNumbersAdminPage() {
     const set = new Set(allItems.map((i) => i.status));
     return Array.from(set).sort();
   }, [allItems]);
+
+  const pageIds = useMemo(() => filteredItems.map((i) => i.id), [filteredItems]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
 
   const resetForm = () => {
     setProductVariantId("");
@@ -254,9 +282,32 @@ export default function SerialNumbersAdminPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="serial number"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} serial number đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Serial</TableHead>
                 <TableHead>IMEI</TableHead>
                 <TableHead>Product Variant ID</TableHead>
@@ -270,15 +321,23 @@ export default function SerialNumbersAdminPage() {
             <TableBody>
               {filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     {listQuery.isLoading ? "Đang tải dữ liệu..." : "Không tìm thấy serial number nào"}
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredItems.map((item) => {
                   const statusInfo = STATUS_MAP[item.status] ?? { label: item.status, className: "border" };
+                  const checked = selection.isSelected(item.id);
                   return (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(item.id)}
+                          aria-label={`Chọn serial ${item.serial ?? item.id}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{item.serial ?? "-"}</TableCell>
                       <TableCell className="font-mono text-xs">{item.imei ?? "-"}</TableCell>
                       <TableCell className="font-mono text-xs max-w-[120px] truncate" title={item.product_variant_id ?? ""}>{item.product_variant_id ?? "-"}</TableCell>

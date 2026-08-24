@@ -28,8 +28,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
-import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, BadgeInfo } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { IdCell, RowActions, RowIndexCell } from "@/components/admin/table-cells";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
+import { Search, Plus, Phone, Mail, MapPin, BadgeInfo } from "lucide-react";
 
 type Supplier = {
   id: string;
@@ -69,6 +72,32 @@ export default function SuppliersPage() {
   const createMutation = useCrudCreate("suppliers");
   const updateMutation = useCrudUpdate("suppliers");
   const deleteMutation = useCrudDelete("suppliers");
+  const bulkDeleteMutation = useCrudBulkDelete("suppliers");
+  const selection = useBulkSelection();
+
+  const pageIds = useMemo(() => filtered.map((s) => s.id), [filtered]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào (có thể do khoá ngoại)");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} nhà cung cấp`);
+      }
+      selection.clear();
+    } catch (e: any) {
+      toast.error(e?.error?.message ?? "Có lỗi xảy ra");
+    }
+  }
 
   function resetForm() { setForm(INIT_FORM); setEditing(null); }
 
@@ -124,24 +153,61 @@ export default function SuppliersPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="nhà cung cấp"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} nhà cung cấp đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[56px] text-center">STT</TableHead>
                 <TableHead>Công ty</TableHead>
                 <TableHead>Mã số thuế</TableHead>
                 <TableHead>Liên hệ</TableHead>
                 <TableHead>Địa chỉ</TableHead>
+                <TableHead>Mã</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {q.isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Đang tải...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Chưa có nhà cung cấp</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Chưa có nhà cung cấp</TableCell></TableRow>
               ) : (
-                filtered.map((s) => (
-                  <TableRow key={s.id}>
+                filtered.map((s, idx) => {
+                  const checked = selection.isSelected(s.id);
+                  return (
+                  <TableRow key={s.id} data-state={checked ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => selection.toggle(s.id)}
+                        aria-label={`Chọn ${s.company_name ?? s.id}`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <RowIndexCell index={idx + 1} />
+                    </TableCell>
                     <TableCell className="font-medium">{s.company_name ?? "—"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{s.tax_code ?? "—"}</TableCell>
                     <TableCell>
@@ -153,18 +219,18 @@ export default function SuppliersPage() {
                     <TableCell className="text-xs text-muted-foreground">
                       {s.address ? <span className="flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" />{s.address}</span> : "—"}
                     </TableCell>
+                    <TableCell>
+                      <IdCell id={s.id} />
+                    </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(s)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleDelete(s)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <RowActions
+                        onEdit={() => openEdit(s)}
+                        onDelete={() => handleDelete(s)}
+                      />
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>

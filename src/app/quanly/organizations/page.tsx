@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Search, Edit, Trash2, Check, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Search, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,12 +39,16 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
+  useCrudBulkDelete,
   useCrudList,
   useCrudCreate,
   useCrudUpdate,
   useCrudDelete,
 } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
+import { ActiveBadge, IdCell, RowActions, RowIndexCell } from "@/components/admin/table-cells";
 
 type Organization = {
   id: string;
@@ -135,6 +139,32 @@ export default function OrganizationsAdminPage() {
   const createMutation = useCrudCreate<Organization, Record<string, unknown>>("organizations");
   const updateMutation = useCrudUpdate<Organization, Record<string, unknown>>("organizations");
   const deleteMutation = useCrudDelete("organizations");
+  const bulkDeleteMutation = useCrudBulkDelete("organizations");
+  const selection = useBulkSelection();
+
+  const pageIds = useMemo(() => orgs.map((o) => o.id), [orgs]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} tổ chức`);
+      }
+      selection.clear();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  }
 
   function resetForm() {
     setEditing(null);
@@ -263,82 +293,107 @@ export default function OrganizationsAdminPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="tổ chức"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} tổ chức đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[56px] text-center">STT</TableHead>
                 <TableHead>Tên</TableHead>
                 <TableHead>Mã</TableHead>
                 <TableHead>Mã số thuế</TableHead>
                 <TableHead>Điện thoại</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Kích hoạt</TableHead>
-                <TableHead>Ngày tạo</TableHead>
+                <TableHead className="hidden md:table-cell">Ngày tạo</TableHead>
+                <TableHead>Mã ID</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                     Đang tải...
                   </TableCell>
                 </TableRow>
               ) : orgs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                     {search ? "Không tìm thấy kết quả" : "Chưa có tổ chức nào"}
                   </TableCell>
                 </TableRow>
               ) : (
-                orgs.map((org) => (
-                  <TableRow key={org.id}>
+                orgs.map((org, idx) => {
+                  const checked = selection.isSelected(org.id);
+                  return (
+                  <TableRow key={org.id} data-state={checked ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => selection.toggle(org.id)}
+                        aria-label={`Chọn ${org.name}`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <RowIndexCell index={idx + 1} />
+                    </TableCell>
                     <TableCell className="font-medium">{org.name}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
-                      {org.code ?? "-"}
+                      {org.code ?? "—"}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{org.tax_code ?? "-"}</TableCell>
-                    <TableCell>{org.phone ?? "-"}</TableCell>
-                    <TableCell className="text-xs">{org.email ?? "-"}</TableCell>
+                    <TableCell className="font-mono text-xs">{org.tax_code ?? "—"}</TableCell>
+                    <TableCell>{org.phone ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{org.email ?? "—"}</TableCell>
                     <TableCell>
-                      {org.is_active ? (
-                        <Badge variant="default" className="gap-1 bg-green-600 hover:bg-green-600/80">
-                          <Check className="size-3" />
-                          Hoạt động
-                        </Badge>
+                      <ActiveBadge
+                        value={org.is_active}
+                        trueLabel="Hoạt động"
+                        falseLabel="Vô hiệu"
+                      />
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {org.created_at ? (
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {new Date(org.created_at).toLocaleDateString("vi-VN")}
+                        </span>
                       ) : (
-                        <Badge variant="destructive" className="gap-1">
-                          <X className="size-3" />
-                          Vô hiệu
-                        </Badge>
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {org.created_at
-                        ? new Date(org.created_at).toLocaleDateString("vi-VN")
-                        : "-"}
+                    <TableCell>
+                      <IdCell id={org.id} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEdit(org)}
-                        >
-                          <Edit className="mr-1 size-3.5" />
-                          Sửa
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => openDelete(org.id)}
-                        >
-                          <Trash2 className="mr-1 size-3.5" />
-                          Xoá
-                        </Button>
-                      </div>
+                      <RowActions
+                        onEdit={() => openEdit(org)}
+                        onDelete={() => openDelete(org.id)}
+                      />
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>

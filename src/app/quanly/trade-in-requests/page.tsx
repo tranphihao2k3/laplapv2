@@ -17,8 +17,10 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { Search, Plus, Edit, Trash2, RefreshCw } from "lucide-react";
 
 type TradeIn = {
@@ -72,6 +74,32 @@ export default function TradeInPage() {
   const createMutation = useCrudCreate("trade-in-requests");
   const updateMutation = useCrudUpdate("trade-in-requests");
   const deleteMutation = useCrudDelete("trade-in-requests");
+  const bulkDeleteMutation = useCrudBulkDelete("trade-in-requests");
+  const selection = useBulkSelection();
+
+  const pageIds = useMemo(() => items.map((t) => t.id), [items]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} yêu cầu thu cũ`);
+      }
+      selection.clear();
+    } catch (e: any) {
+      toast.error(e?.error?.message ?? "Có lỗi xảy ra");
+    }
+  }
 
   function resetForm() { setForm({ status: "pending" }); setEditing(null); }
 
@@ -134,9 +162,32 @@ export default function TradeInPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="yêu cầu thu cũ"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} yêu cầu thu cũ đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Thiết bị</TableHead>
                 <TableHead>Serial</TableHead>
                 <TableHead>Khách hàng</TableHead>
@@ -149,15 +200,23 @@ export default function TradeInPage() {
             </TableHeader>
             <TableBody>
               {q.isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
               ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Chưa có yêu cầu thu cũ</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Chưa có yêu cầu thu cũ</TableCell></TableRow>
               ) : (
                 items.map((t) => {
                   const st = STATUS_MAP[t.status ?? ""] ?? { label: t.status ?? "-", cls: "bg-muted" };
                   const c = t.customer_id ? customerMap.get(t.customer_id) : null;
+                  const checked = selection.isSelected(t.id);
                   return (
-                    <TableRow key={t.id}>
+                    <TableRow key={t.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(t.id)}
+                          aria-label={`Chọn yêu cầu ${t.device_name ?? t.id}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{t.device_name ?? "—"}</TableCell>
                       <TableCell className="font-mono text-xs">{t.serial_number ?? "—"}</TableCell>
                       <TableCell className="text-xs">{c?.full_name ?? "—"}{c?.phone ? ` (${c.phone})` : ""}</TableCell>

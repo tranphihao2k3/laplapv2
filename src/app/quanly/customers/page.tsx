@@ -35,8 +35,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
-import { Search, Plus, Edit, Trash2, Phone, Mail, Cake } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
+import { Search, Plus, Phone, Mail, Cake } from "lucide-react";
+import { ActiveBadge, IdCell, RowActions, RowIndexCell } from "@/components/admin/table-cells";
 
 type Customer = {
   id: string;
@@ -45,6 +48,7 @@ type Customer = {
   email: string | null;
   birthday: string | null;
   tier: string | null;
+  loyalty_points?: number | null;
 };
 
 const TIER_MAP: Record<string, { label: string; cls: string }> = {
@@ -77,6 +81,33 @@ export default function CustomersPage() {
   const createMutation = useCrudCreate("customers");
   const updateMutation = useCrudUpdate("customers");
   const deleteMutation = useCrudDelete("customers");
+  const bulkDeleteMutation = useCrudBulkDelete("customers");
+  const selection = useBulkSelection();
+
+  const items = q.data?.items ?? [];
+  const pageIds = useMemo(() => items.map((c) => c.id), [items]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào (có thể do khoá ngoại)");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} khách hàng`);
+      }
+      selection.clear();
+    } catch (e: any) {
+      toast.error(e?.error?.message ?? "Có lỗi xảy ra");
+    }
+  }
 
   function resetForm() { setForm({ tier: "bronze" }); setEditing(null); }
 
@@ -137,26 +168,63 @@ export default function CustomersPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="khách hàng"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} khách hàng đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[56px] text-center">STT</TableHead>
                 <TableHead>Họ tên</TableHead>
                 <TableHead>Liên hệ</TableHead>
                 <TableHead>Ngày sinh</TableHead>
                 <TableHead>Hạng</TableHead>
+                <TableHead>Điểm</TableHead>
+                <TableHead>Mã</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {q.isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
-              ) : (q.data?.items ?? []).length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Chưa có khách hàng</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Đang tải...</TableCell></TableRow>
+              ) : items.length === 0 ? (
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Chưa có khách hàng</TableCell></TableRow>
               ) : (
-                (q.data?.items ?? []).map((c) => {
+                items.map((c, idx) => {
                   const tier = TIER_MAP[c.tier ?? ""] ?? { label: c.tier ?? "—", cls: "bg-muted" };
+                  const checked = selection.isSelected(c.id);
                   return (
-                    <TableRow key={c.id}>
+                    <TableRow key={c.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(c.id)}
+                          aria-label={`Chọn ${c.full_name ?? c.id}`}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <RowIndexCell index={idx + 1} />
+                      </TableCell>
                       <TableCell className="font-medium">{c.full_name ?? "—"}</TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-0.5 text-xs">
@@ -168,15 +236,15 @@ export default function CustomersPage() {
                         {c.birthday ? <span className="flex items-center gap-1"><Cake className="h-3 w-3" />{fmtDate(c.birthday)}</span> : "—"}
                       </TableCell>
                       <TableCell><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${tier.cls}`}>{tier.label}</span></TableCell>
+                      <TableCell className="tabular-nums text-xs font-semibold">{c.loyalty_points ?? 0}</TableCell>
+                      <TableCell>
+                        <IdCell id={c.id} />
+                      </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDelete(c)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <RowActions
+                          onEdit={() => openEdit(c)}
+                          onDelete={() => handleDelete(c)}
+                        />
                       </TableCell>
                     </TableRow>
                   );

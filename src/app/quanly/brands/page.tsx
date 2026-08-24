@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Search, Edit, Trash2 } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ActiveBadge, IdCell, RowActions, RowIndexCell } from "@/components/admin/table-cells";
 import {
   Card,
   CardContent,
@@ -36,7 +38,9 @@ import {
   useCrudCreate,
   useCrudUpdate,
   useCrudDelete,
+  useCrudBulkDelete,
 } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 
 type Brand = {
   id: string;
@@ -124,6 +128,17 @@ export default function BrandsAdminPage() {
   const createMutation = useCrudCreate<Brand, Record<string, unknown>>("brands");
   const updateMutation = useCrudUpdate<Brand, Record<string, unknown>>("brands");
   const deleteMutation = useCrudDelete("brands");
+  const bulkDeleteMutation = useCrudBulkDelete("brands");
+  const selection = useBulkSelection();
+
+  const pageIds = useMemo(() => brands.map((b: Brand) => b.id), [brands]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  const stats = useMemo(() => {
+    const onHomepage = brands.filter((b) => b.show_on_homepage).length;
+    return { total: brands.length, onHomepage };
+  }, [brands]);
 
   function resetForm() {
     setEditing(null);
@@ -214,6 +229,26 @@ export default function BrandsAdminPage() {
     }
   }
 
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào (có thể đã bị xoá trước đó)");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} thương hiệu`);
+      }
+      selection.clear();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  }
+
   const isLoading = listQuery.isLoading;
 
   return (
@@ -243,82 +278,111 @@ export default function BrandsAdminPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="thương hiệu"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} thương hiệu đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[56px] text-center">STT</TableHead>
                 <TableHead>Tên</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Logo</TableHead>
                 <TableHead>Mô tả</TableHead>
-                <TableHead>Ngày tạo</TableHead>
                 <TableHead>Trang chủ</TableHead>
+                <TableHead>Mã</TableHead>
+                <TableHead className="hidden md:table-cell">Ngày tạo</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     Đang tải...
                   </TableCell>
                 </TableRow>
               ) : brands.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     {search ? "Không tìm thấy kết quả" : "Chưa có thương hiệu nào"}
                   </TableCell>
                 </TableRow>
               ) : (
-                brands.map((brand) => (
-                  <TableRow key={brand.id}>
-                    <TableCell className="font-medium">{brand.name}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {brand.slug ?? "-"}
-                    </TableCell>
-                    <TableCell>
-                      {brand.logo_url ? (
-                        <img
-                          src={brand.logo_url}
-                          alt={brand.name}
-                          className="h-8 w-8 rounded object-contain"
+                brands.map((brand, idx) => {
+                  const checked = selection.isSelected(brand.id);
+                  return (
+                    <TableRow key={brand.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(brand.id)}
+                          aria-label={`Chọn ${brand.name}`}
                         />
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
-                      {truncate(brand.description, 60)}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {brand.created_at
-                        ? new Date(brand.created_at).toLocaleDateString("vi-VN")
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {brand.show_on_homepage ? "Có" : "Không"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEdit(brand)}
-                        >
-                          <Edit className="mr-1 size-3.5" />
-                          Sửa
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => openDelete(brand.id)}
-                        >
-                          <Trash2 className="mr-1 size-3.5" />
-                          Xoá
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <RowIndexCell index={idx + 1} />
+                      </TableCell>
+                      <TableCell className="font-medium">{brand.name}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {brand.slug ?? "—"}
+                      </TableCell>
+                      <TableCell>
+                        {brand.logo_url ? (
+                          <img
+                            src={brand.logo_url}
+                            alt={brand.name}
+                            className="h-8 w-8 rounded object-contain"
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
+                        {truncate(brand.description, 60)}
+                      </TableCell>
+                      <TableCell>
+                        <ActiveBadge
+                          value={brand.show_on_homepage}
+                          trueLabel="Hiển thị"
+                          falseLabel="Ẩn"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <IdCell id={brand.id} />
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <DateInline value={brand.created_at} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActions
+                          onEdit={() => openEdit(brand)}
+                          onDelete={() => openDelete(brand.id)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -444,5 +508,16 @@ export default function BrandsAdminPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function DateInline({ value }: { value: string | null | undefined }) {
+  if (!value) return <span className="text-muted-foreground">—</span>;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="text-xs tabular-nums text-muted-foreground">
+      {d.toLocaleDateString("vi-VN")}
+    </span>
   );
 }

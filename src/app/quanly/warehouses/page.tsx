@@ -9,8 +9,6 @@ import type { Paginated } from "@/lib/api/response";
 import {
   Plus,
   Search,
-  Edit,
-  Trash2,
   Check,
   X,
   Warehouse,
@@ -51,6 +49,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useCrudBulkDelete } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
+import { ActiveBadge, IdCell, RowActions, RowIndexCell } from "@/components/admin/table-cells";
 
 type Organization = { id: string; name: string; code: string | null };
 type Shop = { id: string; organization_id: string | null; name: string; code: string | null };
@@ -141,6 +143,8 @@ export default function WarehousesAdminPage() {
   const createMutation = useCrudCreate<Warehouse, Record<string, unknown>>("warehouses");
   const updateMutation = useCrudUpdate<Warehouse, Record<string, unknown>>("warehouses");
   const deleteMutation = useCrudDelete("warehouses");
+  const bulkDeleteMutation = useCrudBulkDelete("warehouses");
+  const selection = useBulkSelection();
 
   const organizations = orgsQuery.data?.items ?? [];
   const shops = shopsQuery.data?.items ?? [];
@@ -253,6 +257,30 @@ export default function WarehousesAdminPage() {
     return result;
   }, [rows, filterOrg, filterShop, filterType]);
 
+  const pageIds = useMemo(() => filteredRows.map((r) => r.id), [filteredRows]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} kho`);
+      }
+      selection.clear();
+    } catch (e) {
+      showApiError(e);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -334,9 +362,35 @@ export default function WarehousesAdminPage() {
 
       <Card>
         <CardContent className="p-0">
+          <div className="p-4 pb-0">
+            <BulkActionsToolbar
+              count={selection.count}
+              entityLabel="kho"
+              onClear={selection.clear}
+              onRequestDelete={() => {
+                if (window.confirm(`Xoá ${selection.count} kho đã chọn? Hành động không thể hoàn tác.`)) {
+                  void handleBulkDelete();
+                }
+              }}
+              isPending={bulkDeleteMutation.isPending}
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[56px] text-center">STT</TableHead>
                 <TableHead>Tên kho</TableHead>
                 <TableHead>Mã</TableHead>
                 <TableHead>Loại</TableHead>
@@ -345,27 +399,39 @@ export default function WarehousesAdminPage() {
                 <TableHead>Kích hoạt</TableHead>
                 <TableHead>Quản lý</TableHead>
                 <TableHead>SĐT</TableHead>
+                <TableHead>ID</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {list.isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                     Đang tải...
                   </TableCell>
                 </TableRow>
               ) : filteredRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                     {search ? "Không tìm thấy kho nào" : "Chưa có kho nào"}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRows.map((row) => {
+                filteredRows.map((row, idx) => {
                   const shop = shops.find((s) => s.id === row.shop_id);
+                  const checked = selection.isSelected(row.id);
                   return (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(row.id)}
+                          aria-label={`Chọn ${row.name}`}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <RowIndexCell index={idx + 1} />
+                      </TableCell>
                       <TableCell className="font-medium">{row.name}</TableCell>
                       <TableCell><code className="text-xs">{row.code ?? "—"}</code></TableCell>
                       <TableCell>
@@ -380,33 +446,18 @@ export default function WarehousesAdminPage() {
                         {row.address ?? "—"}
                       </TableCell>
                       <TableCell>
-                        {row.is_active ? (
-                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200" variant="outline">
-                            <Check className="mr-1 h-3 w-3" />
-                            Có
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200" variant="outline">
-                            <X className="mr-1 h-3 w-3" />
-                            Không
-                          </Badge>
-                        )}
+                        <ActiveBadge value={row.is_active} trueLabel="Hoạt động" falseLabel="Ngừng" />
                       </TableCell>
                       <TableCell>{row.manager_name ?? "—"}</TableCell>
                       <TableCell>{row.phone ?? "—"}</TableCell>
+                      <TableCell>
+                        <IdCell id={row.id} />
+                      </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => { setDeleteTarget(row); setDeleteOpen(true); }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        <RowActions
+                          onEdit={() => openEdit(row)}
+                          onDelete={() => { setDeleteTarget(row); setDeleteOpen(true); }}
+                        />
                       </TableCell>
                     </TableRow>
                   );

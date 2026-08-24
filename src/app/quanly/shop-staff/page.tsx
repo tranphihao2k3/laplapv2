@@ -36,7 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { Search, Plus, Edit, Trash2, Store, User, ShieldCheck, CheckCircle, XCircle } from "lucide-react";
 
 type ShopStaff = {
@@ -88,6 +89,30 @@ export default function ShopStaffAdminPage() {
   const createMutation = useCrudCreate("shop-staff");
   const updateMutation = useCrudUpdate("shop-staff");
   const deleteMutation = useCrudDelete("shop-staff");
+  const bulkDeleteMutation = useCrudBulkDelete("shop-staff");
+  const selection = useBulkSelection();
+
+  const items = q.data?.items ?? [];
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} phân công`);
+      }
+      selection.clear();
+    } catch (e: any) {
+      toast.error(e?.error?.message ?? "Có lỗi xảy ra");
+    }
+  }
 
   function resetForm() { setForm(INIT_FORM); setEditing(null); }
 
@@ -141,6 +166,10 @@ export default function ShopStaffAdminPage() {
     });
   }, [q.data, search, userMap]);
 
+  const pageIds = useMemo(() => filtered.map((s) => s.id), [filtered]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
   return (
     <div className="space-y-4">
       <Card>
@@ -160,9 +189,32 @@ export default function ShopStaffAdminPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="phân công"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} phân công đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Cửa hàng</TableHead>
                 <TableHead>Nhân viên</TableHead>
                 <TableHead>Vai trò</TableHead>
@@ -172,16 +224,24 @@ export default function ShopStaffAdminPage() {
             </TableHeader>
             <TableBody>
               {q.isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Chưa có phân công</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Chưa có phân công</TableCell></TableRow>
               ) : (
                 filtered.map((s) => {
                   const shop = shopMap.get(s.shop_id);
                   const user = userMap.get(s.user_id);
                   const role = s.role_id ? roleMap.get(s.role_id) : null;
+                  const checked = selection.isSelected(s.id);
                   return (
-                    <TableRow key={s.id}>
+                    <TableRow key={s.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(s.id)}
+                          aria-label={`Chọn ${user?.full_name ?? s.id}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <span className="flex items-center gap-1.5 text-sm">
                           <Store className="h-3.5 w-3.5 text-muted-foreground" />
