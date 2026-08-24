@@ -1,12 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { Minus, Plus, Trash2, ShoppingCart, Store } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  Minus,
+  Plus,
+  Trash2,
+  ShoppingCart,
+  Store,
+  Tag,
+  Pause,
+  Banknote,
+  AlertTriangle,
+  Receipt,
+  Percent,
+  StickyNote,
+  ScanLine,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { httpPost } from "@/lib/api/http";
 import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { useUser } from "@/hooks/use-user";
@@ -16,11 +37,19 @@ import { CustomerPicker } from "./customer-picker";
 import { RepairTicketPicker, type RepairTicket } from "./repair-ticket-picker";
 import { PaymentDialog } from "./payment-dialog";
 import { ReceiptDialog } from "./receipt-dialog";
+import { HoldBillDrawer } from "./hold-bill-drawer";
+import { PosSessionBanner } from "./pos-session-banner";
+import { PosSessionProvider, usePosSession } from "@/hooks/use-pos-session";
+import { PosSessionGate } from "./pos-session-gate";
 import {
   formatVND,
+  formatNumber,
+  calcSubtotal,
+  calcItemCount,
   type CartLine,
   type Customer,
-  type PaymentMethod,
+  type HeldBill,
+  type PaymentPart,
 } from "./types";
 
 type CheckoutResult = {
@@ -35,19 +64,37 @@ type Setting = {
   shop_id: string | null;
 };
 
+const DEFAULT_LOYALTY_RATE = 1000;
+
 export function PosClient() {
+  return (
+    <PosSessionProvider>
+      <PosClientInner />
+    </PosSessionProvider>
+  );
+}
+
+function PosClientInner() {
+  // ===== Core state =====
   const [shopId, setShopId] = useState<string>("");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [discountInput, setDiscountInput] = useState<string>("");
   const [note, setNote] = useState<string>("");
-  const [payOpen, setPayOpen] = useState(false);
+  const [showNote, setShowNote] = useState(false);
 
-  // Luồng thanh toán phí sửa chữa (hóa đơn riêng, không trộn với giỏ sản phẩm)
+  // ===== Hold bills =====
+  const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
+
+  // ===== Loyalty redeem =====
+  const [redeemedPoints, setRedeemedPoints] = useState(0);
+  const [redeemedValue, setRedeemedValue] = useState(0);
+
+  // ===== Dialogs =====
+  const [payOpen, setPayOpen] = useState(false);
   const [repairTicket, setRepairTicket] = useState<RepairTicket | null>(null);
   const [repairPayOpen, setRepairPayOpen] = useState(false);
-
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<{
     orderNumber?: string;
@@ -55,8 +102,9 @@ export function PosClient() {
     customer: Customer | null;
     subtotal: number;
     discount: number;
+    loyaltyDiscount: number;
     total: number;
-    method: PaymentMethod | null;
+    payments: PaymentPart[];
     received: number;
     change: number;
     shopName: string;
@@ -69,9 +117,11 @@ export function PosClient() {
     footer: string | null;
   } | null>(null);
 
-  // Chỉ hiển thị cửa hàng mà tài khoản đang đăng nhập được gán (qua shop_staff).
+  // ===== Data =====
   const shopsQuery = useMyShops();
   const settingsQuery = useCrudList<Setting>("settings", { page: 1, pageSize: 200 });
+  const userQuery = useUser();
+
   const shops = useMemo(() => shopsQuery.data ?? [], [shopsQuery.data]);
   const shopOptions = useMemo<SearchableOption[]>(
     () => shops.map((s) => ({ value: s.id, label: s.name, keywords: s.code ?? "" })),
@@ -82,7 +132,10 @@ export function PosClient() {
     if (!shopId && shops.length > 0) setShopId(shops[0].id);
   }, [shopId, shops]);
 
-  const currentShop = useMemo(() => shops.find((s) => s.id === shopId) ?? null, [shops, shopId]);
+  const currentShop = useMemo(
+    () => shops.find((s) => s.id === shopId) ?? null,
+    [shops, shopId],
+  );
   const settings = useMemo(() => settingsQuery.data?.items ?? [], [settingsQuery.data]);
 
   const shopSettings = useMemo(
@@ -112,8 +165,9 @@ export function PosClient() {
     return typeof found?.value === "string" && found.value.trim() ? found.value.trim() : null;
   }, [shopSettings]);
 
-  // Thu ngân / người bán = tài khoản đang đăng nhập.
-  const userQuery = useUser();
+  // Lấy email shop để in receipt (chưa có field → để null)
+  const shopEmail = null;
+
   const cashierName = useMemo(() => {
     const u = userQuery.data;
     if (!u) return null;
@@ -123,16 +177,17 @@ export function PosClient() {
     return u.email ?? null;
   }, [userQuery.data]);
 
-  const numberFormatter = useMemo(() => new Intl.NumberFormat("vi-VN"), []);
-
-  const subtotal = useMemo(
-    () => lines.reduce((sum, l) => sum + l.unit_price * l.quantity, 0),
-    [lines],
+  // ===== Derived totals =====
+  const subtotal = useMemo(() => calcSubtotal(lines), [lines]);
+  const flatDiscount = Math.min(subtotal, Number(discountInput.replace(/\D/g, "")) || 0);
+  const loyaltyDiscount = redeemedValue;
+  const total = useMemo(
+    () => Math.max(0, subtotal - flatDiscount - loyaltyDiscount),
+    [subtotal, flatDiscount, loyaltyDiscount],
   );
-  const discount = Math.min(subtotal, Number(discountInput.replace(/\D/g, "")) || 0);
-  const total = Math.max(0, subtotal - discount);
-  const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
+  const itemCount = useMemo(() => calcItemCount(lines), [lines]);
 
+  // ===== Cart ops =====
   const addLine = (hit: PosSearchHit) => {
     if (hit.stock <= 0) {
       toast.error(`"${hit.display_name}" đã hết tồn tại cửa hàng này.`);
@@ -206,6 +261,76 @@ export function PosClient() {
     });
   };
 
+  const clearCart = () => {
+    if (lines.length === 0) return;
+    if (!window.confirm("Xoá tất cả sản phẩm trong giỏ?")) return;
+    setLines([]);
+    setDiscountInput("");
+  };
+
+  // ===== Hold bill =====
+  const holdBill = () => {
+    if (lines.length === 0) {
+      toast.error("Giỏ hàng trống");
+      return;
+    }
+    if (!shopId) {
+      toast.error("Chọn cửa hàng trước");
+      return;
+    }
+    const id = `hold-${Date.now()}`;
+    const idx = heldBills.length + 1;
+    const name = customer?.full_name
+      ? `${customer.full_name} #${idx}`
+      : `Đơn #${idx}`;
+    const bill: HeldBill = {
+      id,
+      name,
+      createdAt: new Date().toISOString(),
+      shopId,
+      customer,
+      lines: [...lines],
+      discount: flatDiscount,
+      note,
+    };
+    setHeldBills((prev) => [bill, ...prev]);
+    // Reset cart (giữ KH? thường giữ cũng được — ở đây reset cho gọn)
+    setLines([]);
+    setDiscountInput("");
+    setNote("");
+    toast.success(`Đã giữ ${name}`);
+  };
+
+  const resumeBill = (bill: HeldBill) => {
+    if (lines.length > 0) {
+      if (!window.confirm("Giỏ hàng hiện tại sẽ bị thay thế bằng đơn đang mở. Tiếp tục?")) {
+        return;
+      }
+    }
+    setLines(bill.lines);
+    setDiscountInput(bill.discount > 0 ? String(bill.discount) : "");
+    setNote(bill.note);
+    setCustomer(bill.customer);
+    setHeldBills((prev) => prev.filter((b) => b.id !== bill.id));
+    toast.success(`Đã mở ${bill.name}`);
+  };
+
+  const deleteHeldBill = (id: string) => {
+    setHeldBills((prev) => prev.filter((b) => b.id !== id));
+  };
+
+  // ===== Loyalty redeem =====
+  const handleRedeem = (points: number, valueVnd: number) => {
+    setRedeemedPoints(points);
+    setRedeemedValue(valueVnd);
+    toast.success(`Đã áp dụng ${points} điểm (-${formatVND(valueVnd)})`);
+  };
+  const clearRedeem = () => {
+    setRedeemedPoints(0);
+    setRedeemedValue(0);
+  };
+
+  // ===== Repair ticket =====
   const repairAmount = useMemo(
     () => (repairTicket ? repairTicket.actual_cost ?? repairTicket.estimated_cost ?? 0 : 0),
     [repairTicket],
@@ -216,12 +341,16 @@ export function PosClient() {
     setRepairPayOpen(true);
   }, []);
 
+  // ===== Checkout =====
   const queryClient = useQueryClient();
-
-  // Sau khi thanh toán xong: tồn kho đã thay đổi → làm mới dữ liệu tìm kiếm sản phẩm ở POS.
   const refreshPosData = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["pos-search"] });
+    queryClient.invalidateQueries({ queryKey: ["pos-sessions"] });
   }, [queryClient]);
+
+  // Lấy session hiện tại cho shop để gắn vào checkout
+  const { findOpenSession, refresh: refreshSession } = usePosSession();
+  const currentSession = shopId ? findOpenSession(shopId) : null;
 
   const checkoutMutation = useMutation({
     mutationFn: (payload: unknown) => httpPost<CheckoutResult>("/v1/checkout", payload),
@@ -233,9 +362,8 @@ export function PosClient() {
   });
 
   const handleConfirmPayment = async (args: {
-    method: PaymentMethod;
-    amount: number;
-    transaction_code?: string;
+    payments: PaymentPart[];
+    total?: number;
   }) => {
     if (!shopId) {
       toast.error("Chọn cửa hàng trước khi thanh toán");
@@ -246,6 +374,18 @@ export function PosClient() {
       return;
     }
     try {
+      const totalAmount = args.total ?? total;
+      // Gộp payments thành 1 dòng đầu cho backend (chấp nhận multi method)
+      // Backend hiện chỉ chấp nhận 1 payment — lấy payment đầu tiên là chính,
+      // gộp phần còn lại vào note để đối chiếu.
+      const primary = args.payments[0];
+      const rest = args.payments.slice(1);
+      const extraNote = rest.length
+        ? `${note.trim() ? note.trim() + "\n" : ""}[Thanh toán ghép: ${rest
+            .map((p) => `${formatVND(p.amount)} (${p.method})`)
+            .join(" + ")}]`
+        : note.trim() || null;
+
       const payload = {
         shop_id: shopId,
         customer_id: customer?.id ?? null,
@@ -255,27 +395,34 @@ export function PosClient() {
           quantity: l.quantity,
           unit_price: l.unit_price,
         })),
-        discount_amount: discount,
+        discount_amount: flatDiscount + loyaltyDiscount,
         payment: {
-          method: args.method,
-          amount: args.amount,
-          transaction_code: args.transaction_code ?? null,
+          method: primary.method,
+          amount: totalAmount,
+          transaction_code: primary.transaction_code ?? null,
         },
-        note: note.trim() || null,
+        note: extraNote,
+        pos_session_id: currentSession?.id ?? null,
       };
       const result = await checkoutMutation.mutateAsync(payload);
       toast.success("Đã lên hóa đơn");
-      const received = args.method === "cash" ? Math.max(args.amount, total) : total;
+      // Cập nhật session expected_cash sau khi thanh toán
+      void refreshSession();
+
+      const received = args.payments.reduce((s, p) => s + p.amount, 0);
       setLastReceipt({
-        orderNumber: result?.order_number ?? (result?.order_id ? String(result.order_id).slice(0, 8) : undefined),
+        orderNumber:
+          result?.order_number ??
+          (result?.order_id ? String(result.order_id).slice(0, 8) : undefined),
         lines: [...lines],
         customer,
         subtotal,
-        discount,
-        total,
-        method: args.method,
+        discount: flatDiscount,
+        loyaltyDiscount,
+        total: totalAmount,
+        payments: args.payments,
         received,
-        change: Math.max(0, received - total),
+        change: Math.max(0, received - totalAmount),
         shopName: shopDisplayName,
         shopStampText,
         shopAddress: currentShop?.address ?? null,
@@ -312,22 +459,20 @@ export function PosClient() {
   };
 
   const handleConfirmRepairPayment = async (args: {
-    method: PaymentMethod;
-    amount: number;
-    transaction_code?: string;
+    payments: PaymentPart[];
     total?: number;
   }) => {
     if (!repairTicket) return;
-    // Phí sửa có thể được nhân viên chỉnh trực tiếp ở màn thanh toán POS.
     const finalAmount = args.total != null && args.total > 0 ? args.total : repairAmount;
     try {
+      const primary = args.payments[0];
       const result = await repairCheckoutMutation.mutateAsync({
         ticketId: repairTicket.id,
         payload: {
           payment: {
-            method: args.method,
-            amount: args.amount,
-            transaction_code: args.transaction_code ?? null,
+            method: primary.method,
+            amount: finalAmount,
+            transaction_code: primary.transaction_code ?? null,
           },
           actual_cost: finalAmount,
         },
@@ -344,7 +489,7 @@ export function PosClient() {
         quantity: 1,
         stock: 1,
       };
-      const received = args.method === "cash" ? Math.max(args.amount, finalAmount) : finalAmount;
+      const received = args.payments.reduce((s, p) => s + p.amount, 0);
       setLastReceipt({
         orderNumber:
           result?.order_number ??
@@ -353,8 +498,9 @@ export function PosClient() {
         customer,
         subtotal: finalAmount,
         discount: 0,
+        loyaltyDiscount: 0,
         total: finalAmount,
-        method: args.method,
+        payments: args.payments,
         received,
         change: Math.max(0, received - finalAmount),
         shopName: shopDisplayName,
@@ -380,20 +526,74 @@ export function PosClient() {
     setDiscountInput("");
     setNote("");
     setCustomer(null);
+    clearRedeem();
     setReceiptOpen(false);
     setRepairTicket(null);
   };
 
+  // ===== Shortcuts =====
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isEditable =
+        tag === "INPUT" || tag === "TEXTAREA" || (target?.isContentEditable ?? false);
+      if (isEditable) return;
+      // F2 → focus search
+      if (e.key === "F2") {
+        e.preventDefault();
+        const searchInput = document.querySelector<HTMLInputElement>(
+          'input[aria-label="Tìm sản phẩm"]',
+        );
+        searchInput?.focus();
+        return;
+      }
+      // F9 → thanh toán
+      if (e.key === "F9") {
+        e.preventDefault();
+        if (lines.length > 0 && shopId) setPayOpen(true);
+        return;
+      }
+      // F8 → giữ đơn
+      if (e.key === "F8") {
+        e.preventDefault();
+        holdBill();
+        return;
+      }
+      // Esc → đóng dialogs
+      if (e.key === "Escape") {
+        if (payOpen) setPayOpen(false);
+        else if (repairPayOpen) setRepairPayOpen(false);
+        else if (receiptOpen) setReceiptOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines.length, shopId, payOpen, repairPayOpen, receiptOpen]);
+
+  const numberFormatter = useMemo(() => new Intl.NumberFormat("vi-VN"), []);
+
+  const lowStockCount = useMemo(
+    () => lines.filter((l) => l.quantity >= l.stock).length,
+    [lines],
+  );
+
   return (
-    <div className="flex h-full flex-col gap-3">
-      {/* Header */}
-      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Cửa hàng</Label>
-          <div className="flex items-center gap-2">
-            <Store className="h-4 w-4 text-muted-foreground shrink-0" />
+    <PosSessionGate shopId={shopId}>
+      <div className="flex h-full flex-col gap-3 pb-20 lg:pb-0">
+        {/* Banner ca POS */}
+        <PosSessionBanner shopId={shopId} />
+        {/* ============== HEADER ============== */}
+        <header className="rounded-xl border bg-gradient-to-br from-card via-card to-muted/30 p-3 shadow-sm sm:p-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <div className="space-y-1">
+            <Label className="text-xs font-medium text-muted-foreground">
+              <Store className="mr-1 inline h-3 w-3" />
+              Cửa hàng
+            </Label>
             <SearchableSelect
-              className="flex-1"
+              className="h-10"
               options={shopOptions}
               value={shopId}
               onValueChange={setShopId}
@@ -401,94 +601,161 @@ export function PosClient() {
               searchPlaceholder="Tìm cửa hàng..."
               disabled={shops.length === 0}
             />
-          </div>
-          {!shopsQuery.isLoading && shops.length === 0 && (
-            <p className="text-xs text-amber-600">Tài khoản chưa được gán cửa hàng nào.</p>
-          )}
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Khách hàng</Label>
-          <CustomerPicker value={customer} onChange={setCustomer} />
-        </div>
-        <div className="hidden items-end md:flex">
-          <div className="rounded-md border bg-card px-3 py-2 text-right">
-            <div className="text-xs text-muted-foreground">Sản phẩm trên đơn</div>
-            <div className="text-lg font-semibold">{itemCount}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search bar */}
-      <div className="flex items-center gap-2">
-        <ProductSearch onPick={addLine} shopId={shopId} />
-        <RepairTicketPicker onPick={handlePickRepair} />
-      </div>
-
-      {/* Body: cart + totals */}
-      <div className="grid flex-1 min-h-0 gap-3 lg:grid-cols-[1fr_360px]">
-        {/* Cart */}
-        <div className="flex min-h-0 flex-col rounded-md border bg-card">
-          <div className="flex items-center justify-between border-b px-4 py-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <ShoppingCart className="h-4 w-4" />
-              Hóa đơn ({lines.length} dòng)
-            </div>
-            {lines.length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setLines([])}
-              >
-                <Trash2 className="mr-1 h-3.5 w-3.5" />
-                Xoá tất cả
-              </Button>
+            {!shopsQuery.isLoading && shops.length === 0 && (
+              <p className="text-xs text-amber-600">Tài khoản chưa được gán cửa hàng nào.</p>
             )}
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-medium text-muted-foreground">Khách hàng</Label>
+            <CustomerPicker value={customer} onChange={setCustomer} />
+          </div>
+          <div className="hidden items-end gap-2 sm:flex">
+            <KpiTile label="Sản phẩm" value={formatNumber(itemCount)} />
+            <KpiTile label="Dòng" value={String(lines.length)} />
+          </div>
+        </div>
 
+        {/* Mobile KPI bar */}
+        <div className="mt-2 flex items-center gap-2 sm:hidden">
+          <KpiTile label="Sản phẩm" value={formatNumber(itemCount)} className="flex-1" />
+          <KpiTile label="Dòng" value={String(lines.length)} className="flex-1" />
+        </div>
+      </header>
+
+      {/* ============== SEARCH BAR ============== */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-2 rounded-xl border bg-card px-2 py-1.5 shadow-sm">
+          <ScanLine className="ml-1 h-4 w-4 text-primary" />
+          <ProductSearch onPick={addLine} shopId={shopId} />
+        </div>
+        <RepairTicketPicker onPick={handlePickRepair} />
+        <HoldBillDrawer
+          heldBills={heldBills}
+          onResume={resumeBill}
+          onDelete={deleteHeldBill}
+        />
+      </div>
+
+      {/* ============== BODY: Cart + Totals ============== */}
+      <div className="grid flex-1 min-h-0 gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* ----- CART ----- */}
+        <div className="flex min-h-0 flex-col rounded-xl border bg-card shadow-sm">
+          {/* Cart header sticky */}
+          <div className="flex items-center justify-between border-b bg-card/95 px-3 py-2.5 backdrop-blur sm:px-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <ShoppingCart className="h-4 w-4 text-primary" />
+              <span>Hóa đơn</span>
+              <Badge variant="secondary" className="ml-1 font-mono">
+                {lines.length} dòng
+              </Badge>
+              {lowStockCount > 0 && (
+                <Badge variant="destructive" className="ml-1">
+                  <AlertTriangle className="mr-0.5 h-3 w-3" />
+                  {lowStockCount} đạt max
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {lines.length > 0 && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={holdBill}
+                    className="h-8 text-xs"
+                  >
+                    <Pause className="mr-1 h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Giữ đơn</span>
+                    <span className="sm:hidden">Giữ</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={clearCart}
+                    className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="mr-1 h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Xoá tất cả</span>
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Cart items */}
           <div className="min-h-0 flex-1 overflow-auto">
             {lines.length === 0 ? (
-              <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground">
-                Giỏ hàng đang trống.
-                <br />
-                Quét mã hoặc tìm sản phẩm phía trên để thêm vào.
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                  <ShoppingCart className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">Giỏ hàng đang trống</p>
+                  <p className="text-sm text-muted-foreground">
+                    Quét mã vạch hoặc tìm sản phẩm phía trên để thêm vào.
+                  </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Phím tắt: <Kbd>F2</Kbd> tìm · <Kbd>F8</Kbd> giữ đơn · <Kbd>F9</Kbd> thanh toán
+                  </p>
+                </div>
               </div>
             ) : (
-              <table className="w-full min-w-[520px] text-sm">
-                <thead className="sticky top-0 bg-muted/40 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium">Sản phẩm</th>
-                    <th className="px-2 py-2 text-center font-medium w-40">Đơn giá bán</th>
-                    <th className="px-2 py-2 text-center font-medium">SL</th>
-                    <th className="px-2 py-2 text-right font-medium">Thành tiền</th>
-                    <th className="px-2 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((l) => {
-                    const diff = l.list_price - l.unit_price;
-                    return (
-                      <tr key={l.variant_id} className="border-t">
-                        <td className="px-4 py-2">
-                          <div className="font-medium">{l.display_name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {l.sku ?? "—"}
-                            <span
-                              className={`ml-2 ${
-                                l.quantity >= l.stock ? "text-destructive" : ""
-                              }`}
-                            >
-                              · Tồn CN: {l.stock}
-                            </span>
-                            {diff !== 0 && (
-                              <span className="ml-2 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">
-                                Giảm lẻ {formatVND(diff)}/cái
+              <div className="divide-y">
+                {lines.map((l) => {
+                  const lineTotal = l.unit_price * l.quantity;
+                  const diff = l.list_price - l.unit_price;
+                  const atMax = l.quantity >= l.stock;
+                  return (
+                    <div
+                      key={l.variant_id}
+                      className="group relative flex items-start gap-2 px-3 py-3 transition-colors hover:bg-muted/30 sm:px-4"
+                    >
+                      {/* Thumbnail placeholder */}
+                      <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground sm:flex">
+                        <Receipt className="h-5 w-5" />
+                      </div>
+
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <p className="truncate text-sm font-semibold">
+                                {l.display_name}
+                              </p>
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                              <span className="font-mono">{l.sku ?? "—"}</span>
+                              <span
+                                className={`flex items-center gap-0.5 ${
+                                  atMax ? "font-semibold text-destructive" : ""
+                                }`}
+                              >
+                                · Tồn: {l.stock}
                               </span>
-                            )}
+                              {diff > 0 && (
+                                <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
+                                  Giảm {formatVND(diff)}/cái
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </td>
-                        <td className="px-2 py-2">
-                          <div className="flex flex-col gap-1 items-end">
+                          <button
+                            type="button"
+                            onClick={() => setQty(l.variant_id, 0)}
+                            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
+                            aria-label="Xoá dòng"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        {/* Price + Qty controls */}
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label className="hidden text-xs text-muted-foreground sm:block">
+                              Đơn giá
+                            </Label>
                             <Input
                               type="text"
                               inputMode="numeric"
@@ -516,127 +783,194 @@ export function PosClient() {
                                   (e.target as HTMLInputElement).blur();
                                 }
                               }}
-                              className="h-7 w-28 text-right font-medium"
+                              className="h-8 w-28 text-right text-sm font-medium tabular-nums"
                             />
-                            {diff !== 0 && (
-                              <span className="text-[10px] text-muted-foreground line-through">
+                            {diff > 0 && (
+                              <span className="hidden text-xs text-muted-foreground line-through sm:inline tabular-nums">
                                 {formatVND(l.list_price)}
                               </span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-2 py-2">
-                          <div className="flex items-center justify-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-7 w-7"
-                              onClick={() => setQty(l.variant_id, l.quantity - 1)}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              value={l.quantity}
-                              onChange={(e) => {
-                                const n = Number(e.target.value.replace(/\D/g, "")) || 0;
-                                setQty(l.variant_id, n);
-                              }}
-                              className="h-7 w-12 text-center"
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-7 w-7"
-                              disabled={l.quantity >= l.stock}
-                              onClick={() => setQty(l.variant_id, l.quantity + 1)}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center rounded-lg border bg-card shadow-sm">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 rounded-r-none"
+                                onClick={() => setQty(l.variant_id, l.quantity - 1)}
+                                aria-label="Giảm"
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </Button>
+                              <Input
+                                value={l.quantity}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value.replace(/\D/g, "")) || 0;
+                                  setQty(l.variant_id, n);
+                                }}
+                                className="h-8 w-12 rounded-none border-x-0 text-center text-sm font-semibold tabular-nums"
+                                inputMode="numeric"
+                                aria-label="Số lượng"
+                              />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 rounded-l-none"
+                                disabled={atMax}
+                                onClick={() => setQty(l.variant_id, l.quantity + 1)}
+                                aria-label="Tăng"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="min-w-[90px] text-right text-sm font-bold tabular-nums text-foreground">
+                              {formatVND(lineTotal)}
+                            </div>
                           </div>
-                        </td>
-                        <td className="px-2 py-2 text-right font-semibold tabular-nums">
-                          {formatVND(l.unit_price * l.quantity)}
-                        </td>
-                        <td className="px-2 py-2 text-right">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => setQty(l.variant_id, 0)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Totals panel */}
-        <div className="flex flex-col gap-3">
-          <div className="rounded-md border bg-card p-4">
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Tạm tính</span>
-                <span className="tabular-nums">{formatVND(subtotal)}</span>
-              </div>
+        {/* ----- TOTALS PANEL ----- */}
+        <aside className="flex flex-col gap-3">
+          {/* Tổng quan */}
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="space-y-2.5 text-sm">
+              <Row label="Tạm tính" value={formatVND(subtotal)} />
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="pos-discount" className="text-muted-foreground">
+                <Label
+                  htmlFor="pos-discount"
+                  className="flex items-center gap-1 text-muted-foreground"
+                >
+                  <Tag className="h-3.5 w-3.5" />
                   Giảm giá
                 </Label>
                 <Input
                   id="pos-discount"
                   inputMode="numeric"
-                  value={discountInput ? numberFormatter.format(Number(discountInput.replace(/\D/g, "")) || 0) : ""}
+                  value={
+                    discountInput
+                      ? numberFormatter.format(Number(discountInput.replace(/\D/g, "")) || 0)
+                      : ""
+                  }
                   onChange={(e) => setDiscountInput(e.target.value.replace(/\D/g, ""))}
                   placeholder="0"
-                  className="h-8 max-w-[140px] text-right"
+                  className="h-8 max-w-[140px] text-right tabular-nums"
                 />
               </div>
-              <div className="border-t pt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-semibold">Tổng cộng</span>
-                  <span className="text-2xl font-bold text-primary tabular-nums">
-                    {formatVND(total)}
-                  </span>
-                </div>
+              {loyaltyDiscount > 0 && (
+                <Row
+                  label="Điểm thưởng"
+                  value={`-${formatVND(loyaltyDiscount)}`}
+                  accent="text-amber-600 dark:text-amber-400"
+                />
+              )}
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-base font-semibold">Tổng cộng</span>
+                <span className="text-2xl font-extrabold text-primary tabular-nums">
+                  {formatVND(total)}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="rounded-md border bg-card p-4">
-            <Label htmlFor="pos-note" className="text-xs text-muted-foreground">
-              Ghi chú đơn hàng
-            </Label>
-            <Input
-              id="pos-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Ghi chú nội bộ (nếu có)"
-              className="mt-1"
-            />
+          {/* Ghi chú */}
+          <div className="rounded-xl border bg-card shadow-sm">
+            <button
+              type="button"
+              onClick={() => setShowNote((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm font-medium"
+            >
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <StickyNote className="h-3.5 w-3.5" />
+                Ghi chú đơn hàng
+                {note && <Badge variant="secondary" className="ml-1 text-[10px]">Có</Badge>}
+              </span>
+              <span className="text-xs text-muted-foreground">{showNote ? "Ẩn" : "Mở"}</span>
+            </button>
+            {showNote && (
+              <div className="border-t px-4 pb-3 pt-2">
+                <Input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Ghi chú nội bộ (nếu có)"
+                  className="h-9"
+                />
+              </div>
+            )}
           </div>
 
-          <Button
-            size="lg"
-            className="h-14 text-lg font-semibold"
-            disabled={lines.length === 0 || !shopId}
-            onClick={() => setPayOpen(true)}
-          >
-            Thanh toán · {formatVND(total)}
-          </Button>
-        </div>
+          {/* Action buttons — sticky trên desktop, dính đáy mobile */}
+          <div className="flex flex-col gap-2 lg:sticky lg:bottom-3">
+            <Button
+              size="lg"
+              className="h-14 text-base font-bold shadow-md sm:text-lg"
+              disabled={lines.length === 0 || !shopId}
+              onClick={() => setPayOpen(true)}
+            >
+              <Banknote className="mr-2 h-5 w-5" />
+              Thanh toán · {formatVND(total)}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={lines.length === 0 || !shopId}
+              onClick={holdBill}
+            >
+              <Pause className="mr-1.5 h-4 w-4" />
+              Giữ đơn tạm
+              <span className="ml-2 hidden text-[10px] text-muted-foreground sm:inline">
+                F8
+              </span>
+            </Button>
+          </div>
+
+          {/* Tip */}
+          {lines.length === 0 && (
+            <div className="rounded-xl border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+              <p className="mb-1 font-semibold">
+                <Percent className="mr-1 inline h-3 w-3" />
+                Phím tắt
+              </p>
+              <ul className="space-y-0.5">
+                <li>
+                  <Kbd>F2</Kbd> — Tìm sản phẩm
+                </li>
+                <li>
+                  <Kbd>/</Kbd> — Tìm nhanh
+                </li>
+                <li>
+                  <Kbd>F8</Kbd> — Giữ đơn
+                </li>
+                <li>
+                  <Kbd>F9</Kbd> — Thanh toán
+                </li>
+              </ul>
+            </div>
+          )}
+        </aside>
       </div>
 
+      {/* ============== DIALOGS ============== */}
       <PaymentDialog
         open={payOpen}
         onOpenChange={setPayOpen}
         total={total}
         submitting={checkoutMutation.isPending}
+        customer={customer}
+        loyaltyRate={DEFAULT_LOYALTY_RATE}
+        redeemedPoints={redeemedPoints}
+        redeemedValue={redeemedValue}
+        hasRedeemed={redeemedValue > 0}
+        onLoyaltyRedeem={handleRedeem}
+        onLoyaltyClear={clearRedeem}
         onConfirm={handleConfirmPayment}
       />
       <PaymentDialog
@@ -646,6 +980,8 @@ export function PosClient() {
         submitting={repairCheckoutMutation.isPending}
         editableTotal
         editableLabel="Phí sửa chữa"
+        customer={customer}
+        loyaltyRate={DEFAULT_LOYALTY_RATE}
         onConfirm={handleConfirmRepairPayment}
       />
       {lastReceipt && (
@@ -657,14 +993,16 @@ export function PosClient() {
           customer={lastReceipt.customer}
           subtotal={lastReceipt.subtotal}
           discount={lastReceipt.discount}
+          loyaltyDiscount={lastReceipt.loyaltyDiscount}
           total={lastReceipt.total}
-          method={lastReceipt.method}
+          payments={lastReceipt.payments}
           received={lastReceipt.received}
           change={lastReceipt.change}
           shopName={lastReceipt.shopName}
           shopStampText={lastReceipt.shopStampText}
           shopAddress={lastReceipt.shopAddress}
           shopPhone={lastReceipt.shopPhone}
+          shopEmail={shopEmail}
           cashierName={lastReceipt.cashierName}
           issuedAt={lastReceipt.issuedAt}
           policy={lastReceipt.policy}
@@ -672,6 +1010,55 @@ export function PosClient() {
           onNew={resetForNewOrder}
         />
       )}
+      </div>
+    </PosSessionGate>
+  );
+}
+
+// ============ Sub-components ============
+
+function KpiTile({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-lg border bg-card px-3 py-2 text-center shadow-sm ${className ?? ""}`}
+    >
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-0.5 text-lg font-bold tabular-nums">{value}</div>
     </div>
+  );
+}
+
+function Row({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`font-medium tabular-nums ${accent ?? ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="inline-flex h-5 min-w-[20px] items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] font-semibold text-muted-foreground shadow-sm">
+      {children}
+    </kbd>
   );
 }

@@ -148,22 +148,22 @@ function ServiceRow({
   const colors = CATEGORY_COLORS[catSlug] ?? CATEGORY_COLORS["thay-linh-kien"];
 
   return (
-    <div className="group flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-4 sm:px-6 transition-colors hover:bg-zinc-50">
+    <div className="group flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-4 sm:px-6 transition-colors hover:bg-muted/40">
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <div className="flex items-center gap-2">
           {service.is_featured && (
             <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />
           )}
-          <h3 className="truncate text-sm font-semibold text-zinc-900 sm:text-base">
+          <h3 className="truncate text-sm font-semibold text-foreground sm:text-base">
             {service.name}
           </h3>
         </div>
         {(service.description || service.warranty_text) && (
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500 sm:gap-3">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:gap-3">
             {service.description && <span className="truncate">{service.description}</span>}
-            {service.description && service.warranty_text && <span className="hidden sm:block h-1 w-1 rounded-full bg-zinc-300 shrink-0" />}
+            {service.description && service.warranty_text && <span className="hidden sm:block h-1 w-1 rounded-full bg-border shrink-0" />}
             {service.warranty_text && (
-              <span className="flex items-center gap-1 shrink-0 font-medium text-emerald-600">
+              <span className="flex items-center gap-1 shrink-0 font-medium text-emerald-600 dark:text-emerald-400">
                 <Clock className="h-3.5 w-3.5" />
                 Bảo hành: {service.warranty_text}
               </span>
@@ -199,7 +199,7 @@ function CategorySection({
 
   return (
     <section id={`cat-${cat.slug}`} className="scroll-mt-24">
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-all hover:shadow-md">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md">
         {/* Category header */}
         <div
           className={`relative flex items-center gap-4 bg-gradient-to-r ${colors.gradient} px-5 py-5 sm:px-6 text-white`}
@@ -227,7 +227,7 @@ function CategorySection({
         </div>
 
         {/* Service list */}
-        <div className="divide-y divide-zinc-100">
+        <div className="divide-y divide-border">
           {services.map((s) => (
             <ServiceRow key={s.id} service={s} catSlug={cat.slug} />
           ))}
@@ -244,16 +244,16 @@ function SkeletonGrid() {
   return (
     <div className="space-y-12">
       {[1, 2, 3].map((g) => (
-        <div key={g} className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-          <div className="h-24 bg-zinc-100 animate-pulse" />
-          <div className="divide-y divide-zinc-100">
+        <div key={g} className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground">
+          <div className="h-24 bg-muted animate-pulse" />
+          <div className="divide-y divide-border">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="flex items-center justify-between p-4 sm:px-6">
                 <div className="space-y-2">
-                  <div className="h-5 w-40 rounded bg-zinc-200 animate-pulse" />
-                  <div className="h-3 w-24 rounded bg-zinc-100 animate-pulse" />
+                  <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-24 rounded bg-muted animate-pulse" />
                 </div>
-                <div className="h-8 w-24 rounded-full bg-zinc-100 animate-pulse" />
+                <div className="h-8 w-24 rounded-full bg-muted animate-pulse" />
               </div>
             ))}
           </div>
@@ -300,9 +300,9 @@ export function RepairServicesClient() {
   const totalServices = services.length;
 
   return (
-    <div className="bg-white">
+    <div className="bg-background">
       {/* ── HERO ── */}
-      <section className="relative overflow-hidden bg-zinc-950 text-white">
+      <section className="relative overflow-hidden bg-zinc-950 text-white dark:bg-zinc-950">
         {/* subtle grid pattern */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.06]"
@@ -340,7 +340,7 @@ export function RepairServicesClient() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a
               href="tel:19001234"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-zinc-900 shadow-lg transition hover:bg-zinc-100 hover:scale-105"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-zinc-900 shadow-lg transition hover:bg-zinc-100 hover:scale-105 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               <Phone className="h-4 w-4" />
               Gọi ngay: 1900 1234
@@ -373,20 +373,20 @@ export function RepairServicesClient() {
       </section>
 
       {/* ── TRUST BADGES ── */}
-      <section className="border-b bg-zinc-50">
+      <section className="border-b border-border bg-muted/40">
         <div className="container mx-auto max-w-5xl px-4 py-8">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {TRUST_BADGES.map((b) => (
               <div
                 key={b.title}
-                className="flex items-start gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 transition hover:ring-zinc-300"
+                className="flex items-start gap-3 rounded-xl bg-card p-4 text-card-foreground shadow-sm ring-1 ring-border transition hover:ring-slate-300 dark:hover:ring-slate-600"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
                   <b.icon className="h-4.5 w-4.5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-zinc-900">{b.title}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{b.desc}</p>
+                  <p className="text-sm font-semibold text-foreground">{b.title}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{b.desc}</p>
                 </div>
               </div>
             ))}
@@ -402,8 +402,8 @@ export function RepairServicesClient() {
             onClick={() => setActiveTab("all")}
             className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
               activeTab === "all"
-                ? "bg-zinc-900 text-white shadow"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                ? "bg-zinc-900 text-white shadow dark:bg-zinc-100 dark:text-zinc-900"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
             }`}
           >
             Tất cả ({totalServices})
@@ -443,7 +443,7 @@ export function RepairServicesClient() {
         {isLoading ? (
           <SkeletonGrid />
         ) : filteredGroups.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 py-20 text-center text-zinc-400">
+          <div className="rounded-2xl border border-dashed border-border bg-muted/40 py-20 text-center text-muted-foreground">
             <Wrench className="mx-auto mb-3 h-10 w-10 opacity-30" />
             <p className="font-medium">Chưa có dịch vụ nào</p>
             <p className="mt-1 text-sm">Vui lòng liên hệ để được tư vấn trực tiếp.</p>
@@ -464,12 +464,12 @@ export function RepairServicesClient() {
 
         {/* Note block */}
         {!isLoading && (
-          <div className="mt-14 rounded-2xl bg-amber-50 p-6 ring-1 ring-amber-200">
-            <h3 className="mb-2 flex items-center gap-2 font-bold text-amber-900">
-              <CheckCircle className="h-5 w-5 text-amber-600" />
+          <div className="mt-14 rounded-2xl bg-amber-50 p-6 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:ring-amber-800">
+            <h3 className="mb-2 flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200">
+              <CheckCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               Lưu ý quan trọng
             </h3>
-            <ul className="space-y-1.5 text-sm text-amber-800">
+            <ul className="space-y-1.5 text-sm text-amber-800 dark:text-amber-200/80">
               <li>• Giá trên là giá dịch vụ (công thợ). Giá linh kiện thay thế sẽ được báo thêm sau khi kiểm tra máy.</li>
               <li>• Chúng tôi sẽ <strong>báo giá và được đồng ý trước</strong> khi tiến hành sửa chữa.</li>
               <li>• Bảo hành linh kiện và công thợ theo từng loại dịch vụ (xem chi tiết tại mỗi hạng mục).</li>
@@ -503,7 +503,7 @@ export function RepairServicesClient() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <a
               href="tel:19001234"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-bold text-zinc-900 shadow-xl transition hover:bg-zinc-100 hover:scale-105"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-bold text-zinc-900 shadow-xl transition hover:bg-zinc-100 hover:scale-105 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               <Phone className="h-4 w-4" />
               Gọi: 1900 1234

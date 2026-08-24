@@ -30,15 +30,15 @@ export async function TradeBadge({ className }: Props) {
       rel="noopener noreferrer"
       title="Đã thông báo/đăng ký với Bộ Công Thương"
       aria-label="Đã thông báo/đăng ký với Bộ Công Thương"
-      className={`inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 ${className ?? ""}`}
+      className={`inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60 ${className ?? ""}`}
     >
-      <ShieldCheck className="h-5 w-5 shrink-0 text-amber-700" />
+      <ShieldCheck className="h-5 w-5 shrink-0 text-amber-700 dark:text-amber-400" />
       <span className="flex flex-col leading-tight">
-        <span className="text-[10px] uppercase tracking-wide text-amber-700">
+        <span className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-400">
           Đã thông báo
         </span>
         <span className="font-bold">Bộ Công Thương</span>
-        <span className="text-[10px] text-amber-800/80">
+        <span className="text-[10px] text-amber-800/80 dark:text-amber-300/80">
           online.gov.vn/vn
         </span>
       </span>

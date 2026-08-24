@@ -51,7 +51,7 @@ const sections: PolicySection[] = [
             <strong>Trực tiếp:</strong> Showroom tại 123 Nguyễn Văn Cừ, Ninh Kiều, Cần Thơ
           </li>
           <li>
-            <strong>Đường bưu điện:</strong> Gửi về địa chỉ trên kèm tiêu đề "Khiếu nại"
+            <strong>Đường bưu điện:</strong> Gửi về địa chỉ trên kèm tiêu đề &ldquo;Khiếu nại&rdquo;
           </li>
         </ul>
       </>

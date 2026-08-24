@@ -159,11 +159,11 @@ export default async function FaqPage() {
   const store = await getStoreInfo();
 
   return (
-    <div className="bg-white pb-20">
+    <div className="pb-20">
       {/* Hero */}
       <section className="container pt-6 md:pt-10">
         <Reveal variant="clip-up">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-8 py-16 text-center md:px-16 md:py-24">
+          <div className="relative overflow-hidden rounded-[2.5rem] border border-slate-200 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-8 py-16 text-center shadow-sm dark:border-blue-900/40 md:px-16 md:py-24">
             <div
               className="absolute inset-0 opacity-[0.04] pointer-events-none"
               style={{
@@ -207,25 +207,25 @@ export default async function FaqPage() {
       {/* CTA */}
       <section className="container pt-16 md:pt-20">
         <Reveal variant="fade-up">
-          <div className="mx-auto max-w-4xl rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-8 text-center md:p-12">
-            <Wrench className="mx-auto mb-4 h-10 w-10 text-slate-700" />
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <div className="mx-auto max-w-4xl rounded-3xl border border-border bg-gradient-to-br from-slate-50 to-card p-8 text-center dark:from-slate-900 dark:to-card md:p-12">
+            <Wrench className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+            <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
               Vẫn chưa tìm được câu trả lời?
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm text-slate-500 md:text-base">
+            <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground md:text-base">
               Đội ngũ CSKH của {store.name} luôn sẵn sàng hỗ trợ bạn qua hotline, Zalo hoặc
               email. Phản hồi trong vòng 24 giờ làm việc.
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href="/contact"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-900 px-6 text-sm font-semibold text-white hover:bg-slate-700"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-900 px-6 text-sm font-semibold text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
               >
                 Liên hệ CSKH <ArrowRight className="h-4 w-4" />
               </Link>
               <a
                 href="tel:19001234"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-border bg-card px-6 text-sm font-semibold text-foreground hover:bg-muted"
               >
                 Gọi 1900 1234
               </a>

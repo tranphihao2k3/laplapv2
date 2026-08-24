@@ -44,28 +44,32 @@ const CHANNELS = [
     title: "Hotline bán hàng",
     value: "1900 1234",
     desc: "Tư vấn sản phẩm, báo giá, đặt hàng.",
-    accent: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    accent:
+      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
   },
   {
     Icon: Headphones,
     title: "Hỗ trợ kỹ thuật",
     value: "1900 1235",
     desc: "Hỗ trợ sau bán hàng, bảo hành, sửa chữa.",
-    accent: "bg-blue-50 text-blue-700 border-blue-100",
+    accent:
+      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
   },
   {
     Icon: MessageCircle,
     title: "Zalo / WhatsApp",
     value: "0901 234 567",
     desc: "Chat nhanh qua Zalo OA, phản hồi trong 5 phút.",
-    accent: "bg-violet-50 text-violet-700 border-violet-100",
+    accent:
+      "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800",
   },
   {
     Icon: Mail,
     title: "Email",
     value: "info@laplap.vn",
     desc: "Gửi yêu cầu chi tiết, đính kèm tài liệu.",
-    accent: "bg-amber-50 text-amber-700 border-amber-100",
+    accent:
+      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
   },
 ];
 
@@ -85,11 +89,11 @@ export default async function ContactPage() {
   const mapsLink = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
   return (
-    <div className="bg-white pb-20">
+    <div className="pb-20">
       {/* Hero */}
       <section className="container pt-6 md:pt-10">
         <Reveal variant="clip-up">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-16 text-center md:px-16 md:py-24">
+          <div className="relative overflow-hidden rounded-[2.5rem] border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-16 text-center shadow-sm md:px-16 md:py-24 dark:border-slate-800">
             <div
               className="absolute inset-0 opacity-[0.03] pointer-events-none"
               style={{
@@ -132,7 +136,7 @@ export default async function ContactPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {CHANNELS.map(({ Icon, title, value, desc, accent }, i) => (
             <Reveal key={title} variant="fade-up" delay={i * 80} threshold={0.1}>
-              <div className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-md">
+              <div className="group flex h-full flex-col rounded-2xl border border-border bg-card p-6 text-card-foreground transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
                 <div
                   className={cn(
                     "mb-4 flex h-12 w-12 items-center justify-center rounded-xl border transition-transform duration-300 group-hover:scale-110",
@@ -141,11 +145,11 @@ export default async function ContactPage() {
                 >
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {title}
                 </h3>
-                <p className="mt-1.5 text-lg font-bold text-slate-900">{value}</p>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{desc}</p>
+                <p className="mt-1.5 text-lg font-bold text-foreground">{value}</p>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{desc}</p>
               </div>
             </Reveal>
           ))}
@@ -157,12 +161,12 @@ export default async function ContactPage() {
         <div className="grid gap-8 lg:grid-cols-5 lg:gap-12">
           {/* Form */}
           <Reveal variant="fade-right" className="lg:col-span-3">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-10">
+            <div className="rounded-3xl border border-border bg-card p-6 text-card-foreground shadow-sm md:p-10">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+                <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
                   Gửi tin nhắn cho {store.name}
                 </h2>
-                <p className="mt-2 text-sm text-slate-500">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Điền thông tin bên dưới — chúng tôi sẽ phản hồi qua email hoặc SĐT bạn cung cấp.
                 </p>
               </div>
@@ -172,19 +176,19 @@ export default async function ContactPage() {
 
           {/* Info card */}
           <Reveal variant="fade-left" className="lg:col-span-2">
-            <div className="flex h-full flex-col rounded-3xl border border-slate-200 bg-slate-50/60 p-6 md:p-8">
-              <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
+            <div className="flex h-full flex-col rounded-3xl border border-border bg-muted/40 p-6 md:p-8">
+              <h2 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
                 Thông tin cửa hàng
               </h2>
 
               <div className="mt-6 space-y-4 text-sm">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-700">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground">
                     <Building2 className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">{store.legal.business_name}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="font-semibold text-foreground">{store.legal.business_name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       MST: {store.legal.tax_id} · ĐKKD:{" "}
                       {store.legal.business_registration_number}
                     </p>
@@ -192,17 +196,17 @@ export default async function ContactPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-700">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground">
                     <MapPin className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-medium text-slate-900">Địa chỉ showroom</p>
-                    <p className="mt-0.5 text-slate-600">{store.address}</p>
+                    <p className="font-medium text-foreground">Địa chỉ showroom</p>
+                    <p className="mt-0.5 text-muted-foreground">{store.address}</p>
                     <a
                       href={mapsLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+                      className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
                     >
                       Mở Google Maps <ArrowRight className="h-3 w-3" />
                     </a>
@@ -210,33 +214,33 @@ export default async function ContactPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-700">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground">
                     <Phone className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-medium text-slate-900">Hotline</p>
+                    <p className="font-medium text-foreground">Hotline</p>
                     {tel ? (
                       <a
                         href={tel}
-                        className="mt-0.5 block text-slate-600 hover:text-blue-600"
+                        className="mt-0.5 block text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400"
                       >
                         {store.phone}
                       </a>
                     ) : (
-                      <p className="mt-0.5 text-slate-600">{store.phone}</p>
+                      <p className="mt-0.5 text-muted-foreground">{store.phone}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-700">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground">
                     <Mail className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-medium text-slate-900">Email</p>
+                    <p className="font-medium text-foreground">Email</p>
                     <a
                       href={`mailto:${store.email}`}
-                      className="mt-0.5 block break-all text-slate-600 hover:text-blue-600"
+                      className="mt-0.5 block break-all text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400"
                     >
                       {store.email}
                     </a>
@@ -244,19 +248,19 @@ export default async function ContactPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-700">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground">
                     <Clock className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-medium text-slate-900">Giờ mở cửa</p>
-                    <ul className="mt-1 space-y-0.5 text-slate-600">
+                    <p className="font-medium text-foreground">Giờ mở cửa</p>
+                    <ul className="mt-1 space-y-0.5 text-muted-foreground">
                       {HOURS.map((h) => (
                         <li
                           key={h.day}
                           className="flex justify-between gap-3 text-xs"
                         >
                           <span>{h.day}</span>
-                          <span className="font-mono font-medium">{h.time}</span>
+                          <span className="font-mono font-medium text-foreground">{h.time}</span>
                         </li>
                       ))}
                     </ul>
@@ -264,12 +268,12 @@ export default async function ContactPage() {
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center gap-3 border-t border-slate-200 pt-5">
+              <div className="mt-6 flex items-center gap-3 border-t border-border pt-5">
                 <a
                   href="https://facebook.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
                   aria-label="Facebook"
                 >
                   <Facebook className="h-4 w-4" />
@@ -278,14 +282,14 @@ export default async function ContactPage() {
                   href="https://zalo.me"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
                   aria-label="Zalo"
                 >
                   <Send className="h-4 w-4" />
                 </a>
                 <a
                   href={`mailto:${store.email}`}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
                   aria-label="Email"
                 >
                   <Mail className="h-4 w-4" />
@@ -299,7 +303,7 @@ export default async function ContactPage() {
       {/* Map */}
       <section className="container pt-16 md:pt-20">
         <Reveal variant="clip-up" threshold={0.1}>
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-sm">
             <div className="aspect-[16/9] w-full md:aspect-[21/9]">
               <iframe
                 src={mapsEmbedUrl}
@@ -311,16 +315,16 @@ export default async function ContactPage() {
                 allowFullScreen
               />
             </div>
-            <div className="flex flex-col items-start justify-between gap-3 border-t border-slate-200 p-5 sm:flex-row sm:items-center">
+            <div className="flex flex-col items-start justify-between gap-3 border-t border-border p-5 sm:flex-row sm:items-center">
               <div>
-                <p className="text-sm font-semibold text-slate-900">{store.name}</p>
-                <p className="text-xs text-slate-500">{store.address}</p>
+                <p className="text-sm font-semibold text-foreground">{store.name}</p>
+                <p className="text-xs text-muted-foreground">{store.address}</p>
               </div>
               <Link
                 href={mapsLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
               >
                 <MapPin className="h-3.5 w-3.5" />
                 Chỉ đường
@@ -333,17 +337,17 @@ export default async function ContactPage() {
       {/* FAQ shortcut */}
       <section className="container pt-16 md:pt-20">
         <Reveal variant="fade-up">
-          <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-8 text-center md:p-12">
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          <div className="rounded-3xl border border-border bg-gradient-to-br from-slate-50 to-card p-8 text-center dark:from-slate-900 dark:to-card md:p-12">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
               Bạn có câu hỏi thường gặp?
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm text-slate-500 md:text-base">
+            <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground md:text-base">
               Xem ngay các câu hỏi phổ biến về mua hàng, bảo hành, đổi trả — có thể bạn sẽ tìm
               được câu trả lời ngay lập tức.
             </p>
             <Link
               href="/cau-hoi-thuong-gap"
-              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-900 px-6 text-sm font-semibold text-white hover:bg-slate-700"
+              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-900 px-6 text-sm font-semibold text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
             >
               Xem FAQ <ArrowRight className="h-4 w-4" />
             </Link>

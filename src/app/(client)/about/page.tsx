@@ -120,7 +120,7 @@ export default async function AboutPage() {
   };
 
   return (
-    <div className="bg-white pb-20">
+    <div className="pb-20">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -129,7 +129,7 @@ export default async function AboutPage() {
       {/* Hero Section */}
       <section className="container pt-6 md:pt-10">
         <Reveal variant="clip-up">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-16 text-center md:px-16 md:py-28">
+          <div className="relative overflow-hidden rounded-[2.5rem] border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-16 text-center shadow-sm dark:border-slate-800 md:px-16 md:py-28">
             {/* Grid background overlay */}
             <div
               className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -171,11 +171,11 @@ export default async function AboutPage() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {STATS.map((s, i) => (
             <Reveal key={s.label} variant="scale-up" delay={i * 80} threshold={0.1}>
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center transition-all duration-300 hover:border-slate-300 hover:bg-white hover:shadow-sm">
-                <div className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-muted/30 p-6 text-center transition-all duration-300 hover:border-slate-300 hover:bg-card hover:shadow-sm dark:hover:border-slate-600">
+                <div className="text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">
                   {s.value}
                 </div>
-                <div className="mt-2 text-xs font-semibold text-slate-500 uppercase tracking-wide md:text-sm">
+                <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:text-sm">
                   {s.label}
                 </div>
               </div>
@@ -188,19 +188,19 @@ export default async function AboutPage() {
       <section className="container pt-20 md:pt-28">
         <div className="mx-auto max-w-3xl text-center">
           <Reveal variant="fade-up">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
-              Câu chuyện của <span className="text-blue-600">{store.name}</span>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+              Câu chuyện của <span className="text-blue-600 dark:text-blue-400">{store.name}</span>
             </h2>
           </Reveal>
           <Reveal variant="fade-up" delay={100}>
-            <div className="mt-6 space-y-5 text-base leading-relaxed text-slate-600 md:text-lg">
+            <div className="mt-6 space-y-5 text-base leading-relaxed text-muted-foreground md:text-lg">
               <p>
                 Ra đời năm 2019 tại trung tâm thành phố Cần Thơ, chúng tôi khởi đầu từ một cửa hàng nhỏ với mong muốn mang đến cho người dùng miền Tây những chiếc laptop chính hãng với mức giá hợp lý nhất.
               </p>
               <p>
                 Sau nhiều năm phát triển, LapLap tự hào trở thành một trong những hệ thống bán lẻ laptop uy tín hàng đầu khu vực. Mỗi sản phẩm đến tay khách hàng đều được kiểm tra kỹ lưỡng, bảo hành minh bạch và hỗ trợ tận tâm.
               </p>
-              <p className="font-medium text-slate-900">
+              <p className="font-medium text-foreground">
                 Với LapLap, việc mua laptop không chỉ là một giao dịch — đó là sự đồng hành lâu dài.
               </p>
             </div>
@@ -212,17 +212,17 @@ export default async function AboutPage() {
       <section className="container pt-20 md:pt-28">
         <div className="mx-auto max-w-4xl">
           <Reveal variant="fade-right">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Hành trình</p>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Chặng đường phát triển</h2>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Hành trình</p>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Chặng đường phát triển</h2>
           </Reveal>
-          <div className="mt-10 border-l-2 border-slate-100 pl-6 md:pl-10 space-y-10">
+          <div className="mt-10 border-l-2 border-border pl-6 md:pl-10 space-y-10">
             {MILESTONES.map((m, i) => (
               <Reveal key={m.year} variant="fade-up" delay={i * 150} threshold={0.1}>
                 <div className="relative">
                   {/* Timeline dot */}
-                  <div className="absolute -left-[35px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-blue-600 bg-white md:-left-[51px] shadow-[0_0_0_4px_rgba(37,99,235,0.1)]" />
-                  <h3 className="text-2xl font-extrabold text-slate-900">{m.year}</h3>
-                  <p className="mt-2 text-base text-slate-600 md:text-lg">{m.text}</p>
+                  <div className="absolute -left-[35px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-blue-600 bg-card shadow-[0_0_0_4px_rgba(37,99,235,0.15)] md:-left-[51px] dark:border-blue-400 dark:bg-card dark:shadow-[0_0_0_4px_rgba(96,165,250,0.2)]" />
+                  <h3 className="text-2xl font-extrabold text-foreground">{m.year}</h3>
+                  <p className="mt-2 text-base text-muted-foreground md:text-lg">{m.text}</p>
                 </div>
               </Reveal>
             ))}
@@ -234,19 +234,19 @@ export default async function AboutPage() {
       <section className="container pt-20 md:pt-28">
         <Reveal variant="slide-split">
           <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Giá trị cốt lõi</h2>
-            <p className="mt-3 text-slate-500">Những gì chúng tôi cam kết với mỗi khách hàng</p>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Giá trị cốt lõi</h2>
+            <p className="mt-3 text-muted-foreground">Những gì chúng tôi cam kết với mỗi khách hàng</p>
           </div>
         </Reveal>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {VALUES.map(({ Icon, title, desc, accent }, i) => (
             <Reveal key={title} variant={i % 2 === 0 ? "fade-up" : "flip-x"} delay={i * 100} threshold={0.05}>
-              <div className="group flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-slate-300">
+              <div className="group flex h-full flex-col rounded-3xl border border-border bg-card p-6 text-card-foreground transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg dark:hover:border-slate-600">
                 <div className={cn("mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3", accent)}>
                   <Icon className="h-6 w-6" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{desc}</p>
+                <h3 className="text-lg font-bold text-foreground">{title}</h3>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{desc}</p>
               </div>
             </Reveal>
           ))}
@@ -257,19 +257,19 @@ export default async function AboutPage() {
       <section className="container pt-20 md:pt-28">
         <div className="grid gap-6 md:grid-cols-2">
           <Reveal variant="fade-left">
-            <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-8 transition-all hover:bg-white hover:shadow-md md:p-12">
-              <Target className="mb-6 h-10 w-10 text-blue-600" />
-              <h3 className="text-2xl font-bold text-slate-900">Sứ mệnh</h3>
-              <p className="mt-4 text-base leading-relaxed text-slate-600 md:text-lg">
+            <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-muted/40 p-8 transition-all hover:bg-card hover:shadow-md md:p-12">
+              <Target className="mb-6 h-10 w-10 text-blue-600 dark:text-blue-400" />
+              <h3 className="text-2xl font-bold text-foreground">Sứ mệnh</h3>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
                 Giúp mọi người dân Cần Thơ và miền Tây dễ dàng sở hữu chiếc laptop chính hãng phù hợp nhất với nhu cầu và ngân sách của mình.
               </p>
             </div>
           </Reveal>
           <Reveal variant="fade-right">
-            <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-8 transition-all hover:bg-white hover:shadow-md md:p-12">
-              <Users className="mb-6 h-10 w-10 text-emerald-600" />
-              <h3 className="text-2xl font-bold text-slate-900">Tầm nhìn</h3>
-              <p className="mt-4 text-base leading-relaxed text-slate-600 md:text-lg">
+            <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-muted/40 p-8 transition-all hover:bg-card hover:shadow-md md:p-12">
+              <Users className="mb-6 h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="text-2xl font-bold text-foreground">Tầm nhìn</h3>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
                 Trở thành thương hiệu bán lẻ và dịch vụ laptop được tin tưởng nhất khu vực Đồng bằng sông Cửu Long, mang lại dịch vụ vượt kỳ vọng.
               </p>
             </div>
@@ -280,45 +280,45 @@ export default async function AboutPage() {
       {/* Liên hệ / CTA */}
       <section className="container pt-20 md:pt-28">
         <Reveal variant="clip-up" threshold={0.1}>
-          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white px-6 py-12 shadow-sm md:px-12 md:py-20 text-center">
+          <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-6 py-12 text-card-foreground shadow-sm md:px-12 md:py-20 text-center">
             {/* Grid pattern background */}
             <div
-              className="absolute inset-0 opacity-[0.02] pointer-events-none"
+              className="absolute inset-0 opacity-[0.02] pointer-events-none dark:opacity-[0.04]"
               style={{
                 backgroundImage:
-                  "radial-gradient(#000 1px,transparent 1px)",
+                  "radial-gradient(currentColor 1px,transparent 1px)",
                 backgroundSize: "24px 24px",
               }}
             />
             
             <div className="relative z-10 mx-auto max-w-2xl">
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
                 Bắt đầu hành trình cùng {store.name}
               </h2>
-              <p className="mt-4 text-base text-slate-500 md:text-lg">
-                Ghé thăm showroom của chúng tôi tại <strong className="text-slate-800">{store.address}</strong> để trải nghiệm trực tiếp các dòng sản phẩm mới nhất.
+              <p className="mt-4 text-base text-muted-foreground md:text-lg">
+                Ghé thăm showroom của chúng tôi tại <strong className="text-foreground">{store.address}</strong> để trải nghiệm trực tiếp các dòng sản phẩm mới nhất.
               </p>
               
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link
                   href="/products"
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-8 text-sm font-bold text-white shadow-sm transition-all hover:bg-slate-800 sm:w-auto"
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-8 text-sm font-bold text-white shadow-sm transition-all hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 sm:w-auto"
                 >
                   Xem sản phẩm <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/contact"
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-8 text-sm font-bold text-slate-900 transition-all hover:bg-slate-50 sm:w-auto"
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-border bg-card px-8 text-sm font-bold text-foreground transition-all hover:bg-muted sm:w-auto"
                 >
                   <MapPin className="h-4 w-4" /> Bản đồ đường đi
                 </Link>
               </div>
 
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-6 border-t border-slate-100 pt-8 text-sm font-medium text-slate-600">
-                <a href={`tel:${store.phone.replace(/\s/g, "")}`} className="flex items-center gap-2 hover:text-blue-600 transition-colors">
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-6 border-t border-border pt-8 text-sm font-medium text-muted-foreground">
+                <a href={`tel:${store.phone.replace(/\s/g, "")}`} className="flex items-center gap-2 transition-colors hover:text-blue-600 dark:hover:text-blue-400">
                   <Phone className="h-4 w-4" /> {store.phone}
                 </a>
-                <a href={`mailto:${store.email}`} className="flex items-center gap-2 hover:text-blue-600 transition-colors">
+                <a href={`mailto:${store.email}`} className="flex items-center gap-2 transition-colors hover:text-blue-600 dark:hover:text-blue-400">
                   <Mail className="h-4 w-4" /> {store.email}
                 </a>
               </div>

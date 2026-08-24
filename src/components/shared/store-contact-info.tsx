@@ -25,11 +25,11 @@ export async function StoreContactInfo({ compact = false }: Props) {
     <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
       <div className="space-y-2">
         <p className="flex items-start gap-2">
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
           <span>{store.address}</span>
         </p>
         <p className="flex items-start gap-2">
-          <Phone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
           <span>
             {tel ? (
               <a href={tel} className="hover:text-foreground">
@@ -41,7 +41,7 @@ export async function StoreContactInfo({ compact = false }: Props) {
           </span>
         </p>
         <p className="flex items-start gap-2">
-          <Mail className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
           <a href={`mailto:${store.email}`} className="hover:text-foreground break-all">
             {store.email}
           </a>
@@ -49,13 +49,13 @@ export async function StoreContactInfo({ compact = false }: Props) {
       </div>
 
       {!compact && (
-        <div className="space-y-1.5 border-t pt-3">
+        <div className="space-y-1.5 border-t border-border pt-3">
           <p className="flex items-start gap-2">
-            <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
             <span>{store.legal.business_name}</span>
           </p>
           <p className="flex items-start gap-2">
-            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
             <span>
               MST: <strong className="font-semibold text-foreground">{store.legal.tax_id}</strong>
               {" · "}
@@ -66,7 +66,7 @@ export async function StoreContactInfo({ compact = false }: Props) {
             </span>
           </p>
           <p className="flex items-start gap-2">
-            <User className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
             <span>
               Người chịu trách nhiệm nội dung:{" "}
               <strong className="font-semibold text-foreground">
@@ -80,7 +80,7 @@ export async function StoreContactInfo({ compact = false }: Props) {
 
       <div className="pt-2">
         <TradeBadge />
-        <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
           Đã thông báo/đăng ký với Bộ Công Thương theo Nghị định 52/2013/NĐ-CP (sửa đổi bởi
           Nghị định 85/2021/NĐ-CP).
           <br />

@@ -53,7 +53,7 @@ export function FaqList({ groups }: Props) {
     <div className="space-y-8">
       {/* Search */}
       <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
           value={query}
@@ -64,19 +64,19 @@ export function FaqList({ groups }: Props) {
       </div>
 
       {filtered.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-12 text-center">
-          <p className="text-sm font-semibold text-slate-700">
+        <div className="rounded-2xl border border-dashed border-border bg-muted/40 p-12 text-center">
+          <p className="text-sm font-semibold text-foreground">
             Không tìm thấy câu hỏi phù hợp.
           </p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Hãy thử từ khoá khác hoặc liên hệ trực tiếp với chúng tôi qua trang Liên hệ.
           </p>
         </div>
       )}
 
       {q && (
-        <p className="text-sm text-slate-500">
-          Tìm thấy <strong>{totalItems}</strong> câu hỏi liên quan.
+        <p className="text-sm text-muted-foreground">
+          Tìm thấy <strong className="text-foreground">{totalItems}</strong> câu hỏi liên quan.
         </p>
       )}
 
@@ -84,11 +84,11 @@ export function FaqList({ groups }: Props) {
         <div key={g.id} className="space-y-4">
           <div className="flex items-center gap-3">
             {g.icon && (
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
                 {g.icon}
               </div>
             )}
-            <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
+            <h2 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
               {g.title}
             </h2>
           </div>
@@ -104,19 +104,19 @@ export function FaqList({ groups }: Props) {
                     const next = (e.target as HTMLDetailsElement).open;
                     setOpen((s) => ({ ...s, [key]: next }));
                   }}
-                  className="group rounded-2xl border border-slate-200 bg-white transition-all hover:border-slate-300 open:shadow-sm"
+                  className="group rounded-2xl border border-border bg-card text-card-foreground transition-all hover:border-slate-300 dark:hover:border-slate-600 open:shadow-sm"
                 >
                   <summary
                     className={cn(
                       "flex cursor-pointer items-center justify-between gap-4 px-5 py-4 list-none [&::-webkit-details-marker]:hidden",
                     )}
                   >
-                    <span className="text-sm font-semibold text-slate-900 md:text-base">
+                    <span className="text-sm font-semibold text-foreground md:text-base">
                       {it.q}
                     </span>
-                    <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                   </summary>
-                  <div className="border-t border-slate-100 px-5 py-4 text-sm leading-relaxed text-slate-600 md:text-[15px]">
+                  <div className="border-t border-border px-5 py-4 text-sm leading-relaxed text-muted-foreground md:text-[15px]">
                     {it.a}
                   </div>
                 </details>

@@ -23,8 +23,8 @@ const sections: PolicySection[] = [
       <>
         <p>
           Bằng việc truy cập và sử dụng website <strong>laplapcantho.store</strong> (sau đây gọi là
-          "Website") của <strong>CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPLAP</strong> (sau đây gọi là
-          "LapLap", "chúng tôi"), bạn đồng ý tuân thủ các điều khoản và điều kiện sử dụng được
+          &ldquo;Website&rdquo;) của <strong>CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPLAP</strong> (sau đây gọi là
+          &ldquo;LapLap&rdquo;, &ldquo;chúng tôi&rdquo;), bạn đồng ý tuân thủ các điều khoản và điều kiện sử dụng được
           nêu dưới đây.
         </p>
         <p>
