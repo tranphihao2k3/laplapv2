@@ -19,6 +19,8 @@ type Crud = {
   create: (db: DB, input: any) => Promise<any>;
   update: (db: DB, id: string, input: any) => Promise<any>;
   remove: (db: DB, id: string) => Promise<any>;
+  /** Optional: nếu service cung cấp, route /bulk-delete sẽ dùng. */
+  bulkRemove?: (db: DB, ids: string[]) => Promise<any>;
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -85,6 +87,11 @@ export function makeItemHandlers<TUpdate>(opts: {
     update?: string;
     remove?: string;
   };
+  /**
+   * Tên quyền dùng cho bulk delete. Mặc định lấy `remove` + ".bulk".
+   * Truyền `null` để tắt bulk delete cho entity này.
+   */
+  bulkDeletePermission?: string | null;
 }) {
   return {
     async GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -147,5 +154,52 @@ export function makeItemHandlers<TUpdate>(opts: {
         return handleError(e);
       }
     },
+  };
+}
+
+/**
+ * Tạo POST handler cho `/v1/<entity>/bulk-delete` (xoá nhiều bản ghi cùng lúc).
+ * Service nào không có `bulkRemove` sẽ không tạo được handler này.
+ */
+export function makeBulkDeleteHandler(opts: {
+  crud: Crud;
+  /**
+   * Tên quyền dùng cho bulk delete. Mặc định: `<entity>.delete.bulk` hoặc `permissions.remove + ".bulk"`.
+   * Truyền `null` để không tạo handler.
+   */
+  permission?: string | null;
+}) {
+  const bulkDeleteSchema = z.object({ ids: z.array(z.string().min(1)).min(1).max(500) });
+
+  return async function POST(req: NextRequest) {
+    if (!opts.crud.bulkRemove) {
+      return new Response(
+        JSON.stringify({ ok: false, error: { message: "Bulk delete không hỗ trợ cho entity này" } }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    try {
+      const { user, orgId } = await requireOrg();
+      const perm = opts.permission === undefined
+        ? (opts.crud.table ? `${String(opts.crud.table).replace(/_/g, ".")}.delete.bulk` : undefined)
+        : opts.permission;
+      if (perm) await requirePermission(perm);
+      const supabase = await createClient();
+      const body = bulkDeleteSchema.parse(await req.json());
+      const result = await opts.crud.bulkRemove(supabase, body.ids);
+      await writeAuditLog({
+        supabase,
+        userId: user.id,
+        organizationId: orgId,
+        entityType: String(opts.crud.table ?? "unknown"),
+        entityId: "",
+        action: "bulk_delete",
+        beforeData: { ids: body.ids, deleted: result.deleted ?? [], missing: result.missing ?? [] },
+        ipAddress: req.headers.get("x-forwarded-for"),
+      });
+      return ok(result);
+    } catch (e) {
+      return handleError(e);
+    }
   };
 }

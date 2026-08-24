@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
+import {
+  HelpTip,
+  InventoryHelpSection,
+} from "@/app/quanly/inventory/_components/inventory-help";
 
 type StockLevel = {
   warehouse_id: string;
@@ -137,6 +141,8 @@ export default function StockLevelsAdminPage() {
 
   return (
     <div className="space-y-4">
+      <InventoryHelpSection variant="stock" />
+
       {/* Form thêm tồn kho nhanh */}
       <Card>
         <CardHeader>
@@ -227,9 +233,24 @@ export default function StockLevelsAdminPage() {
               <TableRow>
                 <TableHead>Kho</TableHead>
                 <TableHead>Sản phẩm</TableHead>
-                <TableHead>Khả dụng</TableHead>
-                <TableHead>Đang giữ</TableHead>
-                <TableHead>Sắp về</TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1">
+                    Khả dụng
+                    <HelpTip content="Tồn khả dụng (available_qty) = tổng nhập − tổng xuất/bán. Cập nhật real-time khi bán/nhập/chuyển." />
+                  </span>
+                </TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1">
+                    Đang giữ
+                    <HelpTip content="Sản phẩm đã có đơn nhưng chưa xuất kho. Hiện schema gộp vào available_qty (chưa tách)." />
+                  </span>
+                </TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1">
+                    Sắp về
+                    <HelpTip content="Số lượng dự kiến về từ phiếu mua hàng (PO) đang xử lý hoặc chuyển kho đang trên đường đi." />
+                  </span>
+                </TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>

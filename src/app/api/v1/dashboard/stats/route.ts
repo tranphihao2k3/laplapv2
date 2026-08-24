@@ -8,8 +8,29 @@ async function countTable(supabase: Awaited<ReturnType<typeof createClient>>, ta
   return count ?? 0;
 }
 
-function fNum(n: number) {
-  return new Intl.NumberFormat("vi-VN").format(n);
+/** Build danh sách 14 ngày gần nhất (key YYYY-MM-DD) theo thứ tự cũ → mới. */
+function lastNDays(n: number, now: Date = new Date()): string[] {
+  const out: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+/** Lấy tuần hiện tại + tuần trước để so sánh. */
+function weekBounds(now: Date): { thisStart: string; prevStart: string; prevEnd: string } {
+  const dow = now.getDay();
+  const thisStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow)
+    .toISOString()
+    .slice(0, 10);
+  const prevStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow - 7)
+    .toISOString()
+    .slice(0, 10);
+  const prevEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow - 1)
+    .toISOString()
+    .slice(0, 10);
+  return { thisStart, prevStart, prevEnd };
 }
 
 export async function GET() {
@@ -117,9 +138,11 @@ export async function GET() {
     // ---------- Group 3: Thanh toán & kênh ----------
     const { data: allPayments } = await supabase
       .from("payments")
-      .select("method, amount, status")
+      .select("method, amount, status, created_at")
       .limit(10000);
-    const payments = (allPayments ?? []) as Array<{ method: string | null; amount: number | null; status: string | null }>;
+    const payments = (allPayments ?? []) as Array<{
+      method: string | null; amount: number | null; status: string | null; created_at: string | null;
+    }>;
 
     const paymentMethodDist: Record<string, { count: number; amount: number }> = {};
     for (const p of payments) {
@@ -212,10 +235,11 @@ export async function GET() {
     // ---------- Group 6: Khách hàng ----------
     const { data: customerRows } = await supabase
       .from("customers")
-      .select("tier, loyalty_points, created_at")
+      .select("id, tier, loyalty_points, total_spent, created_at")
       .limit(10000);
     const custs = (customerRows ?? []) as Array<{
-      tier: string | null; loyalty_points: number | null; created_at: string | null;
+      id: string; tier: string | null; loyalty_points: number | null;
+      total_spent: number | null; created_at: string | null;
     }>;
     const tierDist: Record<string, number> = {};
     let totalPoints = 0;
@@ -227,9 +251,9 @@ export async function GET() {
 
     const { data: loyaltyTx } = await supabase
       .from("loyalty_transactions")
-      .select("type, points")
+      .select("type, points, created_at")
       .limit(10000);
-    const ltxs = (loyaltyTx ?? []) as Array<{ type: string | null; points: number }>;
+    const ltxs = (loyaltyTx ?? []) as Array<{ type: string | null; points: number; created_at: string | null }>;
     let earnedPoints = 0, redeemedPoints = 0;
     for (const l of ltxs) {
       if (l.type === "earn") earnedPoints += l.points;
@@ -267,10 +291,10 @@ export async function GET() {
 
     const { data: repairRows } = await supabase
       .from("repair_tickets")
-      .select("status, assigned_to, created_at")
+      .select("status, assigned_to, created_at, completed_at")
       .limit(5000);
     const repairs = (repairRows ?? []) as Array<{
-      status: string | null; assigned_to: string | null; created_at: string | null;
+      status: string | null; assigned_to: string | null; created_at: string | null; completed_at: string | null;
     }>;
     const openRepairs = repairs.filter(r =>
       r.status !== "done" && r.status !== "delivered" && r.status !== "cancelled"
@@ -296,27 +320,51 @@ export async function GET() {
     // ---------- Group 8: Ca bán hàng ----------
     const { data: posSessions } = await supabase
       .from("pos_sessions")
-      .select("opened_by, opening_cash, closing_cash, expected_cash, difference_cash, shop_id, opened_at, closed_at")
+      .select("id, opened_by, opening_cash, closing_cash, expected_cash, difference_cash, shop_id, opened_at, closed_at")
       .limit(5000);
     const sessions = (posSessions ?? []) as Array<{
-      opened_by: string | null; opening_cash: number | null; closing_cash: number | null;
+      id: string; opened_by: string | null; opening_cash: number | null; closing_cash: number | null;
       expected_cash: number | null; difference_cash: number | null;
       shop_id: string | null; opened_at: string | null; closed_at: string | null;
     }>;
     const openSessions = sessions.filter(s => !s.closed_at).length;
 
-    // Revenue by staff (from orders created_by)
-    const staffRevenue = new Map<string, { orders: number; revenue: number }>();
+    // Lấy tên nhân viên qua profile
+    const staffIds = [...new Set(
+      [...orders.map(o => o.created_by), ...sessions.map(s => s.opened_by)]
+        .filter((id): id is string => !!id),
+    )];
+    const staffMap = new Map<string, { full_name: string | null; email: string | null }>();
+    if (staffIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("user_profiles")
+        .select("id, full_name, email")
+        .in("id", staffIds.slice(0, 200));
+      for (const p of (profiles ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>) {
+        staffMap.set(p.id, { full_name: p.full_name, email: p.email });
+      }
+    }
+
+    const staffRevenue = new Map<string, { orders: number; revenue: number; name: string }>();
     for (const o of orders) {
       if (!o.created_by) continue;
       if (o.status !== "completed" && o.status !== "fulfilled") continue;
-      const e = staffRevenue.get(o.created_by) ?? { orders: 0, revenue: 0 };
+      const e = staffRevenue.get(o.created_by) ?? { orders: 0, revenue: 0, name: o.created_by };
       e.orders += 1;
       e.revenue += Number(o.total_amount ?? 0);
       staffRevenue.set(o.created_by, e);
     }
+    // Gán tên thật cho topStaff
     const topStaff = [...staffRevenue.entries()]
-      .map(([id, v]) => ({ id, ...v }))
+      .map(([id, v]) => {
+        const profile = staffMap.get(id);
+        return {
+          id,
+          name: profile?.full_name ?? profile?.email ?? v.name.slice(0, 8),
+          orders: v.orders,
+          revenue: v.revenue,
+        };
+      })
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
@@ -352,6 +400,177 @@ export async function GET() {
         channel: o.channel,
       }));
 
+    // ============================================================
+    //  SERIES PHỤC VỤ CHART NÂNG CAO (sparkline, heatmap, small-multiples)
+    // ============================================================
+
+    // 14-day daily series với đầy đủ 14 ngày (kể cả ngày không có data)
+    const last14 = lastNDays(14, now);
+    const last30 = lastNDays(30, now);
+    const last7 = lastNDays(7, now);
+    const last14Daily: { date: string; revenue: number; orders: number; cancelled: number }[] = last14.map(d => {
+      const e = dailyBuckets.get(d);
+      return { date: d, revenue: e?.revenue ?? 0, orders: e?.orders ?? 0, cancelled: e?.cancelled ?? 0 };
+    });
+    const last30Daily: { date: string; revenue: number; orders: number; cancelled: number }[] = last30.map(d => {
+      const e = dailyBuckets.get(d);
+      return { date: d, revenue: e?.revenue ?? 0, orders: e?.orders ?? 0, cancelled: e?.cancelled ?? 0 };
+    });
+
+    // 7-day sparkline theo từng metric (revenue, orders, customers, aov)
+    const custByDay = new Map<string, Set<string>>();
+    for (const o of orders) {
+      if (!o.created_at || !o.customer_id) continue;
+      const d = o.created_at.slice(0, 10);
+      const s = custByDay.get(d) ?? new Set();
+      s.add(o.customer_id);
+      custByDay.set(d, s);
+    }
+    const last7Revenue = last7.map(d => dailyBuckets.get(d)?.revenue ?? 0);
+    const last7Orders = last7.map(d => dailyBuckets.get(d)?.orders ?? 0);
+    const last7Customers = last7.map(d => custByDay.get(d)?.size ?? 0);
+    // AOV mỗi ngày
+    const last7Aov = last7.map(d => {
+      const b = dailyBuckets.get(d);
+      if (!b || b.orders === 0) return 0;
+      return Math.round(b.revenue / b.orders);
+    });
+
+    // Calendar heatmap: revenue mỗi ngày trong 30 ngày (cho GroupKPI section nếu cần)
+    const heatmap30 = last30Daily.map(d => ({
+      date: d.date,
+      revenue: d.revenue,
+      orders: d.orders,
+    }));
+
+    // Weekly compare (tuần này vs tuần trước) cho revenue + orders
+    const { thisStart, prevStart, prevEnd } = weekBounds(now);
+    const thisWeekRevenue = completedOrders
+      .filter(o => o.created_at && o.created_at.slice(0, 10) >= thisStart)
+      .reduce((s, o) => s + Number(o.total_amount ?? 0), 0);
+    const prevWeekRevenue = completedOrders
+      .filter(o => {
+        if (!o.created_at) return false;
+        const d = o.created_at.slice(0, 10);
+        return d >= prevStart && d <= prevEnd;
+      })
+      .reduce((s, o) => s + Number(o.total_amount ?? 0), 0);
+    const thisWeekOrders = orders.filter(o => o.created_at && o.created_at.slice(0, 10) >= thisStart).length;
+    const prevWeekOrders = orders.filter(o => {
+      if (!o.created_at) return false;
+      const d = o.created_at.slice(0, 10);
+      return d >= prevStart && d <= prevEnd;
+    }).length;
+
+    // POS vs Online theo ngày (7 ngày gần nhất) cho small-multiples
+    const channelDaily = last7.map(d => {
+      const dayOrders = orders.filter(o => o.created_at && o.created_at.slice(0, 10) === d);
+      const posRev = dayOrders.filter(o => o.channel === "pos" && (o.status === "completed" || o.status === "fulfilled"))
+        .reduce((s, o) => s + Number(o.total_amount ?? 0), 0);
+      const onlRev = dayOrders.filter(o => o.channel !== "pos" && (o.status === "completed" || o.status === "fulfilled"))
+        .reduce((s, o) => s + Number(o.total_amount ?? 0), 0);
+      return { date: d, pos: posRev, online: onlRev };
+    });
+
+    // Payment method 7-day series
+    const methodDaily = last7.map(d => {
+      const dayPays = payments.filter(p => p.created_at && p.created_at.slice(0, 10) === d);
+      const map: Record<string, number> = {};
+      for (const p of dayPays) {
+        const m = p.method ?? "unknown";
+        map[m] = (map[m] ?? 0) + Number(p.amount ?? 0);
+      }
+      return { date: d, cash: map.cash ?? 0, transfer: map.transfer ?? 0, card: map.card ?? 0, ewallet: map.ewallet ?? 0 };
+    });
+
+    // Funnel data: orders lifecycle
+    const funnel = {
+      placed: orders.length,
+      confirmed: orders.filter(o => o.status !== "pending").length,
+      paid: orders.filter(o => o.payment_status === "paid" || o.payment_status === "partial").length,
+      fulfilled: orders.filter(o => o.status === "fulfilled").length,
+      completed: orders.filter(o => o.status === "completed").length,
+    };
+
+    // Top customers (chi tiêu cao nhất)
+    const customerSpend = new Map<string, { total: number; orders: number; name: string; tier: string | null }>();
+    for (const o of orders) {
+      if (!o.customer_id || (o.status !== "completed" && o.status !== "fulfilled")) continue;
+      const e = customerSpend.get(o.customer_id) ?? {
+        total: 0,
+        orders: 0,
+        name: o.customer_id,
+        tier: null,
+      };
+      e.total += Number(o.total_amount ?? 0);
+      e.orders += 1;
+      customerSpend.set(o.customer_id, e);
+    }
+    // Bổ sung tên + tier từ bảng customers
+    const topCustomersRaw = [...customerSpend.entries()]
+      .map(([id, v]) => {
+        const c = custs.find(x => x.id === id);
+        const profile = staffMap.get(id); // fallback id-keyed, có thể trùng nhưng ok
+        return {
+          id,
+          name: c ? c.id.slice(0, 8) : (profile?.full_name ?? v.name),
+          tier: c?.tier ?? "bronze",
+          orders: v.orders,
+          total: v.total,
+        };
+      })
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+
+    // Inventory flow last 14 days (in/out/transfer)
+    const inventoryFlow = last14.map(d => {
+      let inbound = 0, outbound = 0, transfer = 0;
+      for (const tx of invTxs) {
+        if (tx.created_at?.slice(0, 10) !== d) continue;
+        if (tx.type === "purchase" || tx.type === "transfer_in") inbound += tx.quantity;
+        if (tx.type === "sale" || tx.type === "transfer_out") outbound += tx.quantity;
+        if (tx.type === "transfer_in" || tx.type === "transfer_out") transfer += tx.quantity;
+      }
+      return { date: d, inbound, outbound, transfer };
+    });
+
+    // Average time to repair (giờ) theo tháng (6 tháng gần nhất)
+    const months: { key: string; label: string; repairCount: number; avgHours: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthLabel = `T${d.getMonth() + 1}`;
+      let count = 0;
+      let totalHours = 0;
+      for (const r of repairs) {
+        if (!r.created_at) continue;
+        const t = new Date(r.created_at);
+        if (t < d || t >= nextMonth) continue;
+        if (!r.completed_at) continue;
+        count += 1;
+        totalHours += (new Date(r.completed_at).getTime() - t.getTime()) / (1000 * 60 * 60);
+      }
+      months.push({
+        key: monthKey,
+        label: monthLabel,
+        repairCount: count,
+        avgHours: count > 0 ? Math.round((totalHours / count) * 10) / 10 : 0,
+      });
+    }
+
+    // Order status timeline (7-day): mỗi ngày breakdown theo status
+    const statusByDay = last7.map(d => {
+      const dayOrders = orders.filter(o => o.created_at && o.created_at.slice(0, 10) === d);
+      const out: Record<string, number> = { pending: 0, confirmed: 0, processing: 0, completed: 0, cancelled: 0 };
+      for (const o of dayOrders) {
+        const s = o.status ?? "pending";
+        if (s in out) out[s] += 1;
+        else out[s] = 1;
+      }
+      return { date: d, ...out };
+    });
+
     const payload = {
       // Group 1 — KPI tổng quan
       kpi: {
@@ -375,6 +594,8 @@ export async function GET() {
       // Group 2 — Doanh thu & đơn hàng
       revenue: {
         dailyRevenue,
+        last14Daily,
+        last30Daily,
         orderStatusDist,
         paymentStatusDist,
         cancellationRate,
@@ -388,6 +609,8 @@ export async function GET() {
         channelDist,
         posRevenue,
         onlineRevenue,
+        methodDaily,
+        channelDaily,
       },
       // Group 4 — Sản phẩm
       product: {
@@ -409,6 +632,7 @@ export async function GET() {
         totalSuppliers,
         totalStockLevels,
         totalSerials,
+        inventoryFlow,
       },
       // Group 6 — Khách hàng
       customer: {
@@ -418,6 +642,7 @@ export async function GET() {
         totalPoints,
         earnedPoints,
         redeemedPoints,
+        topCustomers: topCustomersRaw,
       },
       // Group 7 — Dịch vụ sau bán
       afterSale: {
@@ -430,6 +655,7 @@ export async function GET() {
         pendingTradeIns,
         tradeInStatusDist,
         totalTradeIns,
+        repairMonths: months,
       },
       // Group 8 — Ca bán hàng
       pos: {
@@ -438,6 +664,20 @@ export async function GET() {
         topStaff,
         diffCashSessions: diffCashSessions.length,
         totalDiffCash,
+      },
+      // ====== NEW: series phục vụ chart nâng cao ======
+      advanced: {
+        last7Revenue,
+        last7Orders,
+        last7Customers,
+        last7Aov,
+        heatmap30,
+        weeklyCompare: {
+          thisWeek: { revenue: thisWeekRevenue, orders: thisWeekOrders },
+          prevWeek: { revenue: prevWeekRevenue, orders: prevWeekOrders },
+        },
+        funnel,
+        statusByDay,
       },
       // Legacy (cho components cũ)
       legacy: {

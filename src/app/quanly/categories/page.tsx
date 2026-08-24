@@ -10,7 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate } from "@/lib/api/admin-crud";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ActiveBadge,
+  DateCell,
+  IdCell,
+  RowActions,
+  RowIndexCell,
+} from "@/components/admin/table-cells";
+import { useCrudBulkDelete, useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 
 type Category = {
   id: string;
@@ -18,6 +27,7 @@ type Category = {
   slug: string | null;
   parent_id: string | null;
   position: number | null;
+  created_at?: string | null;
 };
 
 function slugify(input: string) {
@@ -138,9 +148,41 @@ export default function CategoriesAdminPage() {
   const createMutation = useCrudCreate<Category, Record<string, unknown>>("categories");
   const updateMutation = useCrudUpdate<Category, Record<string, unknown>>("categories");
   const deleteMutation = useCrudDelete("categories");
+  const bulkDeleteMutation = useCrudBulkDelete("categories");
+  const selection = useBulkSelection();
 
   // Cây danh mục đã sort cha-con để render bảng
   const tree = useMemo(() => buildTree(categories), [categories]);
+
+  const pageIds = useMemo(() => tree.map((t) => t.id), [tree]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  const stats = useMemo(() => {
+    const rootCount = tree.filter((t) => t.depth === 0).length;
+    const childCount = tree.filter((t) => t.depth > 0).length;
+    return { total: tree.length, root: rootCount, child: childCount };
+  }, [tree]);
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào (có thể do khoá ngoại)");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} danh mục`);
+      }
+      selection.clear();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  }
 
   // Dropdown chọn cha: hiển thị theo cây + loại bỏ chính nó và toàn bộ hậu duệ (tránh chu trình)
   const parentOptions = useMemo(() => {
@@ -205,41 +247,105 @@ export default function CategoriesAdminPage() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row items-start justify-between gap-3 space-y-0">
-          <div className="space-y-1">
-            <CardTitle>Quản lý danh mục</CardTitle>
-            <CardDescription>CRUD categories với chọn danh mục cha bằng dropdown</CardDescription>
+        <CardHeader className="space-y-3 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle>Quản lý danh mục</CardTitle>
+              <CardDescription>
+                Cấu trúc cây cha-con, sort theo thứ tự và tên. Slug tự sinh từ tên.
+              </CardDescription>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm tên / slug..."
+                className="w-full sm:w-56"
+              />
+              <Button onClick={startCreate} className="w-full sm:w-auto">
+                Thêm mới
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm kiếm..." className="w-full sm:w-56" />
-            <Button onClick={startCreate} className="w-full sm:w-auto">Thêm mới</Button>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="rounded-lg border bg-card px-3 py-2 flex flex-col">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Tổng danh mục</span>
+              <span className="text-lg font-bold leading-tight tabular-nums">{stats.total}</span>
+            </div>
+            <div className="rounded-lg border bg-card px-3 py-2 flex flex-col">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Gốc</span>
+              <span className="text-lg font-bold leading-tight tabular-nums">{stats.root}</span>
+            </div>
+            <div className="rounded-lg border bg-card px-3 py-2 flex flex-col">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Con / Cháu</span>
+              <span className="text-lg font-bold leading-tight tabular-nums text-muted-foreground">{stats.child}</span>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="danh mục"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} danh mục đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Tên</TableHead>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[56px] text-center">STT</TableHead>
+                <TableHead className="min-w-[240px]">Tên</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Danh mục cha</TableHead>
-                <TableHead>Thứ tự</TableHead>
+                <TableHead className="text-right">Thứ tự</TableHead>
+                <TableHead>Mã</TableHead>
+                <TableHead className="hidden md:table-cell">Ngày tạo</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {tree.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     {listQuery.isLoading ? "Đang tải..." : "Không có dữ liệu"}
                   </TableCell>
                 </TableRow>
               ) : (
-                tree.map((item) => {
+                tree.map((item, idx) => {
                   const parent = item.parent_id
                     ? categories.find((c) => c.id === item.parent_id)
                     : null;
+                  const checked = selection.isSelected(item.id);
                   return (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(item.id)}
+                          aria-label={`Chọn ${item.name}`}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <RowIndexCell index={idx + 1} />
+                      </TableCell>
                       <TableCell>
                         <div
                           className="flex items-center gap-1.5"
@@ -260,28 +366,37 @@ export default function CategoriesAdminPage() {
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
-                        {item.slug ?? "-"}
+                        {item.slug ?? "—"}
                       </TableCell>
-                      <TableCell>{parent?.name ?? "-"}</TableCell>
-                      <TableCell>{item.position ?? 0}</TableCell>
+                      <TableCell className="text-sm">
+                        {parent ? (
+                          <span className="text-muted-foreground">{parent.name}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {item.position ?? 0}
+                      </TableCell>
+                      <TableCell>
+                        <IdCell id={item.id} />
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <DateCell value={item.created_at} />
+                      </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => startEdit(item)}>Sửa</Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={async () => {
-                              try {
-                                await deleteMutation.mutateAsync(item.id);
-                                toast.success("Đã xoá");
-                              } catch (error) {
-                                toast.error(getErrorMessage(error));
-                              }
-                            }}
-                          >
-                            Xoá
-                          </Button>
-                        </div>
+                        <RowActions
+                          onEdit={() => startEdit(item)}
+                          onDelete={async () => {
+                            if (!window.confirm(`Xoá danh mục "${item.name}"?`)) return;
+                            try {
+                              await deleteMutation.mutateAsync(item.id);
+                              toast.success("Đã xoá");
+                            } catch (error) {
+                              toast.error(getErrorMessage(error));
+                            }
+                          }}
+                        />
                       </TableCell>
                     </TableRow>
                   );

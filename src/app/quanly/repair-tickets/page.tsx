@@ -19,8 +19,10 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { createClient } from "@/lib/supabase/client";
 import { Search, Plus, Edit, Trash2, Wrench, Camera, X, ImageIcon } from "lucide-react";
 
@@ -104,6 +106,32 @@ export default function RepairTicketsPage() {
   const createMutation = useCrudCreate("repair-tickets");
   const updateMutation = useCrudUpdate("repair-tickets");
   const deleteMutation = useCrudDelete("repair-tickets");
+  const bulkDeleteMutation = useCrudBulkDelete("repair-tickets");
+  const selection = useBulkSelection();
+
+  const pageIds = useMemo(() => items.map((t) => t.id), [items]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} phiếu sửa`);
+      }
+      selection.clear();
+    } catch (e: any) {
+      toast.error(e?.error?.message ?? "Có lỗi xảy ra");
+    }
+  }
   const createCustomer = useCrudCreate("customers");
   const qc = useQueryClient();
 
@@ -263,38 +291,69 @@ export default function RepairTicketsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Thiết bị</TableHead>
-                <TableHead>Serial</TableHead>
-                <TableHead>Cửa hàng</TableHead>
-                <TableHead>Khách hàng</TableHead>
-                <TableHead className="text-right">CP dự kiến</TableHead>
-                <TableHead className="text-right">CP thực tế</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Ngày tạo</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {q.isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
-              ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Chưa có phiếu sửa chữa</TableCell></TableRow>
-              ) : (
-                items.map((t) => {
-                  const st = STATUS_ORDER[t.status ?? ""] ?? { label: t.status ?? "-", cls: "bg-muted" };
-                  const c = t.customer_id ? customerMap.get(t.customer_id) : null;
-                  const shop = t.shop_id ? shopMap.get(t.shop_id) : null;
-                  return (
-                    <TableRow key={t.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {t.images && t.images.length > 0 && <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                          {t.device_name ?? "—"}
-                        </div>
-                      </TableCell>
+<BulkActionsToolbar
+              count={selection.count}
+              entityLabel="phiếu sửa"
+              onClear={selection.clear}
+              onRequestDelete={() => {
+                if (window.confirm(`Xoá ${selection.count} phiếu sửa đã chọn? Hành động không thể hoàn tác.`)) {
+                  void handleBulkDelete();
+                }
+              }}
+              isPending={bulkDeleteMutation.isPending}
+            />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40px]">
+                    <Checkbox
+                      checked={allOnPageSelected}
+                      onCheckedChange={() => selection.toggleAll(pageIds)}
+                      aria-label="Chọn tất cả"
+                      ref={(el) => {
+                        if (el && "indeterminate" in el) {
+                          (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                        }
+                      }}
+                    />
+                  </TableHead>
+                  <TableHead>Thiết bị</TableHead>
+                  <TableHead>Serial</TableHead>
+                  <TableHead>Cửa hàng</TableHead>
+                  <TableHead>Khách hàng</TableHead>
+                  <TableHead className="text-right">CP dự kiến</TableHead>
+                  <TableHead className="text-right">CP thực tế</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Ngày tạo</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {q.isLoading ? (
+                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
+                ) : items.length === 0 ? (
+                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">Chưa có phiếu sửa chữa</TableCell></TableRow>
+                ) : (
+                  items.map((t) => {
+                    const st = STATUS_ORDER[t.status ?? ""] ?? { label: t.status ?? "-", cls: "bg-muted" };
+                    const c = t.customer_id ? customerMap.get(t.customer_id) : null;
+                    const shop = t.shop_id ? shopMap.get(t.shop_id) : null;
+                    const checked = selection.isSelected(t.id);
+                    return (
+                      <TableRow key={t.id} data-state={checked ? "selected" : undefined}>
+                        <TableCell>
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => selection.toggle(t.id)}
+                            aria-label={`Chọn phiếu ${t.device_name ?? t.id}`}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {t.images && t.images.length > 0 && <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                            {t.device_name ?? "—"}
+                          </div>
+                        </TableCell>
                       <TableCell className="font-mono text-xs">{t.serial_number ?? "—"}</TableCell>
                       <TableCell className="text-xs">{shop?.name ?? "—"}</TableCell>
                       <TableCell className="text-xs">{c?.full_name ?? "—"}{c?.phone ? ` (${c.phone})` : ""}</TableCell>

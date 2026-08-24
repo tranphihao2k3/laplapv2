@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,11 +36,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  useCrudBulkDelete,
   useCrudCreate,
   useCrudDelete,
   useCrudList,
   useCrudUpdate,
 } from "@/lib/api/admin-crud";
+import { Checkbox } from "@/components/ui/checkbox";
+import { IdCell, RowActions, RowIndexCell } from "@/components/admin/table-cells";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { ROLE_PRESETS } from "@/lib/rbac-presets";
 
 type Role = {
@@ -93,9 +97,35 @@ export default function RolesAdminPage() {
   const createMutation = useCrudCreate<Role, Record<string, unknown>>("roles");
   const updateMutation = useCrudUpdate<Role, Record<string, unknown>>("roles");
   const deleteMutation = useCrudDelete("roles");
+  const bulkDeleteMutation = useCrudBulkDelete("roles");
+  const selection = useBulkSelection();
 
   const rows = list.data?.items ?? [];
   const organizations = orgsList.data?.items ?? [];
+
+  const pageIds = useMemo(() => rows.map((r) => String(r.id)), [rows]);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} vai trò`);
+      }
+      selection.clear();
+    } catch (e) {
+      showApiError(e);
+    }
+  }
 
   function resetForm() {
     setEditingId(null);
@@ -188,50 +218,82 @@ export default function RolesAdminPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="vai trò"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} vai trò đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[56px] text-center">STT</TableHead>
                 <TableHead>Tên vai trò</TableHead>
                 <TableHead>Mã</TableHead>
                 <TableHead>Tổ chức</TableHead>
+                <TableHead>Mã ID</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     {list.isLoading ? "Đang tải..." : "Chưa có vai trò nào"}
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((row) => {
+                rows.map((row, idx) => {
                   const org = organizations.find((o) => o.id === row.organization_id);
+                  const checked = selection.isSelected(String(row.id));
                   return (
-                    <TableRow key={String(row.id)}>
+                    <TableRow key={String(row.id)} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(String(row.id))}
+                          aria-label={`Chọn ${row.name}`}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <RowIndexCell index={idx + 1} />
+                      </TableCell>
                       <TableCell>{row.name}</TableCell>
                       <TableCell><code className="text-xs">{row.code}</code></TableCell>
                       <TableCell>{org?.name ?? (row.organization_id ? row.organization_id : "—")}</TableCell>
+                      <TableCell>
+                        <IdCell id={String(row.id)} />
+                      </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
-                            Sửa
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={async () => {
-                              try {
-                                await deleteMutation.mutateAsync(String(row.id));
-                                toast.success("Đã xoá vai trò");
-                              } catch (e) {
-                                showApiError(e);
-                              }
-                            }}
-                          >
-                            Xoá
-                          </Button>
-                        </div>
+                        <RowActions
+                          onEdit={() => openEdit(row)}
+                          onDelete={async () => {
+                            if (!window.confirm(`Xoá vai trò "${row.name}"?`)) return;
+                            try {
+                              await deleteMutation.mutateAsync(String(row.id));
+                              toast.success("Đã xoá vai trò");
+                            } catch (e) {
+                              showApiError(e);
+                            }
+                          }}
+                        />
                       </TableCell>
                     </TableRow>
                   );
