@@ -834,6 +834,7 @@ export default function ProductsAdminPage() {
         <CardContent>
           {viewMode === "grid" ? (
             /* ===== Grid view (áp dụng cho cả desktop & mobile) ===== */
+            <>
             <div>
               {sortedProducts.length === 0 ? (
                 productsQuery.isLoading ? (
@@ -876,8 +877,9 @@ export default function ProductsAdminPage() {
                           <Checkbox
                             checked={selection.isSelected(prod.id)}
                             onCheckedChange={(checked) => {
-                              if (checked) selection.add(prod.id);
-                              else selection.remove(prod.id);
+                              if (checked !== selection.isSelected(prod.id)) {
+                                selection.toggle(prod.id);
+                              }
                             }}
                             aria-label={`Chọn ${prod.name}`}
                             className="h-4 w-4"
@@ -920,6 +922,7 @@ export default function ProductsAdminPage() {
                 }}
               />
             </div>
+            </>
           ) : (
             <>
           {/* ===== Desktop: bảng đầy đủ (ẩn trên mobile) ===== */}
