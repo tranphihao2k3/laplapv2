@@ -1097,6 +1097,7 @@ export default function ProductsAdminPage() {
             )}
           </div>
           </>
+          )}
         </CardContent>
         {productsQuery.data && productsQuery.data.totalPages > 1 && (
           <CardContent className="pt-0">
