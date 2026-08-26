@@ -406,11 +406,11 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
           </div>
         ) : (
           // ── Expanded view ──────────────────────────────────────────────────
-          <div className="px-4 py-3 space-y-2.5">
+          <div className="px-3 py-2.5 space-y-1.5">
             {/* Row 1: title + close */}
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-900">
-                <Music2 className={`h-4 w-4 text-white ${isPlaying ? "animate-pulse" : ""}`} />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900">
+                <Music2 className={`h-3.5 w-3.5 text-white ${isPlaying ? "animate-pulse" : ""}`} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold leading-tight">
@@ -453,10 +453,10 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
               </span>
             </div>
 
-            {/* Row 3: controls + volume + channel */}
+            {/* Row 3: controls + volume */}
             <div className="flex items-center gap-2">
               {/* Controls */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 mr-auto">
                 <button
                   type="button"
                   onClick={prev}
@@ -469,7 +469,7 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
                 <button
                   type="button"
                   onClick={togglePlay}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition"
                   aria-label={isPlaying ? "Tạm dừng" : "Phát"}
                 >
                   {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
@@ -493,33 +493,8 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
                 </button>
               </div>
 
-              {/* Channel selector */}
-              <div className="flex items-center gap-0.5 rounded-lg border border-zinc-200 p-0.5 ml-auto">
-                {(["left", "both", "right"] as Channel[]).map((ch) => (
-                  <button
-                    key={ch}
-                    type="button"
-                    onClick={() => setChannel(ch)}
-                    title={ch === "left" ? "Loa Trái" : ch === "right" ? "Loa Phải" : "Cả hai"}
-                    className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium transition ${
-                      channel === ch
-                        ? "bg-zinc-900 text-white"
-                        : "text-zinc-600 hover:bg-zinc-100"
-                    }`}
-                  >
-                    {ch === "left" ? (
-                      <ArrowLeft className="h-3 w-3" />
-                    ) : ch === "right" ? (
-                      <ArrowRight className="h-3 w-3" />
-                    ) : (
-                      <Volume2 className="h-3 w-3" />
-                    )}
-                  </button>
-                ))}
-              </div>
-
               {/* Volume */}
-              <div className="flex w-28 items-center gap-1.5">
+              <div className="flex items-center gap-1.5">
                 {volume === 0 ? (
                   <VolumeX className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
                 ) : (
@@ -532,25 +507,9 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
                   step={0.05}
                   value={volume}
                   onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="h-1 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 accent-zinc-900"
+                  className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-zinc-200 accent-zinc-900"
                 />
               </div>
-
-              {/* Song list quick-pick */}
-              {songs.length > 1 && (
-                <select
-                  value={currentIdx}
-                  onChange={(e) => setIdx(parseInt(e.target.value, 10))}
-                  className="hidden sm:block h-8 max-w-[120px] truncate rounded-md border border-zinc-200 bg-white px-2 text-xs"
-                  title="Chọn bài"
-                >
-                  {songs.map((s, i) => (
-                    <option key={s.id} value={i}>
-                      {s.title}
-                    </option>
-                  ))}
-                </select>
-              )}
             </div>
           </div>
         )}
