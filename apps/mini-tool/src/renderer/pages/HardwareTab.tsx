@@ -1,5 +1,4 @@
-// HardwareTab.tsx — stream phần cứng: subscribe `lap.hardware.onPart`,
-// mỗi phần (cpu/memory/...) hiển thị ngay khi nhận, không đợi hết.
+// HardwareTab.tsx — stream phần cứng từ PowerShell (WMI + Registry + DirectX)
 import * as React from "react";
 import {
   Cpu,
@@ -32,18 +31,22 @@ function formatBytes(bytes: number | null | undefined): string {
   const units = ["B", "KB", "MB", "GB", "TB"];
   let v = bytes;
   let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
   return `${v.toFixed(v >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
+function formatCache(kb: number | null | undefined): string {
+  if (!kb || kb <= 0) return "—";
+  if (kb >= 1024) return `${(kb / 1024).toFixed(0)} MB`;
+  return `${kb} KB`;
 }
 
 function normalizeMaker(raw: string | null | undefined): string {
   if (!raw) return "—";
   const lower = raw.toLowerCase();
-  if (lower.includes("genuineintel")) return "Intel";
-  if (lower.includes("authenticamd") || lower.includes("advmicro")) return "AMD";
+  if (lower.includes("genuineintel") || lower.includes("intel")) return "Intel";
+  if (lower.includes("authenticamd") || lower.includes("advmicro") || lower.includes("amd")) return "AMD";
+  if (lower.includes("arm")) return "ARM";
   return raw;
 }
 
@@ -57,11 +60,11 @@ function chemName(n: number | string | null | undefined): string {
   return map[n] ?? String(n);
 }
 
-function memType(n: number | string | null | undefined): string {
+function memGen(n: number | string | null | undefined): string {
   if (n === null || n === undefined) return "—";
   if (typeof n === "string") return n;
   const map: Record<number, string> = {
-    0: "Unknown", 20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 31: "DDR5",
+    0: "Unknown", 20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 30: "DDR4", 31: "DDR5", 34: "DDR5", 35: "DDR5",
   };
   return map[n] ?? String(n);
 }
@@ -76,12 +79,8 @@ function SpecTable({ rows }: { rows: SpecRow[] }) {
     <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm">
       {rows.map((row, i) => (
         <div key={i} className="grid grid-cols-3 items-baseline gap-2">
-          <dt className="text-xs uppercase tracking-wider text-muted-foreground">
-            {row.label}
-          </dt>
-          <dd className="col-span-2 break-words text-foreground">
-            {row.value || "—"}
-          </dd>
+          <dt className="text-xs uppercase tracking-wider text-muted-foreground">{row.label}</dt>
+          <dd className="col-span-2 break-words text-foreground">{row.value || "—"}</dd>
         </div>
       ))}
     </dl>
@@ -90,12 +89,8 @@ function SpecTable({ rows }: { rows: SpecRow[] }) {
 
 function copyText(label: string, value: unknown) {
   const text = value === null || value === undefined ? "" : String(value);
-  if (!text) {
-    toast.error("Không có dữ liệu để copy");
-    return;
-  }
-  void navigator.clipboard
-    .writeText(text)
+  if (!text) { toast.error("Không có dữ liệu để copy"); return; }
+  void navigator.clipboard.writeText(text)
     .then(() => toast.success(`Đã copy ${label}`))
     .catch(() => toast.error("Không copy được"));
 }
@@ -110,7 +105,7 @@ function CardSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-interface CardProps {
+interface SectionCardProps {
   icon: React.ReactNode;
   title: string;
   status: "loading" | "ready" | "error" | "empty";
@@ -119,38 +114,25 @@ interface CardProps {
   children: React.ReactNode;
 }
 
-function SectionCard({
-  icon,
-  title,
-  status,
-  errorMessage,
-  onCopy,
-  children,
-}: CardProps) {
+function SectionCard({ icon, title, status, errorMessage, onCopy, children }: SectionCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
         <div className="flex items-start gap-2">
-          <div
-            className={cn(
-              "rounded-md p-1.5",
-              status === "loading"
-                ? "bg-muted text-muted-foreground"
-                : "bg-primary/10 text-primary",
-            )}
-          >
+          <div className={cn(
+            "rounded-md p-1.5",
+            status === "loading" ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary",
+          )}>
             {status === "loading" ? <Loader2 className="h-5 w-5 animate-spin" /> : icon}
           </div>
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               {title}
               {status === "loading" && (
-                <span className="text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
-                  đang quét…
-                </span>
+                <span className="text-[10px] font-normal uppercase tracking-wider text-muted-foreground">đang quét…</span>
               )}
             </CardTitle>
-            <CardDescription className="text-xs">Thông tin chính</CardDescription>
+            <CardDescription className="text-xs">Thông tin chính xác từ WMI + Registry</CardDescription>
           </div>
         </div>
         {onCopy && status === "ready" ? (
@@ -166,9 +148,7 @@ function SectionCard({
         ) : status === "error" ? (
           <div className="flex items-start gap-2 text-sm text-amber-300">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p className="font-mono text-xs">
-              Không lấy được: {errorMessage ?? "lỗi không xác định"}
-            </p>
+            <p className="font-mono text-xs">Không lấy được: {errorMessage ?? "lỗi không xác định"}</p>
           </div>
         ) : status === "empty" ? (
           <p className="text-sm text-muted-foreground">Không có dữ liệu.</p>
@@ -183,32 +163,17 @@ function SectionCard({
 type PartStatus = "loading" | "ready" | "error" | "empty";
 
 const INITIAL_DATA: CollectedHardware = {
-  cpu: null,
-  memory: null,
-  disks: [],
-  gpu: [],
-  mainboard: null,
-  bios: null,
-  battery: null,
-  os: null,
-  network: [],
-  collectedAt: "",
-  source: "powershell",
+  cpu: null, memory: null, disks: [], gpu: [],
+  mainboard: null, bios: null, battery: null, os: null, network: [],
+  collectedAt: "", source: "powershell-enhanced",
 };
 
 export function HardwareTab() {
   const [data, setData] = React.useState<CollectedHardware>(INITIAL_DATA);
-  // Track phần nào đã load xong / lỗi để hiển thị skeleton.
   const [status, setStatus] = React.useState<Record<string, PartStatus>>({
-    cpu: "loading",
-    memory: "loading",
-    disks: "loading",
-    gpu: "loading",
-    mainboard: "loading",
-    bios: "loading",
-    battery: "loading",
-    os: "loading",
-    network: "loading",
+    cpu: "loading", memory: "loading", disks: "loading", gpu: "loading",
+    mainboard: "loading", bios: "loading", battery: "loading",
+    os: "loading", network: "loading",
   });
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [streaming, setStreaming] = React.useState(false);
@@ -233,7 +198,6 @@ export function HardwareTab() {
 
   React.useEffect(() => {
     const off = window.lap.hardware.onPart((part: HardwarePart) => {
-      // Sentinel events first.
       if (part.key === "__done__") {
         setStreaming(false);
         setDoneAt(new Date().toISOString());
@@ -251,30 +215,19 @@ export function HardwareTab() {
         toast.error(`Lỗi stream: ${part.error}`);
         return;
       }
-      // Phần OK: có `data`. Phần lỗi: có `error`.
       if (!part.ok) {
         setErrors((e) => ({ ...e, [part.key]: part.error }));
         setStatus((s) => ({ ...s, [part.key]: "error" }));
         return;
       }
-      // part.ok === true && part.key !== "__done__" → luôn có `data`.
       setStatus((s) => ({ ...s, [part.key]: "ready" }));
-      setData((d) => ({
-        ...d,
-        [part.key]: (part as { data: unknown }).data,
-      } as CollectedHardware));
+      setData((d) => ({ ...d, [part.key]: (part as { data: unknown }).data } as CollectedHardware));
     });
     void start();
-    return () => {
-      off();
-      void window.lap.hardware.cancel();
-    };
+    return () => { off(); void window.lap.hardware.cancel(); };
   }, [start]);
 
-  const handleRefresh = () => {
-    void window.lap.hardware.cancel();
-    void start();
-  };
+  const handleRefresh = () => { void window.lap.hardware.cancel(); void start(); };
 
   const handleExport = () => {
     const blob = new Blob([JSON.stringify({ ...data, collectedAt: doneAt ?? new Date().toISOString() }, null, 2)], {
@@ -298,10 +251,7 @@ export function HardwareTab() {
   const battery = data.battery;
   const os = data.os;
   const network = data.network;
-
-  const totalMemBytes =
-    memory?.totalBytes ??
-    (memory?.modules?.reduce((s, m) => s + (m.sizeBytes ?? 0), 0) ?? null);
+  const totalMemBytes = memory?.totalBytes ?? (memory?.modules?.reduce((s, m) => s + (m.sizeBytes ?? 0), 0) ?? null);
 
   return (
     <div className="space-y-5">
@@ -309,16 +259,12 @@ export function HardwareTab() {
         <div>
           <h2 className="text-lg font-semibold">Phần cứng</h2>
           <p className="text-sm text-muted-foreground">
-            Quét nhanh qua PowerShell CIM — mỗi mục hiện ngay khi xong.
+            Quét chi tiết qua WMI + Registry + SMBIOS — lấy thông tin chuẩn xác.
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} disabled={streaming}>
-            {streaming ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCcw className="h-4 w-4" />
-            )}
+            {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             Làm mới
           </Button>
           <Button onClick={handleExport} disabled={!doneAt}>
@@ -327,6 +273,7 @@ export function HardwareTab() {
         </div>
       </div>
 
+      {/* ── CPU ── */}
       <SectionCard
         icon={<Cpu className="h-5 w-5" />}
         title="CPU"
@@ -338,16 +285,20 @@ export function HardwareTab() {
           rows={[
             { label: "Tên", value: cpu?.name },
             { label: "Hãng", value: normalizeMaker(cpu?.manufacturer) },
-            {
-              label: "Nhân / Luồng",
-              value: cpu?.cores && cpu?.threads ? `${cpu.cores} / ${cpu.threads}` : "—",
-            },
-            { label: "Xung nhịp", value: cpu?.baseGhz ? `${cpu.baseGhz} GHz` : "—" },
+            { label: "Kiến trúc", value: cpu?.architecture || "—" },
+            { label: "Nhân / Luồng", value: cpu?.cores && cpu?.threads ? `${cpu.cores} nhân / ${cpu.threads} luồng` : "—" },
+            { label: "Xung cơ bản", value: cpu?.baseGhz ? `${cpu.baseGhz} GHz` : "—" },
+            { label: "Xung Turbo", value: cpu?.turboGhz ? `${cpu.turboGhz} GHz` : "—" },
             { label: "Socket", value: cpu?.socket || "—" },
+            { label: "TDP", value: cpu?.tdpW ? `${cpu.tdpW} W` : "—" },
+            { label: "Cache L1", value: formatCache(cpu?.cacheL1Kb ?? null) },
+            { label: "Cache L2", value: formatCache(cpu?.cacheL2Kb ?? null) },
+            { label: "Cache L3", value: formatCache(cpu?.cacheL3Kb ?? null) },
           ]}
         />
       </SectionCard>
 
+      {/* ── RAM ── */}
       <SectionCard
         icon={<MemoryStick className="h-5 w-5" />}
         title="RAM"
@@ -360,68 +311,68 @@ export function HardwareTab() {
             rows={[
               { label: "Tổng", value: formatBytes(totalMemBytes) },
               { label: "Số thanh", value: memory?.slots ?? "—" },
-              ...(memory?.platformMaxMhz
-                ? [
-                    {
-                      label: "Bus nền tảng",
-                      value: `${memory.platformMaxMhz} MHz · ${memory.platformCpuName ?? "—"}`,
-                    },
-                  ]
-                : []),
+              ...(memory?.platformMaxMhz ? [{
+                label: "Bus nền tảng",
+                value: `${memory.platformMaxMhz} MHz · ${memory.platformCpuName ?? "—"}`,
+              }] : []),
             ]}
           />
           {memory?.modules && memory.modules.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">Chi tiết:</p>
+              <p className="text-xs font-medium text-muted-foreground">Chi tiết từng thanh:</p>
               <ul className="space-y-1 text-xs">
                 {memory.modules.map((m, i) => {
                   const running = m.configuredMhz ?? m.speedMhz;
                   const platformMax = m.platformMaxMhz ?? memory.platformMaxMhz;
-                  const smbiosSpeed = m.smbiosSpeedMhz;
-                  const belowSpec =
-                    typeof running === "number" &&
-                    typeof platformMax === "number" &&
-                    running < platformMax;
+                  const belowSpec = typeof running === "number" && typeof platformMax === "number" && running < platformMax;
                   return (
-                    <li
-                      key={i}
-                      className="flex flex-wrap items-center gap-2 rounded border border-border/40 bg-muted/30 px-2 py-1"
-                    >
-                      <span className="font-mono">{m.slot ?? `Slot ${i + 1}`}</span>
+                    <li key={i} className="flex flex-wrap items-center gap-2 rounded border border-border/40 bg-muted/30 px-2 py-1">
+                      <span className="font-mono font-medium">{m.slot ?? `Slot ${i + 1}`}</span>
                       <span className="text-muted-foreground">·</span>
                       <span>{formatBytes(m.sizeBytes)}</span>
                       <span className="text-muted-foreground">·</span>
-                      <span>{m.generation ?? memType(m.type)}</span>
+                      <span className={cn(
+                        "font-medium",
+                        (m.generation ?? memGen(m.type)) === "DDR5" ? "text-blue-400" :
+                        (m.generation ?? memGen(m.type)) === "DDR4" ? "text-green-400" : "text-zinc-400"
+                      )}>
+                        {m.generation ?? memGen(m.type)}
+                      </span>
                       <span className="text-muted-foreground">·</span>
                       <span>
-                          {running ? `${running} MHz` : "—"}
-                          {platformMax ? (
-                            <span className="text-muted-foreground">
-                              {" "} / {platformMax} MHz
-                            </span>
-                          ) : null}
-                        </span>
-                        {smbiosSpeed ? (
-                          <>
-                            <span className="text-muted-foreground">·</span>
-                            <span className="text-muted-foreground">
-                              SMBIOS {smbiosSpeed} MHz
-                            </span>
-                          </>
+                        {running ? `${running} MHz` : "—"}
+                        {platformMax ? (
+                          <span className="text-muted-foreground"> / {platformMax} MHz</span>
                         ) : null}
-                        {belowSpec ? (
-                          <span
-                            title={`Đang chạy ${running} MHz, CPU/platform max ${platformMax} MHz`}
-                            className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-300"
-                          >
-                            dưới spec
-                          </span>
-                        ) : null}
+                      </span>
+                      {m.clTiming ? (
+                        <>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="font-mono text-[10px]">CL {m.clTiming}</span>
+                        </>
+                      ) : null}
+                      {m.voltageMv ? (
+                        <>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="text-muted-foreground">{m.voltageMv} mV</span>
+                        </>
+                      ) : null}
+                      {m.partNumber ? (
+                        <>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="font-mono text-[10px]">{m.partNumber}</span>
+                        </>
+                      ) : null}
                       {m.manufacturer ? (
                         <>
                           <span className="text-muted-foreground">·</span>
                           <span className="text-muted-foreground">{m.manufacturer}</span>
                         </>
+                      ) : null}
+                      {belowSpec ? (
+                        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-300">
+                          dưới spec
+                        </span>
                       ) : null}
                     </li>
                   );
@@ -432,61 +383,61 @@ export function HardwareTab() {
         </div>
       </SectionCard>
 
+      {/* ── Disk ── */}
       <SectionCard
         icon={<HardDrive className="h-5 w-5" />}
         title="Ổ cứng"
         status={status.disks}
         errorMessage={errors.disks}
-        onCopy={() =>
-          copyText(
-            "Disk",
-            disks.map((d) => `${d.name} (${d.capacityGb}GB ${d.type})`).join("\n"),
-          )
-        }
+        onCopy={() => copyText("Disk", disks.map((d) => `${d.name} (${d.capacityGb}GB ${d.type})`).join("\n"))}
       >
         {disks.length === 0 ? (
           <p className="text-sm text-muted-foreground">Không tìm thấy ổ đĩa.</p>
         ) : (
-          <SpecTable
-            rows={disks.map((d, i) => {
+          <div className="space-y-2">
+            {disks.map((d, i) => {
               const isNvme = (d.type ?? "").toLowerCase().includes("nvme");
               const isSsd = isNvme || (d.type ?? "").toLowerCase() === "ssd";
-              return {
-                label: `Ổ ${i + 1}`,
-                value: (
-                  <span>
-                    <span className="font-medium">{d.name ?? "?"}</span>
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      <span
-                        className={cn(
-                          "mr-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider",
-                          isNvme
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : isSsd
-                              ? "bg-sky-500/15 text-sky-300"
-                              : (d.type ?? "").toLowerCase() === "hdd"
-                                ? "bg-zinc-500/15 text-zinc-400"
-                                : (d.type ?? "").toLowerCase() === "usb"
-                                  ? "bg-amber-500/15 text-amber-300"
-                                  : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {d.type ?? "Unknown"}
-                      </span>
-                      {d.capacityGb ? `${d.capacityGb} GB` : "?"}
-                      {d.interfaceType ? ` · ${d.interfaceType}` : ""}
+              const typeClass = isNvme ? "bg-emerald-500/15 text-emerald-300"
+                : isSsd ? "bg-sky-500/15 text-sky-300"
+                : (d.type ?? "").toLowerCase() === "hdd" ? "bg-zinc-500/15 text-zinc-400"
+                : (d.type ?? "").toLowerCase() === "usb" ? "bg-amber-500/15 text-amber-300"
+                : "bg-muted text-muted-foreground";
+              return (
+                <div key={i} className="rounded border border-border/40 bg-muted/20 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                    <span className="font-semibold">{d.name ?? "?"}</span>
+                    <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider", typeClass)}>
+                      {d.type ?? "Unknown"}
                     </span>
-                  </span>
-                ),
-              };
+                    <span className="text-muted-foreground">{d.capacityGb ? `${d.capacityGb} GB` : "?"}</span>
+                    {d.freeGb ? (
+                      <span className="text-muted-foreground">· {d.freeGb} GB trống</span>
+                    ) : null}
+                    {d.interfaceType && d.interfaceType !== "Unknown" ? (
+                      <span className="text-muted-foreground">· {d.interfaceType}</span>
+                    ) : null}
+                    {d.firmwareRevision ? (
+                      <span className="font-mono text-[10px] text-muted-foreground">FW: {d.firmwareRevision}</span>
+                    ) : null}
+                    {d.tempC ? (
+                      <span className="text-muted-foreground">· {d.tempC}°C</span>
+                    ) : null}
+                    {d.serialNumber && d.serialNumber !== "To be filled by O.E.M." ? (
+                      <span className="font-mono text-[10px] text-muted-foreground">SN: {d.serialNumber}</span>
+                    ) : null}
+                  </div>
+                </div>
+              );
             })}
-          />
+          </div>
         )}
       </SectionCard>
 
+      {/* ── GPU ── */}
       <SectionCard
         icon={<Monitor className="h-5 w-5" />}
-        title="GPU"
+        title="GPU / VGA"
         status={status.gpu}
         errorMessage={errors.gpu}
         onCopy={() => copyText("GPU", gpus.map((g) => g.name).join(", "))}
@@ -494,24 +445,36 @@ export function HardwareTab() {
         {gpus.length === 0 ? (
           <p className="text-sm text-muted-foreground">Không tìm thấy GPU.</p>
         ) : (
-          <SpecTable
-            rows={gpus.map((g, i) => ({
-              label: `VGA ${i + 1}`,
-              value: (
-                <span>
-                  <span className="font-medium">{g.name ?? "?"}</span>
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    {g.vramMb ? `${g.vramMb} MB VRAM` : ""}
-                    {g.driverVersion ? ` · Driver ${g.driverVersion}` : ""}
-                  </span>
-                </span>
-              ),
-            }))}
-          />
+          <div className="space-y-2">
+            {gpus.map((g, i) => (
+              <div key={i} className="rounded border border-border/40 bg-muted/20 px-3 py-2">
+                <div className="font-semibold text-sm">{g.name ?? "?"}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  {g.vramMb ? (
+                    <span className="font-mono">{g.vramMb} MB VRAM</span>
+                  ) : null}
+                  {g.vramType ? (
+                    <span>{g.vramType}</span>
+                  ) : null}
+                  {g.driverVersion ? (
+                    <span>Driver {g.driverVersion}</span>
+                  ) : null}
+                  {g.computeUnits ? (
+                    <span>{g.computeUnits} cores</span>
+                  ) : null}
+                  {g.busWidth ? (
+                    <span>{g.busWidth}-bit</span>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </SectionCard>
 
+      {/* ── Bottom grid ── */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* Mainboard */}
         <SectionCard
           icon={<CircuitBoard className="h-4 w-4" />}
           title="Mainboard"
@@ -523,12 +486,14 @@ export function HardwareTab() {
             rows={[
               { label: "Hãng", value: mainboard?.manufacturer },
               { label: "Model", value: mainboard?.product },
-              { label: "Version", value: mainboard?.version },
-              { label: "Serial", value: mainboard?.serial },
+              { label: "Phiên bản", value: mainboard?.version || "—" },
+              { label: "Serial", value: mainboard?.serial || "—" },
+              { label: "BIOS Ver", value: mainboard?.biosVersion || bios?.version || "—" },
             ]}
           />
         </SectionCard>
 
+        {/* Battery */}
         <SectionCard
           icon={<BatteryFull className="h-4 w-4" />}
           title="Pin"
@@ -543,13 +508,14 @@ export function HardwareTab() {
                 { label: "Trạng thái", value: battery.status },
                 { label: "Hóa học", value: chemName(battery.chemistry) },
                 {
-                  label: "Design / Full",
-                  value:
-                    battery.designCapacityMwh && battery.fullChargeCapacityMwh
-                      ? `${battery.fullChargeCapacityMwh} / ${battery.designCapacityMwh} mWh`
-                      : "—",
+                  label: "Dung lượng",
+                  value: battery.designCapacityMwh && battery.fullChargeCapacityMwh
+                    ? `${(battery.fullChargeCapacityMwh / 1000).toFixed(0)} / ${(battery.designCapacityMwh / 1000).toFixed(0)} Wh`
+                    : "—",
                 },
                 { label: "Sức khỏe", value: battery.healthPct ? `${battery.healthPct}%` : "—" },
+                { label: "Chu kỳ", value: battery.cycleCount ? `${battery.cycleCount} cycles` : "—" },
+                { label: "Điện áp", value: battery.voltageMv ? `${(battery.voltageMv / 1000).toFixed(2)} V` : "—" },
               ]}
             />
           ) : (
@@ -557,6 +523,7 @@ export function HardwareTab() {
           )}
         </SectionCard>
 
+        {/* OS */}
         <SectionCard
           icon={<Monitor className="h-4 w-4" />}
           title="Hệ điều hành"
@@ -568,19 +535,15 @@ export function HardwareTab() {
             rows={[
               { label: "Hostname", value: os?.hostname },
               {
-                label: "OS",
+                label: "Hệ điều hành",
                 value: os?.caption ? `${os.caption} ${os.version ?? ""}`.trim() : "—",
               },
-              { label: "Build", value: os?.build },
-              { label: "Kiến trúc", value: os?.arch },
+              { label: "Build", value: os?.build || "—" },
+              { label: "Kiến trúc", value: os?.arch || "—" },
               {
                 label: "Kích hoạt",
-                value:
-                  os?.activated === null || os?.activated === undefined
-                    ? "—"
-                    : os.activated
-                      ? "Có"
-                      : "Chưa",
+                value: os?.activated === null || os?.activated === undefined
+                  ? "—" : os.activated ? "Có" : "Chưa",
               },
               { label: "Serial hệ thống", value: os?.serial || "—" },
               { label: "BIOS", value: bios?.version ?? "—" },
@@ -588,6 +551,7 @@ export function HardwareTab() {
           />
         </SectionCard>
 
+        {/* Network */}
         <SectionCard
           icon={<Network className="h-4 w-4" />}
           title="Mạng"
@@ -598,35 +562,28 @@ export function HardwareTab() {
           {network.length === 0 ? (
             <p className="text-sm text-muted-foreground">Không có adapter mạng.</p>
           ) : (
-            <SpecTable
-              rows={network.map((n, i) => ({
-                label: n.name ?? `NIC ${i + 1}`,
-                value: (
-                  <span>
+            <div className="space-y-2">
+              {network.map((n, i) => (
+                <div key={i} className="text-xs">
+                  <div className="font-medium text-sm">{n.name ?? `NIC ${i + 1}`}</div>
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
                     <span className="font-mono">{n.mac ?? "?"}</span>
-                    {n.ipv4.length > 0 && (
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        {n.ipv4.join(", ")}
-                      </span>
-                    )}
-                    {n.speedMbps ? (
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        · {n.speedMbps} Mbps
-                      </span>
-                    ) : null}
-                  </span>
-                ),
-              }))}
-            />
+                    {n.ipv4.length > 0 && <span>{n.ipv4.join(", ")}</span>}
+                    {n.speedMbps ? <span>{n.speedMbps} Mbps</span> : null}
+                    {n.driverVersion ? <span>Driver {n.driverVersion}</span> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </SectionCard>
       </div>
 
       <p className="text-xs text-muted-foreground">
         {streaming
-          ? "Đang thu thập từ PowerShell CIM…"
+          ? "Đang thu thập từ WMI + Registry…"
           : doneAt
-            ? `Hoàn tất lúc ${new Date(doneAt).toLocaleString("vi-VN")} · nguồn: PowerShell CIM`
+            ? `Hoàn tất lúc ${new Date(doneAt).toLocaleString("vi-VN")} · nguồn: PowerShell WMI/Registry`
             : "—"}
       </p>
     </div>
