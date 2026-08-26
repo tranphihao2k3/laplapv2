@@ -43,6 +43,8 @@ const lap = {
       invoke<PwshResult>("lap:optimize:optimize-drive", driveLetter),
     getDrives: () =>
       invoke<{ stdout: string; stderr: string; exitCode: number }>("lap:optimize:get-drives"),
+    scanWifi: () =>
+      invoke<{ stdout: string; stderr: string; exitCode: number }>("lap:optimize:scan-wifi"),
   },
   upload: {
     status: () =>

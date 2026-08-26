@@ -181,6 +181,72 @@ export function registerIpcHandlers(): void {
     },
   );
 
+  // ── WiFi Scan ───────────────────────────────────────────────────────────────
+  ipcMain.handle("lap:optimize:scan-wifi", async () => {
+    try {
+      const script = [
+        "$ErrorActionPreference = 'SilentlyContinue'",
+        "$adapters = @()",
+        "$networks = @()",
+        "try {",
+        "  $wifiAdapters = Get-CimInstance Win32_NetworkAdapter -ErrorAction SilentlyContinue | Where-Object {",
+        "    ($_.NetConnectionID -and ($_.NetConnectionID -match 'wi-fi|wifi|wireless|wlan')) -or ($_.Description -and ($_.Description -match 'wi-fi|wifi|wireless|802'))",
+        "  }",
+        "  foreach ($a in $wifiAdapters) {",
+        "    $cfg = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter ('Index=' + $a.Index) -ErrorAction SilentlyContinue | Select-Object -First 1",
+        "    $adapters += @{",
+        "      name = [string]$a.NetConnectionID",
+        "      description = [string]$a.Description",
+        "      mac = [string]$a.MACAddress",
+        "      status = if ($a.NetConnectionStatus -eq 2) { 'connected' } else { 'disconnected' }",
+        "      speedMbps = if ($a.Speed -and $a.Speed -gt 0) { [int]($a.Speed / 1000000) } else { $null }",
+        "      ipAddress = if ($cfg -and $cfg.IPAddress) { [string]$cfg.IPAddress[0] } else { $null }",
+        "    }",
+        "  }",
+        "} catch {}",
+        "try {",
+        "  $netshOut = & netsh.exe wlan show networks mode=bssid 2>&1 | Out-String",
+        "  $lines = $netshOut.Split([char]10)",
+        "  $currentSsid = ''",
+        "  $currentBssid = ''",
+        "  $currentSignal = 0",
+        "  $currentFreq = 2.4",
+        "  $currentAuth = ''",
+        "  foreach ($line in $lines) {",
+        "    if ($line -match 'SSID.*:\\s*(.+)') {",
+        "      $currentSsid = $matches[1].Trim()",
+        "    } elseif ($line -match 'BSSID.*:\\s*([0-9a-f:]+)') {",
+        "      $currentBssid = $matches[1].Trim()",
+        "    } elseif ($line -match 'Signal.*:\\s*(\\d+)%') {",
+        "      $pct = [int]$matches[1]; $currentSignal = [int](-100 + ($pct * 0.8))",
+        "    } elseif ($line -match 'Radio type.*:\\s*(.+)') {",
+        "      $r = $matches[1].Trim(); if ($r -match '802.11a' -or $r -match '802.11ac' -or $r -match 'ax.*5') { $currentFreq = 5 } else { $currentFreq = 2.4 }",
+        "    } elseif ($line -match 'Authentication.*:\\s*(.+)') {",
+        "      $currentAuth = $matches[1].Trim()",
+        "      if ($currentSsid) {",
+        "        $networks += @{",
+        "          ssid = $currentSsid",
+        "          bssid = $currentBssid",
+        "          signalDbm = $currentSignal",
+        "          frequencyGhz = $currentFreq",
+        "          security = $currentAuth",
+        "          connected = $false",
+        "        }",
+        "        $currentBssid = ''; $currentSignal = 0; $currentFreq = 2.4; $currentAuth = ''",
+        "      }",
+        "    }",
+        "  }",
+        "} catch {}",
+        "$result = @{ adapters = $adapters; networks = $networks; ok = $true }",
+        "$result | ConvertTo-Json -Depth 5 -Compress",
+      ].join("\n");
+      const result = await runPwshCommand(script, 30_000);
+      return { ok: true, data: result };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
   // ── Empty Recycle Bin ────────────────────────────────────────────────────────
   ipcMain.handle("lap:optimize:empty-recycle", async () => {
     try {

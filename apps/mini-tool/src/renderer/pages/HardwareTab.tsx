@@ -170,7 +170,7 @@ const INITIAL_DATA: CollectedHardware = {
 };
 
 export function HardwareTab() {
-  const { setHardware } = useSessionStore();
+  const { setHardware, settings } = useSessionStore();
   const [data, setData] = React.useState<CollectedHardware>(INITIAL_DATA);
   const [status, setStatus] = React.useState<Record<string, PartStatus>>({
     cpu: "loading", memory: "loading", disks: "loading", gpu: "loading",
@@ -180,6 +180,14 @@ export function HardwareTab() {
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [streaming, setStreaming] = React.useState(false);
   const [doneAt, setDoneAt] = React.useState<string | null>(null);
+
+  // Auto-scan on mount if setting is enabled
+  React.useEffect(() => {
+    if (settings.autoScanOnStartup && !streaming && !doneAt) {
+      void start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
   const start = React.useCallback(async () => {
     setData(INITIAL_DATA);

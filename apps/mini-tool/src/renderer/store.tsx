@@ -14,11 +14,27 @@ export interface BenchmarkRecord {
 }
 
 export interface TestRecord {
-  type: "speaker" | "display" | "keyboard" | "mic" | "camera";
+  type: "speaker" | "display" | "keyboard" | "mic" | "camera" | "wifi" | "touchpad";
   result: "pass" | "fail" | "skip";
   payload?: Record<string, unknown>;
   capturedAt: string;
 }
+
+export interface AppSettings {
+  autoScanOnStartup: boolean;
+  ktvModeDefault: boolean;
+  darkTheme: boolean;
+  autoTest: boolean;
+  soundTestEnabled: boolean;
+}
+
+const DEFAULT_SETTINGS: AppSettings = {
+  autoScanOnStartup: false,
+  ktvModeDefault: false,
+  darkTheme: true,
+  autoTest: false,
+  soundTestEnabled: true,
+};
 
 export interface SessionStore {
   session: StoredSession | null;
@@ -26,15 +42,35 @@ export interface SessionStore {
   benchmark: BenchmarkRecord | null;
   tests: TestRecord[];
   ktvMode: boolean;
+  settings: AppSettings;
   setSession: (s: StoredSession | null) => void;
   setHardware: (h: CollectedHardware | null) => void;
   setBenchmark: (b: BenchmarkRecord | null) => void;
   upsertTest: (t: TestRecord) => void;
   setKtvMode: (v: boolean) => void;
+  updateSettings: (patch: Partial<AppSettings>) => void;
   resetAll: () => void;
 }
 
 const Ctx = React.createContext<SessionStore | null>(null);
+
+const STORAGE_KEY = "laplap-mini-tool-v1";
+
+function loadSettings(): AppSettings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch {}
+  return { ...DEFAULT_SETTINGS };
+}
+
+function saveSettings(s: AppSettings): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  } catch {}
+}
+
+const initialSettings = loadSettings();
 
 const initial: Omit<
   SessionStore,
@@ -43,21 +79,16 @@ const initial: Omit<
   | "setBenchmark"
   | "upsertTest"
   | "setKtvMode"
+  | "updateSettings"
   | "resetAll"
 > = {
   session: null,
   hardware: null,
   benchmark: null,
   tests: [],
-  ktvMode: false,
+  ktvMode: initialSettings.ktvModeDefault,
+  settings: initialSettings,
 };
-
-function reducer(
-  state: ReturnType<typeof cloneState>,
-  patch: Partial<ReturnType<typeof cloneState>>,
-): ReturnType<typeof cloneState> {
-  return { ...state, ...patch };
-}
 
 function cloneState() {
   return {
@@ -66,6 +97,7 @@ function cloneState() {
     benchmark: initial.benchmark,
     tests: [...initial.tests],
     ktvMode: initial.ktvMode,
+    settings: { ...initial.settings },
   };
 }
 
@@ -76,6 +108,7 @@ export function SessionStoreProvider(props: { children: React.ReactNode }) {
     benchmark: initial.benchmark,
     tests: [...initial.tests],
     ktvMode: initial.ktvMode,
+    settings: { ...initial.settings },
   }));
 
   const value = React.useMemo<SessionStore>(
@@ -95,7 +128,16 @@ export function SessionStoreProvider(props: { children: React.ReactNode }) {
           return { ...s, tests: [...s.tests, t] };
         }),
       setKtvMode: (ktvMode) => setState((s) => ({ ...s, ktvMode })),
-      resetAll: () => setState(cloneState()),
+      updateSettings: (patch) =>
+        setState((s) => {
+          const next = { ...s.settings, ...patch };
+          saveSettings(next);
+          return { ...s, settings: next };
+        }),
+      resetAll: () => {
+        saveSettings(DEFAULT_SETTINGS);
+        setState(cloneState());
+      },
     }),
     [state],
   );
