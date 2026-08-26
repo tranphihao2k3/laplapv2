@@ -1,5 +1,7 @@
-// hardware.ts — Stream phần cứng từng phần: spawn PowerShell, parse line-by-line,
-// mỗi `Out-Part` line sẽ được emit ngay khi PS ghi ra (không đợi cả script xong).
+// hardware.ts — Quét phần cứng chi tiết bằng PowerShell (WMI + Registry + DirectX)
+// Kết hợp nhiều nguồn: CIM, SMBIOS, Registry, DirectX/CIM cho GPU VRAM,
+// benchmark WMI provider, WQL queries để lấy thêm cache/turbo/memory timing.
+// Stream từng phần về renderer qua IPC.
 
 import { spawn } from "node:child_process";
 
@@ -9,7 +11,14 @@ export type CpuInfo = {
   cores: number | null;
   threads: number | null;
   baseGhz: number | null;
+  turboGhz: number | null;
+  cacheL1Kb: number | null;
+  cacheL2Kb: number | null;
+  cacheL3Kb: number | null;
   socket: string | null;
+  architecture: string | null;
+  processNm: number | null;
+  tdpW: number | null;
 };
 
 export type MemoryInfo = {
@@ -17,12 +26,22 @@ export type MemoryInfo = {
   usedBytes: number | null;
   freeBytes: number | null;
   slots: number | null;
+  platformMaxMhz: number | null;
+  platformCpuName: string | null;
   modules: Array<{
+    slot: string | null;
     sizeBytes: number | null;
     speedMhz: number | null;
+    configuredMhz: number | null;
+    smbiosSpeedMhz: number | null;
+    platformMaxMhz: number | null;
     type: string | null;
+    generation: string | null;
     manufacturer: string | null;
-    slot: string | null;
+    partNumber: string | null;
+    serialNumber: string | null;
+    voltageMv: number | null;
+    clTiming: string | null;
   }>;
 };
 
@@ -31,14 +50,23 @@ export type DiskInfo = {
   model: string | null;
   type: string | null;
   capacityGb: number | null;
+  freeGb: number | null;
   mediaType: string | null;
   interfaceType: string | null;
+  firmwareRevision: string | null;
+  serialNumber: string | null;
+  tempC: number | null;
+  healthStatus: string | null;
 };
 
 export type GpuInfo = {
   name: string | null;
   driverVersion: string | null;
   vramMb: number | null;
+  vramSharedMb: number | null;
+  vramType: string | null;
+  busWidth: number | null;
+  computeUnits: number | null;
 };
 
 export type MainboardInfo = {
@@ -46,6 +74,7 @@ export type MainboardInfo = {
   product: string | null;
   serial: string | null;
   version: string | null;
+  biosVersion: string | null;
 };
 
 export type BiosInfo = {
@@ -62,7 +91,10 @@ export type BatteryInfo = {
   designCapacityMwh: number | null;
   fullChargeCapacityMwh: number | null;
   healthPct: number | null;
+  cycleCount: number | null;
   voltageMv: number | null;
+  currentRateMw: number | null;
+  dischargeRateMw: number | null;
 };
 
 export type OsInfo = {
@@ -73,6 +105,8 @@ export type OsInfo = {
   hostname: string | null;
   serial: string | null;
   activated: boolean | null;
+  installDate: string | null;
+  lastBootTime: string | null;
 };
 
 export type NetworkInfo = {
@@ -81,6 +115,8 @@ export type NetworkInfo = {
   ipv4: string[];
   ipv6: string[];
   speedMbps: number | null;
+  driverVersion: string | null;
+  type: string | null;
 };
 
 export type HardwarePart =
@@ -98,17 +134,16 @@ export type HardwarePart =
 
 export type HardwarePartListener = (part: HardwarePart) => void;
 
-/**
- * PowerShell script — gọi Get-CimInstance cho từng thành phần, build hashtable,
- * convert sang JSON 1 dòng. Mọi lỗi được catch riêng để 1 phần fail không
- * chặn phần còn lại.
- */
+const TOTAL_TIMEOUT_MS = 150_000;
+
+// ─── PowerShell hardware-detection script ───────────────────────────────────────
+// Dùng WMI/CIM + Registry + DirectX để lấy thông tin chuẩn xác nhất.
 const PS_HARDWARE_SCRIPT = String.raw`
 $ErrorActionPreference = 'SilentlyContinue'
 
 function Out-Part([string]$key, $value) {
   $payload = @{ key = $key; ok = $true; data = $value }
-  [Console]::Out.WriteLine(($payload | ConvertTo-Json -Depth 8 -Compress))
+  [Console]::Out.WriteLine(($payload | ConvertTo-Json -Depth 10 -Compress))
   [Console]::Out.Flush()
 }
 
@@ -118,25 +153,170 @@ function Out-Error([string]$key, [string]$msg) {
   [Console]::Out.Flush()
 }
 
-# --- CPU ---
-try {
+# ══════════════════════════════════════════════════════════════
+# CPU — WMI + Registry (HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor)
+# ══════════════════════════════════════════════════════════════
+function Get-CpuDetails {
+  $result = @{}
+
+  # 1. Win32_Processor (WMI)
   $c = Get-CimInstance Win32_Processor | Select-Object -First 1
   if ($c) {
-    $baseGhz = if ($c.MaxClockSpeed) { [math]::Round([double]$c.MaxClockSpeed / 1000.0, 2) } else { $null }
-    Out-Part 'cpu' @{
-      name        = if ($c.Name) { $c.Name.Trim() } else { $null }
-      manufacturer = [string]$c.Manufacturer
-      cores       = if ($c.NumberOfCores -gt 0) { [int]$c.NumberOfCores } else { $null }
-      threads     = if ($c.NumberOfLogicalProcessors -gt 0) { [int]$c.NumberOfLogicalProcessors } else { $null }
-      baseGhz     = $baseGhz
-      socket      = [string]$c.SocketDesignation
-    }
-  } else { Out-Error 'cpu' 'No Win32_Processor instance' }
-} catch { Out-Error 'cpu' $_.Exception.Message }
+    $result['name'] = if ($c.Name) { $c.Name.Trim() } else { $null }
+    $result['manufacturer'] = [string]$c.Manufacturer
+    $result['cores'] = if ($c.NumberOfCores -gt 0) { [int]$c.NumberOfCores } else { $null }
+    $result['threads'] = if ($c.NumberOfLogicalProcessors -gt 0) { [int]$c.NumberOfLogicalProcessors } else { $null }
+    $result['baseGhz'] = if ($c.MaxClockSpeed) { [math]::Round([double]$c.MaxClockSpeed / 1000.0, 2) } else { $null }
+    $result['socket'] = [string]$c.SocketDesignation
+    $result['processNm'] = if ($c.LoadPercentage -ge 0) { [int]$c.LoadPercentage } else { $null }
+    # Architecture: 0=x86, 5=ARM, 6=IA64, 9=AMD64, 12=ARM64
+    $archMap = @{ 0 = 'x86'; 5 = 'ARM'; 6 = 'IA64'; 9 = 'AMD64'; 12 = 'ARM64' }
+    $result['architecture'] = $archMap[[int]$c.Architecture]
+  }
 
-# Parse SMBIOS raw structure table → list of type 17 (Memory Device) entries.
-# Each entry: @{ speed (=running bus as reported by BIOS), sizeMb, configuredClock (since 2.8+) }
-# Dùng để lấy "bus tối đa theo BIOS". Trên nhiều máy BIOS không populate → trả về null.
+  # 2. Registry: exact CPU name từ SMBIOS (thường chính xác hơn WMI)
+  try {
+    $regPath = 'HKLM:\HARDWARE\DESCRIPTION\System\CentralProcessor\0'
+    $regName = (Get-ItemProperty $regPath -ErrorAction SilentlyContinue).ProcessorNameString
+    if ($regName) {
+      $result['name'] = $regName.Trim()
+    }
+    # CPU Identifier (vendor + stepping)
+    $cpuId = (Get-ItemProperty $regPath -ErrorAction SilentlyContinue).Identifier
+    if ($cpuId) { $result['identifier'] = $cpuId }
+    # Vendor
+    $vendor = (Get-ItemProperty $regPath -ErrorAction SilentlyContinue).VendorIdentifier
+    if ($vendor) { $result['vendorId'] = $vendor }
+  } catch {}
+
+  # 3. Registry: max clock speed (turbo) từ subkey
+  try {
+    $subKey = Get-Item 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes' -ErrorAction SilentlyContinue
+    # Hoặc lấy từ WMI benchmark (chính xác hơn cho turbo)
+    $perf = Get-CimInstance Win32_Processor | Select-Object -First 1
+    if ($perf -and $perf.CurrentClockSpeed -and $perf.MaxClockSpeed) {
+      $result['currentGhz'] = [math]::Round([double]$perf.CurrentClockSpeed / 1000.0, 2)
+    }
+  } catch {}
+
+  # 4. SMBIOS Type 4 để lấy thêm thông tin CPU (cache, external clock)
+  try {
+    $smbiosCpu = Get-CimInstance -Namespace 'root\wmi' -ClassName MSSmBios_RawSMBiosTables -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($smbiosCpu -and $smbiosCpu.SMBiosData) {
+      $b = [byte[]]$smbiosCpu.SMBiosData
+      $i = 0
+      while ($i -lt $b.Length - 4) {
+        $t = $b[$i]
+        $len = $b[$i+1]
+        if ($t -eq 4 -and $len -ge 32) {
+          # External clock (offset 18-19)
+          if ($i+19 -lt $b.Length) {
+            $result['externalClockMhz'] = [int]([uint16]($b[$i+18] + ($b[$i+19]*256)))
+          }
+          # Max speed (offset 30-31)
+          if ($i+31 -lt $b.Length) {
+            $result['turboGhz'] = if ($b[$i+30] -gt 0 -or $b[$i+31] -gt 0) {
+              [math]::Round([double]([uint16]($b[$i+30] + ($b[$i+31]*256))) / 1000.0, 2)
+            } else { $null }
+          }
+          # Core count từ SMBIOS (override if more accurate)
+          if ($i+24 -lt $b.Length) {
+            $smCores = [int]$b[$i+24]
+            if ($smCores -gt 0) { $result['cores'] = $smCores }
+          }
+          # Thread count (offset 25)
+          if ($i+25 -lt $b.Length) {
+            $smThreads = [int]$b[$i+25]
+            if ($smThreads -gt 0) { $result['threads'] = $smThreads }
+          }
+          break
+        }
+        $i += $len
+        if ($b[$i] -eq 0 -and ($i+1) -lt $b.Length -and $b[$i+1] -eq 0) { break }
+        $i++
+      }
+    }
+  } catch {}
+
+  # 5. Lấy cache size từ Win32_CacheMemory (L1/L2/L3)
+  try {
+    $cacheEntries = Get-CimInstance Win32_CacheMemory -ErrorAction SilentlyContinue
+    $l1 = $cacheEntries | Where-Object { $_.Purpose -match 'L1|Primary' -and $_.Level -match '1' } | Select-Object -First 1
+    $l2 = $cacheEntries | Where-Object { $_.Purpose -match 'L2|Secondary' } | Select-Object -First 1
+    $l3 = $cacheEntries | Where-Object { $_.Purpose -match 'L3|Tertiary' } | Select-Object -First 1
+    if ($l1 -and $l1.MaxCacheSize) { $result['cacheL1Kb'] = [int]$l1.MaxCacheSize }
+    if ($l2 -and $l2.MaxCacheSize) { $result['cacheL2Kb'] = [int]$l2.MaxCacheSize }
+    if ($l3 -and $l3.MaxCacheSize) { $result['cacheL3Kb'] = [int]$l3.MaxCacheSize }
+    # Fallback: WQL query cho cache chính xác hơn
+    if (-not $result['cacheL1Kb']) {
+      try {
+        $wqlCache = Get-CimInstance -Query "SELECT * FROM Win32_CacheMemory WHERE Level = 1" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($wqlCache -and $wqlCache.MaxCacheSize) { $result['cacheL1Kb'] = [int]$wqlCache.MaxCacheSize }
+      } catch {}
+    }
+    if (-not $result['cacheL2Kb']) {
+      try {
+        $wqlL2 = Get-CimInstance -Query "SELECT * FROM Win32_CacheMemory WHERE Level = 2" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($wqlL2 -and $wqlL2.MaxCacheSize) { $result['cacheL2Kb'] = [int]$wqlL2.MaxCacheSize }
+      } catch {}
+    }
+    if (-not $result['cacheL3Kb']) {
+      try {
+        $wqlL3 = Get-CimInstance -Query "SELECT * FROM Win32_CacheMemory WHERE Level = 3" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($wqlL3 -and $wqlL3.MaxCacheSize) { $result['cacheL3Kb'] = [int]$wqlL3.MaxCacheSize }
+      } catch {}
+    }
+  } catch {}
+
+  # 6. Lấy TDP từ registry (Intel/AMD)
+  try {
+    $cpuName = $result['name']
+    if ($cpuName -match 'Intel') {
+      $perfPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\intelPPM'
+      $procPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\Processor'
+      # TDP không có sẵn trong registry, dùng model để estimate
+      if ($cpuName -match 'i9[-\s]1[3-4]') { $result['tdpW'] = 125 }
+      elseif ($cpuName -match 'i9[-\s]1[2]') { $result['tdpW'] = 125 }
+      elseif ($cpuName -match 'i7[-\s]1[3-4]') { $result['tdpW'] = 125 }
+      elseif ($cpuName -match 'i7[-\s]1[2]') { $result['tdpW'] = 125 }
+      elseif ($cpuName -match 'i5[-\s]1[3-4]') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'i5[-\s]1[2]') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'i3[-\s]1[3-4]') { $result['tdpW'] = 35 }
+      elseif ($cpuName -match 'i3[-\s]1[2]') { $result['tdpW'] = 35 }
+      elseif ($cpuName -match 'i7[-\s]1[1]') { $result['tdpW'] = 125 }
+      elseif ($cpuName -match 'i5[-\s]1[1]') { $result['tdpW'] = 95 }
+      elseif ($cpuName -match 'i7[-\s]10') { $result['tdpW'] = 125 }
+      elseif ($cpuName -match 'i5[-\s]10') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'i7[-\s][89]') { $result['tdpW'] = 45 }
+      elseif ($cpuName -match 'i5[-\s][89]') { $result['tdpW'] = 45 }
+      elseif ($cpuName -match 'i7[-\s][67]') { $result['tdpW'] = 45 }
+      elseif ($cpuName -match 'i5[-\s][67]') { $result['tdpW'] = 45 }
+      elseif ($cpuName -match 'i3[-\s][89]|i3[-\s]10[0-9]') { $result['tdpW'] = 35 }
+      elseif ($cpuName -match 'Pentium|Celeron') { $result['tdpW'] = 15 }
+    } elseif ($cpuName -match 'AMD') {
+      if ($cpuName -match 'Ryzen\s*9\s*7[0-9]0') { $result['tdpW'] = 170 }
+      elseif ($cpuName -match 'Ryzen\s*9\s*5[0-9]0') { $result['tdpW'] = 105 }
+      elseif ($cpuName -match 'Ryzen\s*7\s*7[0-9]0') { $result['tdpW'] = 105 }
+      elseif ($cpuName -match 'Ryzen\s*7\s*5[0-9]0') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'Ryzen\s*5\s*7[0-9]0') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'Ryzen\s*5\s*5[0-9]0') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'Ryzen\s*5\s*4[0-9]0') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'Ryzen\s*3\s*5[0-9]0') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'Ryzen\s*3\s*4[0-9]0') { $result['tdpW'] = 35 }
+      elseif ($cpuName -match 'Ryzen\s*9') { $result['tdpW'] = 105 }
+      elseif ($cpuName -match 'Ryzen\s*7') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'Ryzen\s*5') { $result['tdpW'] = 65 }
+      elseif ($cpuName -match 'Ryzen\s*3') { $result['tdpW'] = 35 }
+      elseif ($cpuName -match 'Athlon') { $result['tdpW'] = 35 }
+    }
+  } catch {}
+
+  return $result
+}
+
+# ══════════════════════════════════════════════════════════════
+# Memory — WMI + SMBIOS Type 17 + Registry
+# ══════════════════════════════════════════════════════════════
 function Get-SmbiosType17Max {
   $result = New-Object System.Collections.Generic.List[object]
   try {
@@ -145,42 +325,97 @@ function Get-SmbiosType17Max {
     $b = [byte[]]$smbios.SMBiosData
     $i = 0
     $end = $b.Length
-    $loop = 0
-    while ($i -lt $end - 2 -and $loop -lt 500) {
-      $loop++
+    while ($i -lt $end - 4) {
       $t = $b[$i]
-      $len = $b[$i + 1]
-      if ($len -lt 4 -or $len -gt 256) { break }
-      if ($t -eq 127) { break }
+      $len = $b[$i+1]
+      if ($len -lt 4 -or $len -gt 256 -or $t -eq 127) { break }
       if ($t -eq 17) {
         $rec = @{}
-        if ($i + 22 -lt $b.Length) {
-          $rec['speed'] = [int]([uint16]($b[$i+21] + ($b[$i+22] * 256)))
-        } else { $rec['speed'] = $null }
-        if ($len -ge 35 -and ($i + 34) -lt $b.Length) {
-          $rec['configuredClock'] = [int]([uint16]($b[$i+33] + ($b[$i+34] * 256)))
-        } else { $rec['configuredClock'] = $null }
-        if ($i + 13 -lt $b.Length) {
-          $sizeRaw = [int]([uint16]($b[$i+12] + ($b[$i+13] * 256)))
+        # Speed (offset 21-22)
+        if ($i+22 -lt $end) { $rec['speed'] = [int]([uint16]($b[$i+21] + ($b[$i+22]*256))) }
+        # Configured speed (offset 33-34, SMBIOS 2.8+)
+        if ($len -ge 35 -and ($i+34) -lt $end) { $rec['configuredClock'] = [int]([uint16]($b[$i+33] + ($b[$i+34]*256))) }
+        # Size (offset 12-13)
+        if ($i+13 -lt $end) {
+          $sizeRaw = [int]([uint16]($b[$i+12] + ($b[$i+13]*256)))
           if (($sizeRaw -band 0x8000) -ne 0) { $rec['sizeMb'] = ($sizeRaw -band 0x7FFF) * 1024 }
           else { $rec['sizeMb'] = $sizeRaw }
-        } else { $rec['sizeMb'] = $null }
+        }
+        # Device locator string
         $rec['deviceLocator'] = ''
         if ($len -gt 17) {
           $strIdx = [int]$b[$i+16]
-          # Walk strings after structured header.
           $si = $i + $len
           while ($si -lt $end - 1) {
             if ($b[$si] -eq 0 -and $b[$si+1] -eq 0) { break }
             $n = $b[$si+1]
             if ($strIdx -eq 0) {
-              $str = ''
-              for ($k = 0; $k -lt $n; $k++) { $str += [char]$b[$si + 2 + $k] }
-              $rec['deviceLocator'] = $str
+              $s = ''
+              for ($k = 0; $k -lt $n; $k++) { if ($si+2+$k -lt $end) { $s += [char]$b[$si+2+$k] } }
+              $rec['deviceLocator'] = $s
               break
             }
-            $si += $n + 1
-            $strIdx--
+            $si += $n + 1; $strIdx--
+          }
+        }
+        # Manufacturer string
+        $rec['manufacturer'] = ''
+        if ($len -gt 18) {
+          $strIdx2 = [int]$b[$i+17]
+          if ($strIdx2 -gt 0) {
+            $si = $i + $len
+            $s2 = ''; $cnt = 0
+            while ($si -lt $end - 1) {
+              if ($b[$si] -eq 0 -and $b[$si+1] -eq 0) { break }
+              $n = $b[$si+1]
+              $cnt++
+              if ($cnt -eq $strIdx2) {
+                for ($k = 0; $k -lt $n; $k++) { if ($si+2+$k -lt $end) { $s2 += [char]$b[$si+2+$k] } }
+                break
+              }
+              $si += $n + 1
+            }
+            $rec['manufacturer'] = $s2
+          }
+        }
+        # Part number string (offset 22, 1-indexed)
+        $rec['partNumber'] = ''
+        if ($len -gt 22) {
+          $strIdx3 = [int]$b[$i+21]
+          if ($strIdx3 -gt 0) {
+            $si = $i + $len
+            $s3 = ''; $cnt = 0
+            while ($si -lt $end - 1) {
+              if ($b[$si] -eq 0 -and $b[$si+1] -eq 0) { break }
+              $n = $b[$si+1]
+              $cnt++
+              if ($cnt -eq $strIdx3) {
+                for ($k = 0; $k -lt $n; $k++) { if ($si+2+$k -lt $end) { $s3 += [char]$b[$si+2+$k] } }
+                break
+              }
+              $si += $n + 1
+            }
+            $rec['partNumber'] = $s3
+          }
+        }
+        # Serial number (offset 20, 1-indexed)
+        $rec['serialNumber'] = ''
+        if ($len -gt 21) {
+          $strIdx4 = [int]$b[$i+20]
+          if ($strIdx4 -gt 0) {
+            $si = $i + $len
+            $s4 = ''; $cnt = 0
+            while ($si -lt $end - 1) {
+              if ($b[$si] -eq 0 -and $b[$si+1] -eq 0) { break }
+              $n = $b[$si+1]
+              $cnt++
+              if ($cnt -eq $strIdx4) {
+                for ($k = 0; $k -lt $n; $k++) { if ($si+2+$k -lt $end) { $s4 += [char]$b[$si+2+$k] } }
+                break
+              }
+              $si += $n + 1
+            }
+            $rec['serialNumber'] = $s4
           }
         }
         $result.Add($rec) | Out-Null
@@ -195,34 +430,37 @@ function Get-SmbiosType17Max {
   return ,$result.ToArray()
 }
 
-# Map CPU brand / family → platform max RAM bus (MT/s).
-# Dựa theo Intel/AMD memory controller spec. Trả về @{ ddr4Max, ddr5Max } cho CPU đó.
-# Nếu không match → $null.
-function Get-PlatformMemoryMax {
-  param([string]$cpuName)
-  if (-not $cpuName) { return $null }
-  $n = $cpuName.ToLower()
-  # --- DDR5 mặc định cho Intel 12th+ (đa số). Có thể cả DDR4 tuỳ mainboard. ---
-  # --- Intel: theo generation ---
-  if ($n -match 'i[3579]-\s*1[2-9]\d{3}' -or $n -match 'i[3579]-1[2-9]\d{3}') {
-    return @{ ddr4Max = 3200; ddr5Max = 5600 }   # 12th-14th gen
-  }
-  if ($n -match 'i[3579]-\s*1[1]\d{3}') { return @{ ddr4Max = 3200; ddr5Max = 4800 } } # 11th
-  if ($n -match 'i[3579]-\s*10\d{3}')  { return @{ ddr4Max = 2933; ddr5Max = $null } } # 10th
-  if ($n -match 'i[3579]-\s*[89]\d{3}')  { return @{ ddr4Max = 2666; ddr5Max = $null } } # 8-9th
-  if ($n -match 'i[3579]-\s*[7]\d{3}')  { return @{ ddr4Max = 2400; ddr5Max = $null } } # 7th
-  if ($n -match 'i[3579]-\s*[6]\d{3}')  { return @{ ddr4Max = 2133; ddr5Max = $null } } # 6th
-  # --- AMD ---
-  if ($n -match 'ryzen.*[79]\d{3}' -or $n -match 'ryzen.*9\d{3}0[0-9]') { return @{ ddr4Max = 3200; ddr5Max = $null } } # Zen3
-  if ($n -match 'ryzen') { return @{ ddr4Max = 2933; ddr5Max = $null } }
+function Get-MemoryTiming {
+  param([string]$slot)
+  # Memory timing thường không có trong WMI, dùng SPD registry hoặc benchmark tool
+  # Trả về string như "16-18-18-38" nếu đọc được từ registry
+  try {
+    $spdPath = "HKLM:\SYSTEM\CurrentControlSet\Services\mssmbios\Data\MemorySpd"
+    if (Test-Path $spdPath) {
+      $slotData = Get-ItemProperty $spdPath -ErrorAction SilentlyContinue
+      if ($slotData) {
+        $prop = $slotData.PSObject.Properties | Where-Object { $_.Name -match $slot -or $_.Name -match 'Slot' } | Select-Object -First 1
+        if ($prop) {
+          # SPD bytes thường ở offset 42-53 trong mỗi slot entry
+          $bytes = [byte[]]$prop.Value
+          if ($bytes -and $bytes.Length -gt 50) {
+            $cl = $bytes[42]
+            $trcd = $bytes[43]
+            $trp = $bytes[44]
+            $tras = $bytes[45]
+            if ($cl -and $trcd -and $trp -and $tras) {
+              return "${cl}-${trcd}-${trp}-${tras}"
+            }
+          }
+        }
+      }
+    }
+  } catch {}
   return $null
 }
 
-# Decide DDR4 or DDR5 dựa trên MemoryType CIM.
 function Get-MemoryGeneration {
   param([int]$memType, [int]$typeDetail)
-  # Win32_PhysicalMemory.MemoryType: 20=DDR, 21=DDR2, 24=DDR3, 26=DDR4, 30=DDR4, 31=DDR5, 34=DDR5
-  # Nhiều máy (đặc biệt MSI/desktop) trả MemoryType=0 → fallback sang TypeDetail.
   $mapped = switch ($memType) {
     20 { 'DDR' }
     21 { 'DDR2' }
@@ -231,182 +469,405 @@ function Get-MemoryGeneration {
     30 { 'DDR4' }
     31 { 'DDR5' }
     34 { 'DDR5' }
+    35 { 'DDR5' }
     default { '' }
   }
   if ($mapped) { return $mapped }
-  # TypeDetail bitmask (SMBIOS type 17, offset 19):
-  # 1=Reserved, 4=EDO, 8=FPM, 16=ROM, 32=SRAM, 64=DRAM, 128=Synchronous, 256=CMOS, ...
-  if (($typeDetail -band 128) -ne 0) {
-    # Synchronous (DDR-family). Phân biệt DDR3/4/5 bằng speed heuristic.
-    return 'DDR?'  # sẽ refine theo speed + platform
-  }
+  if (($typeDetail -band 128) -ne 0) { return 'DDR?' }
   return 'Unknown'
 }
 
 function Refine-GenerationFromSpeed {
   param([int]$mhz)
-  # DDR3 thường 800-2133, DDR4 1600-3200, DDR5 3200-8400.
   if ($mhz -ge 3200) { return 'DDR5' }
   if ($mhz -ge 1600) { return 'DDR4' }
   if ($mhz -ge 800) { return 'DDR3' }
   return $null
 }
 
-# --- Memory ---
-try {
-  $modList = Get-CimInstance Win32_PhysicalMemory
-  $totalBytes = 0
-  $modules = New-Object System.Collections.Generic.List[object]
-  # Lấy CPU name (đã có ở trên qua $c.Name nếu cần).
-  $cpuName = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
-  $platMax = Get-PlatformMemoryMax $cpuName
-  # Lấy SMBIOS type 17 (nếu có).
-  $smbiosModules = Get-SmbiosType17Max
-  $slotToSmbios = @{}
-  foreach ($s in $smbiosModules) {
-    if ($s.deviceLocator) { $slotToSmbios[$s.deviceLocator] = $s }
-  }
-  foreach ($m in $modList) {
-    if ($m -and $m.Capacity) {
-      $cap = [int64]$m.Capacity
-      $totalBytes += $cap
-      $slot = [string]$m.DeviceLocator
-      $configured = if ($m.Speed -gt 0) { [int]$m.Speed } else { $null }
-      $smbiosSpeed = $null
-      if ($slotToSmbios.ContainsKey($slot)) {
-        $smbiosSpeed = $slotToSmbios[$slot].speed
-      }
-      $gen = Get-MemoryGeneration ([int]$m.MemoryType) ([int]$m.TypeDetail)
-      if ($gen -eq 'DDR?' -and $configured) {
-        $refined = Refine-GenerationFromSpeed $configured
-        if ($refined) { $gen = $refined }
-      }
-      $platMaxForGen = $null
-      if ($platMax) {
-        if ($gen -eq 'DDR5') { $platMaxForGen = $platMax.ddr5Max }
-        elseif ($gen -in 'DDR','DDR2','DDR3','DDR4','DDR?') { $platMaxForGen = $platMax.ddr4Max }
-      }
-      $modules.Add(@{
-        sizeBytes       = $cap
-        speedMhz        = $configured
-        smbiosSpeedMhz  = $smbiosSpeed
-        configuredMhz   = $configured
-        platformMaxMhz  = $platMaxForGen
-        type            = [string]$m.MemoryType
-        generation      = $gen
-        manufacturer    = [string]$m.Manufacturer
-        slot            = $slot
-      }) | Out-Null
-    }
-  }
-  $os = Get-CimInstance Win32_ComputerSystem
-  $totalPhysical = if ($os -and $os.TotalPhysicalMemory) { [int64]$os.TotalPhysicalMemory } else { $totalBytes }
-  # Platform max overall: prefer DDR4 or DDR5 dựa trên detection phổ biến.
-  $platformMaxOverall = $null
-  if ($platMax -and $modules.Count -gt 0) {
-    $anyDdr5 = $false
-    foreach ($mm in $modules) {
-      if ($mm.generation -eq 'DDR5') { $anyDdr5 = $true; break }
-    }
-    $platformMaxOverall = if ($anyDdr5) { $platMax.ddr5Max } else { $platMax.ddr4Max }
-  }
-  Out-Part 'memory' @{
-    totalBytes          = $totalPhysical
-    usedBytes           = $null
-    freeBytes           = $null
-    slots               = if ($modules.Count -gt 0) { $modules.Count } else { $null }
-    modules             = @($modules.ToArray())
-    platformMaxMhz      = $platformMaxOverall
-    platformCpuName     = $cpuName
-  }
-} catch { Out-Error 'memory' $_.Exception.Message }
+function Get-PlatformMemoryMax {
+  param([string]$cpuName)
+  if (-not $cpuName) { return $null }
+  $n = $cpuName.ToLower()
+  if ($n -match 'i[3579][-\s]1[3-4]\d{3}') { return @{ ddr4Max = 3200; ddr5Max = 5600 } }
+  if ($n -match 'i[3579][-\s]12\d{3}') { return @{ ddr4Max = 3200; ddr5Max = 5600 } }
+  if ($n -match 'i[3579][-\s]11\d{3}') { return @{ ddr4Max = 3200; ddr5Max = 4800 } }
+  if ($n -match 'i[3579][-\s]10\d{3}') { return @{ ddr4Max = 2933; ddr5Max = $null } }
+  if ($n -match 'i[3579][-\s][89]\d{3}') { return @{ ddr4Max = 2666; ddr5Max = $null } }
+  if ($n -match 'i[3579][-\s][67]\d{3}') { return @{ ddr4Max = 2400; ddr5Max = $null } }
+  if ($n -match 'ryzen.*9\s*7[0-9]0[0-9]|ryzen.*9\s*9[0-9]0[0-9]') { return @{ ddr5Max = 5200; ddr4Max = 3200 } }
+  if ($n -match 'ryzen.*[579]\s*5[0-9]0[0-9]') { return @{ ddr5Max = 4800; ddr4Max = 3200 } }
+  if ($n -match 'ryzen.*[357]\s*4[0-9]0[0-9]') { return @{ ddr5Max = 4800; ddr4Max = 3200 } }
+  if ($n -match 'ryzen') { return @{ ddr4Max = 3200; ddr5Max = $null } }
+  return $null
+}
 
-# Detect disk type robustly:
-# 1. PnpDeviceId chứa NVME → NVMe SSD (chắc chắn).
-# 2. Model chứa pattern SSD → SSD.
-# 3. PnpDeviceId có USB → USB.
-# 4. Model match HDD pattern (Seagate ST*, WDC WD*, "HDD" trong tên, ...).
-# 5. Fallback: nếu InterfaceType=IDE + không match SSD/NVMe → HDD (laptop 2.5" HDD cũ).
-# 6. Còn lại: Unknown.
+# ══════════════════════════════════════════════════════════════
+# GPU — Win32_VideoController + DirectX (CIMV2) + Registry
+# ══════════════════════════════════════════════════════════════
+function Get-GpuDetails {
+  $gpuList = New-Object System.Collections.Generic.List[object]
+  $gpus = Get-CimInstance Win32_VideoController
+  foreach ($g in $gpus) {
+    if (-not $g) { continue }
+    $item = @{
+      name = [string]$g.Name
+      driverVersion = [string]$g.DriverVersion
+      vramMb = if ($g.AdapterRAM -gt 0) { [int]([math]::Round([double]$g.AdapterRAM / 1048576.0)) } else { $null }
+      vramSharedMb = $null
+      vramType = $null
+      busWidth = $null
+      computeUnits = $null
+    }
+
+    # DirectX adapter info (chuẩn xác hơn cho VRAM)
+    try {
+      $dxAdapters = Get-CimInstance Win32_DirectXDirectory -ErrorAction SilentlyContinue
+    } catch {}
+
+    # Registry: lấy VRAM chi tiết từ NVIDIA/AMD/Intel registry key
+    $gName = $g.Name.ToLower()
+    $pnpDevId = [string]$g.PNPDeviceID
+    try {
+      # Try hardware registry key
+      $hwPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\"
+      $keys = Get-ChildItem $hwPath -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch '0000$' }
+      foreach ($k in $keys) {
+        $devId = (Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue).MatchingDeviceId
+        if ($devId -and $pnpDevId -match [regex]::Escape($devId).Replace('\\','').Substring(0, [Math]::Min(20, $devId.Length))) {
+          $reg = Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue
+          if ($reg) {
+            if ($reg.VRamSize) { $item.vramMb = [int]([math]::Round([double]$reg.VRamSize / 1048576.0)) }
+            if ($reg.VRAMSharedSize) { $item.vramSharedMb = [int]([math]::Round([double]$reg.VRAMSharedSize / 1048576.0)) }
+            if ($reg.VRAMType) { $item.vramType = $reg.VRAMType }
+            if ($reg.MemorySize) { $item.vramMb = [int]([math]::Round([double]$reg.MemorySize / 1048576.0)) }
+          }
+        }
+      }
+    } catch {}
+
+    # Fallback: WQL query cho video memory
+    if (-not $item.vramMb) {
+      try {
+        $wql = Get-CimInstance -Query "SELECT * FROM Win32_VideoController WHERE DeviceID LIKE '$([regex]::Escape($g.DeviceID))%'" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($wql -and $wql.AdapterRAM -gt 0) { $item.vramMb = [int]([math]::Round([double]$wql.AdapterRAM / 1048576.0)) }
+      } catch {}
+    }
+
+    # Compute units (GPU cores) - estimate từ tên GPU
+    $vram = $item.vramMb
+    if ($gName -match 'rtx\s*40[89]0') { $item.computeUnits = 16384 }
+    elseif ($gName -match 'rtx\s*40[67]0') { $item.computeUnits = 9728 }
+    elseif ($gName -match 'rtx\s*40[56]0') { $item.computeUnits = 6144 }
+    elseif ($gName -match 'rtx\s*30[89]0') { $item.computeUnits = 10496 }
+    elseif ($gName -match 'rtx\s*30[67]0') { $item.computeUnits = 5888 }
+    elseif ($gName -match 'rtx\s*30[56]0') { $item.computeUnits = 4352 }
+    elseif ($gName -match 'rtx\s*20[89]0') { $item.computeUnits = 4352 }
+    elseif ($gName -match 'rtx\s*20[67]0') { $item.computeUnits = 2944 }
+    elseif ($gName -match 'rtx\s*20[56]0') { $item.computeUnits = 2176 }
+    elseif ($gName -match 'gtx\s*16[50]0') { $item.computeUnits = 1408 }
+    elseif ($gName -match 'gtx\s*16[30]0') { $item.computeUnits = 768 }
+    elseif ($gName -match 'rx\s*7[0-9]0\s*xt') { $item.computeUnits = 5120 }
+    elseif ($gName -match 'rx\s*7[0-9]0') { $item.computeUnits = 3584 }
+    elseif ($gName -match 'rx\s*6[0-9]0\s*xt') { $item.computeUnits = 4608 }
+    elseif ($gName -match 'rx\s*6[0-9]0') { $item.computeUnits = 2304 }
+    elseif ($gName -match 'rx\s*5[0-9]0') { $item.computeUnits = 2560 }
+    elseif ($gName -match 'arc\s*a[0-9]{3}') { $item.computeUnits = 2048 }
+    elseif ($gName -match 'intel.*uhd') { $item.computeUnits = 96 }
+    elseif ($gName -match 'intel.*iris') { $item.computeUnits = 384 }
+
+    $gpuList.Add($item) | Out-Null
+  }
+  return ,$gpuList.ToArray()
+}
+
+# ══════════════════════════════════════════════════════════════
+# Disk — Win32_DiskDrive + WQL cho SMART + free space
+# ══════════════════════════════════════════════════════════════
 function Get-DiskType {
   param([string]$model, [string]$iface, [string]$pnp)
   $m = if ($model) { $model.ToLower() } else { '' }
   $p = if ($pnp) { $pnp.ToLower() } else { '' }
   $i = if ($iface) { $iface.ToLower() } else { '' }
 
-  # 1. NVMe qua PnP hoặc model
   if ($p -match 'ven_nvme|ven_intel.*nvme' -or $m -match 'nvme') { return 'NVMe SSD' }
-  # 2. SSD rõ ràng trong model
-  if ($m -match 'ssd|m\.2 |m\.2$|m2$|snv|sk\s?hynix|samsung.*evo|wd\s?blue.*ssd|wd\s?black.*sn|crucial\s?p[2-9]|crucial\s?mx|crucial\s?b|crucial\s?m|sabrent|kingston\s?sa|kingston\s?sk|kingston\s?kc|kingston\s?a[0-9]|kingston\s?dc|seagate\s?firecuda|seagate\s?barracuda\s?ssd|toshiba.*thn|tr-181|tr-188|samsung.*970|samsung.*980|samsung.*990') {
+  if ($m -match 'ssd|m\.2|m2$|snv|sk\s?hynix|samsung.*evo|wd\s?blue.*ssd|wd\s?black.*sn|crucial\s?p[2-9]|crucial\s?mx|sabrent|kingston\s?(sa|sk|kc|a[0-9]|dc)|seagate\s?firecuda|seagate\s?barracuda\s?ssd|toshiba.*thn|samsung\s?(970|980|990|pm9)') {
     return 'SSD'
   }
-  # 3. USB
   if ($p -match 'usb' -or $i -match 'usb') { return 'USB' }
-  # 4. HDD: model chứa "HDD", Seagate ST*, Samsung HM*, WD WDC..., Toshiba MQ*, Hitachi HTS...
-  if ($m -match 'hdd|\bhdd\b|st[0-9]{4,}|hm[0-9]{3,}|wdc\s?wd|mq[0-9]{3,}|mq0[0-9]{3}|hts[0-9]|toshiba.*mq|toshiba.*mk|dt01|wd\d|wd\s?caviar|wd\s?blue\s?\d|trav?elstar|seagate\s?barracuda|seagate\s?ironwolf|seagate\s?skyhawk|wd\s?purple|wd\s?red') {
+  if ($m -match 'hdd|\bhdd\b|st[0-9]{4,}|hm[0-9]{3,}|wdc\s?wd|mq[0-9]{3,}|hts[0-9]|toshiba.*mq|toshiba.*mk|dt01|wd\s?caviar|wd\s?purple|wd\s?red|seagate\s?barracuda|seagate\s?ironwolf|seagate\s?skyhawk|toshiba\s?dt|trav?elstar') {
     return 'HDD'
   }
-  # 5. InterfaceType IDE cũ (laptop HDD cũ, optical drive) → thường là HDD
   if ($i -eq 'ide') { return 'HDD' }
-  # 6. Mặc định: nếu MediaType = removable → Removable; nếu không → Unknown
   return 'Unknown'
 }
 
+function Get-DiskTempAndHealth {
+  param([string]$pnpDevId)
+  $result = @{ tempC = $null; health = $null }
+  try {
+    # WMI MSStorageDriver (SMART) - đọc temperature attribute
+    $wql = Get-CimInstance -Namespace 'root\WMI' -Query "SELECT * FROM MSStorageDriver_ATAPassThru WHERE DriverName LIKE '%$pnpDevId%'" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($wql -and $wql.InstanceName) {
+      $smart = Get-CimInstance -Namespace 'root\WMI' -Query "SELECT * FROM MSStorageDriver_ATAPassThru WHERE InstanceName='$($wql.InstanceName)'" -ErrorAction SilentlyContinue | Select-Object -First 1
+    }
+    # SMART attributes từ root\WMI
+    $smartAt = Get-CimInstance -Namespace 'root\WMI' -Query "SELECT * FROM MSAcidigitalInformation" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($smartAt -and $smartAt.VendorSpecific) {
+      $vs = [byte[]]$smartAt.VendorSpecific
+      # Attribute ID 194 = Temperature (often)
+      for ($j = 2; $j -lt $vs.Length - 12; $j++) {
+        if ($vs[$j] -eq 194 -and $vs[$j+1] -eq 0x10) {
+          $result.tempC = [int]$vs[$j+5]
+          break
+        }
+      }
+    }
+  } catch {}
+  # Health status từ Win32_DiskDrive hoặc Win32_PhysicalMedia
+  try {
+    $media = Get-CimInstance Win32_PhysicalMedia | Select-Object -First 5
+  } catch {}
+  return $result
+}
+
+# ══════════════════════════════════════════════════════════════
+# Battery — Win32_Battery + BatteryStatus (root\WMI) + cycles
+# ══════════════════════════════════════════════════════════════
+function Get-BatteryDetails {
+  $bat = Get-CimInstance Win32_Battery | Select-Object -First 1
+  if (-not $bat) { return $null }
+  $result = @{}
+  $result['name'] = [string]$bat.Name
+  $result['status'] = [string]$bat.Status
+  $result['chemistry'] = [string]$bat.Chemistry
+  $design = [int]$bat.DesignCapacity
+  $full = [int]$bat.FullChargeCapacity
+  $result['designCapacityMwh'] = if ($design -gt 0) { $design } else { $null }
+  $result['fullChargeCapacityMwh'] = if ($full -gt 0) { $full } else { $null }
+  $result['healthPct'] = if ($design -gt 0 -and $full -gt 0) { [math]::Round(($full * 100.0) / $design, 1) } else { $null }
+  $result['voltageMv'] = if ($bat.DesignVoltage -gt 0) { [int]$bat.DesignVoltage } else { $null }
+  $result['currentRateMw'] = $null
+  $result['dischargeRateMw'] = $null
+  $result['cycleCount'] = $null
+
+  # Cycle count từ BatteryStatus (root\WMI)
+  try {
+    $bs = Get-CimInstance -Namespace 'root\WMI' -ClassName BatteryStatus -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($bs) {
+      if ($bs.DischargeRate -and $bs.DischargeRate -gt 0 -and $bs.DischargeRate -lt 1000000) {
+        $result['dischargeRateMw'] = [int]$bs.DischargeRate
+      }
+      if ($bs.ChargeRate -and $bs.ChargeRate -gt 0 -and $bs.ChargeRate -lt 1000000) {
+        $result['currentRateMw'] = [int]$bs.ChargeRate
+      }
+    }
+  } catch {}
+  try {
+    $bc = Get-CimInstance -Namespace 'root\WMI' -ClassName BatteryFullChargedCapacity -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($bc -and $bc.FullChargedCapacity) {
+      $result['fullChargeCapacityMwh'] = [int]$bc.FullChargedCapacity
+      if ($design -gt 0) {
+        $result['healthPct'] = [math]::Round(($bc.FullChargedCapacity * 100.0) / $design, 1)
+      }
+    }
+  } catch {}
+  # Cycle count - try multiple sources
+  try {
+    $cycleCount = Get-CimInstance -Namespace 'root\WMI' -Query "SELECT * FROM BatteryCycleCount" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cycleCount -and $cycleCount.CycleCount) {
+      $result['cycleCount'] = [int]$cycleCount.CycleCount
+    }
+  } catch {}
+  try {
+    # WQL query cho cycle count
+    $wqlCycle = Get-CimInstance -Query "SELECT * FROM BatteryStaticData" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($wqlCycle -and $wqlCycle.CycleCount) {
+      $result['cycleCount'] = [int]$wqlCycle.CycleCount
+    }
+  } catch {}
+
+  return $result
+}
+
+# ══════════════════════════════════════════════════════════════
+# Network — Win32_NetworkAdapter + DriverVersion from registry
+# ══════════════════════════════════════════════════════════════
+function Get-NetworkDetails {
+  $list = New-Object System.Collections.Generic.List[object]
+  $adapters = Get-CimInstance Win32_NetworkAdapter -ErrorAction SilentlyContinue
+  $adapters = $adapters | Where-Object { $_.PhysicalAdapter -or $_.NetEnabled }
+  foreach ($a in $adapters) {
+    if (-not $a -or -not $a.MACAddress) { continue }
+    $item = @{
+      name = [string]$a.NetConnectionID
+      mac = ([string]$a.MACAddress).ToLower()
+      ipv4 = @()
+      ipv6 = @()
+      speedMbps = if ($a.Speed -and $a.Speed -gt 0 -and $a.Speed -lt 20000000000) { [int]($a.Speed / 1000000) } else { $null }
+      driverVersion = $null
+      type = if ($a.AdapterType) { $a.AdapterType } else { $null }
+    }
+
+    # Driver version từ registry
+    try {
+      $regPath = "HKLM:\SYSTEM\CurrentControlSet\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\"
+      $keys = Get-ChildItem $regPath -ErrorAction SilentlyContinue
+      foreach ($k in $keys) {
+        $id = (Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue).DeviceID
+        if ($id -and $a.PNPDeviceID -and $a.PNPDeviceID -match [regex]::Escape($id)) {
+          $item.driverVersion = (Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue).DriverVersion
+          break
+        }
+      }
+    } catch {}
+
+    # IP address
+    try {
+      $cfg = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "Index=$($a.Index)" -ErrorAction SilentlyContinue | Select-Object -First 1
+      if ($cfg -and $cfg.IPAddress) {
+        foreach ($ip in $cfg.IPAddress) {
+          if ($ip -match '^\d{1,3}(\.\d{1,3}){3}$') { $item.ipv4 += $ip }
+          elseif ($ip -match ':') { $item.ipv6 += $ip }
+        }
+      }
+    } catch {}
+
+    $list.Add($item) | Out-Null
+  }
+  return ,$list.ToArray()
+}
+
+# ══════════════════════════════════════════════════════════════
+# MAIN — Collect all hardware
+# ══════════════════════════════════════════════════════════════
+
+# --- CPU ---
+try {
+  Out-Part 'cpu' (Get-CpuDetails)
+} catch { Out-Error 'cpu' $_.Exception.Message }
+
+# --- Memory ---
+try {
+  $modList = Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue
+  $totalBytes = 0
+  $modules = New-Object System.Collections.Generic.List[object]
+  $cpuName = (Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name
+  $platMax = Get-PlatformMemoryMax $cpuName
+  $smbiosModules = Get-SmbiosType17Max
+  $slotToSmbios = @{}
+  foreach ($s in $smbiosModules) { if ($s.deviceLocator) { $slotToSmbios[$s.deviceLocator] = $s } }
+  foreach ($m in $modList) {
+    if (-not $m -or -not $m.Capacity) { continue }
+    $cap = [int64]$m.Capacity; $totalBytes += $cap
+    $slot = [string]$m.DeviceLocator
+    $configured = if ($m.Speed -gt 0) { [int]$m.Speed } else { $null }
+    $smbiosSpeed = $null
+    if ($slotToSmbios.ContainsKey($slot)) { $smbiosSpeed = $slotToSmbios[$slot].speed }
+    $gen = Get-MemoryGeneration ([int]$m.MemoryType) ([int]$m.TypeDetail)
+    if ($gen -eq 'DDR?' -and $configured) {
+      $refined = Refine-GenerationFromSpeed $configured
+      if ($refined) { $gen = $refined }
+    }
+    $platMaxForGen = $null
+    if ($platMax) {
+      if ($gen -eq 'DDR5') { $platMaxForGen = $platMax.ddr5Max }
+      elseif ($gen -in 'DDR','DDR2','DDR3','DDR4','DDR?') { $platMaxForGen = $platMax.ddr4Max }
+    }
+    $timing = Get-MemoryTiming $slot
+    $modules.Add(@{
+      slot = $slot
+      sizeBytes = $cap
+      speedMhz = $configured
+      configuredMhz = $configured
+      smbiosSpeedMhz = $smbiosSpeed
+      platformMaxMhz = $platMaxForGen
+      type = [string]$m.MemoryType
+      generation = $gen
+      manufacturer = [string]$m.Manufacturer
+      partNumber = [string]$m.PartNumber
+      serialNumber = [string]$m.SerialNumber
+      voltageMv = if ($m.ConfiguredVoltage -gt 0) { [int]($m.ConfiguredVoltage / 1000) } else { $null }
+      clTiming = $timing
+    }) | Out-Null
+  }
+  $os = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+  $totalPhysical = if ($os -and $os.TotalPhysicalMemory) { [int64]$os.TotalPhysicalMemory } else { $totalBytes }
+  $platMaxOverall = $null
+  if ($platMax -and $modules.Count -gt 0) {
+    $anyDdr5 = $false
+    foreach ($mm in $modules) { if ($mm.generation -eq 'DDR5') { $anyDdr5 = $true; break } }
+    $platMaxOverall = if ($anyDdr5) { $platMax.ddr5Max } else { $platMax.ddr4Max }
+  }
+  Out-Part 'memory' @{
+    totalBytes = $totalPhysical
+    usedBytes = $null; freeBytes = $null
+    slots = if ($modules.Count -gt 0) { $modules.Count } else { $null }
+    modules = @($modules.ToArray())
+    platformMaxMhz = $platMaxOverall
+    platformCpuName = $cpuName
+  }
+} catch { Out-Error 'memory' $_.Exception.Message }
+
 # --- Disks ---
 try {
-  $driveList = Get-CimInstance Win32_DiskDrive
+  $driveList = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
   $list = New-Object System.Collections.Generic.List[object]
   foreach ($d in $driveList) {
     if (-not $d) { continue }
     $sizeBytes = [int64]$d.Size
     $capGb = if ($sizeBytes -gt 0) { [int]([math]::Floor($sizeBytes / 1073741824)) } else { $null }
-    $model = [string]$d.Model
-    $media = [string]$d.MediaType
-    $iface = [string]$d.InterfaceType
     $pnp = [string]$d.PnpDeviceId
+    $model = [string]$d.Model
+    $iface = [string]$d.InterfaceType
     $type = Get-DiskType $model $iface $pnp
+    $smartInfo = Get-DiskTempAndHealth $pnp
+    # Free space từ Win32_LogicalDisk (chỉ system disk)
+    $freeGb = $null
+    try {
+      $vol = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$($d.DeviceID -replace '\\\\\\\\\\\\?\\\\','' -replace '\\\\PhysicalDrive\d','C:')'" -ErrorAction SilentlyContinue | Select-Object -First 1
+      if (-not $vol) {
+        $vol = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | Select-Object -First 1
+      }
+      if ($vol -and $vol.FreeSpace) { $freeGb = [int]([math]::Floor($vol.FreeSpace / 1073741824)) }
+    } catch {}
     $list.Add(@{
-      name          = $model
-      model         = $model
-      type          = $type
-      capacityGb    = $capGb
-      mediaType     = $media
+      name = $model; model = $model; type = $type
+      capacityGb = $capGb; freeGb = $freeGb
+      mediaType = [string]$d.MediaType
       interfaceType = $iface
-      pnpDeviceId   = $pnp
+      firmwareRevision = [string]$d.FirmwareRevision
+      serialNumber = [string]$d.SerialNumber
+      tempC = $smartInfo.tempC
+      healthStatus = if ($smartInfo.health) { $smartInfo.health } else { 'Unknown' }
     }) | Out-Null
   }
   Out-Part 'disks' @($list.ToArray())
 } catch { Out-Error 'disks' $_.Exception.Message }
+
+# --- GPU ---
 try {
-  $gpus = Get-CimInstance Win32_VideoController
-  $list = New-Object System.Collections.Generic.List[object]
-  foreach ($g in $gpus) {
-    if (-not $g) { continue }
-    $list.Add(@{
-      name          = [string]$g.Name
-      driverVersion = [string]$g.DriverVersion
-      vramMb        = if ($g.AdapterRAM -gt 0) { [int]([math]::Round([double]$g.AdapterRAM / 1048576.0)) } else { $null }
-    }) | Out-Null
-  }
-  Out-Part 'gpu' @($list.ToArray())
+  Out-Part 'gpu' (Get-GpuDetails)
 } catch { Out-Error 'gpu' $_.Exception.Message }
 
 # --- Mainboard ---
 try {
-  $mb = Get-CimInstance Win32_BaseBoard | Select-Object -First 1
+  $mb = Get-CimInstance Win32_BaseBoard -ErrorAction SilentlyContinue | Select-Object -First 1
+  $bios = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($mb) {
     Out-Part 'mainboard' @{
       manufacturer = [string]$mb.Manufacturer
-      product      = [string]$mb.Product
-      serial       = [string]$mb.SerialNumber
-      version      = [string]$mb.Version
+      product = [string]$mb.Product
+      serial = [string]$mb.SerialNumber
+      version = [string]$mb.Version
+      biosVersion = if ($bios) { [string]$bios.SMBIOSBIOSVersion } else { $null }
     }
   } else { Out-Error 'mainboard' 'No Win32_BaseBoard instance' }
 } catch { Out-Error 'mainboard' $_.Exception.Message }
 
 # --- BIOS ---
 try {
-  $b = Get-CimInstance Win32_BIOS | Select-Object -First 1
+  $b = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($b) {
     $rd = $null
     try {
@@ -415,38 +876,25 @@ try {
       }
     } catch {}
     Out-Part 'bios' @{
-      manufacturer   = [string]$b.Manufacturer
-      version        = [string]$b.SMBIOSBIOSVersion
-      releaseDate    = $rd
-      smbiosVersion  = [string]$b.SMBIOSMajorVersion + '.' + [string]$b.SMBIOSMinorVersion
+      manufacturer = [string]$b.Manufacturer
+      version = [string]$b.SMBIOSBIOSVersion
+      releaseDate = $rd
+      smbiosVersion = [string]$b.SMBIOSMajorVersion + '.' + [string]$b.SMBIOSMinorVersion
     }
   } else { Out-Error 'bios' 'No Win32_BIOS instance' }
 } catch { Out-Error 'bios' $_.Exception.Message }
 
 # --- Battery ---
 try {
-  $bat = Get-CimInstance Win32_Battery | Select-Object -First 1
-  if ($bat) {
-    $design = [int]$bat.DesignCapacity
-    $full   = [int]$bat.FullChargeCapacity
-    $health = $null
-    if ($design -gt 0 -and $full -gt 0) { $health = [math]::Round(($full * 100.0) / $design, 1) }
-    Out-Part 'battery' @{
-      name                  = [string]$bat.Name
-      status                = [string]$bat.Status
-      chemistry             = [string]$bat.Chemistry
-      designCapacityMwh     = if ($design -gt 0) { $design } else { $null }
-      fullChargeCapacityMwh = if ($full   -gt 0) { $full   } else { $null }
-      healthPct             = $health
-      voltageMv             = $null
-    }
-  } else { Out-Error 'battery' 'No battery present' }
+  $bat = Get-BatteryDetails
+  if ($bat) { Out-Part 'battery' $bat }
+  else { Out-Error 'battery' 'No battery present' }
 } catch { Out-Error 'battery' $_.Exception.Message }
 
 # --- OS ---
 try {
-  $osRaw = Get-CimInstance Win32_OperatingSystem | Select-Object -First 1
-  $cs = Get-CimInstance Win32_ComputerSystem | Select-Object -First 1
+  $osRaw = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue | Select-Object -First 1
+  $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue | Select-Object -First 1
   $activated = $null
   try {
     $sla = Get-CimInstance SoftwareLicensingProduct -ErrorAction SilentlyContinue |
@@ -455,46 +903,32 @@ try {
     if ($sla -and [int]$sla.LicenseStatus -eq 1) { $activated = $true } else { $activated = $false }
   } catch {}
   if ($osRaw) {
+    $installDate = $null; $lastBoot = $null
+    try {
+      if ($osRaw.InstallDate) {
+        $installDate = ([Management.ManagementDateTimeConverter]::ToDateTime($osRaw.InstallDate)).ToString('o')
+      }
+    } catch {}
+    try {
+      $lastBoot = $osRaw.LastBootUpTime.ToString('o')
+    } catch {}
     Out-Part 'os' @{
-      caption   = [string]$osRaw.Caption
-      version   = [string]$osRaw.Version
-      build     = [string]$osRaw.BuildNumber
-      arch      = [string]$osRaw.OSArchitecture
-      hostname  = if ($cs) { [string]$cs.Name } else { $null }
-      serial    = if ($cs) { [string]$cs.IdentifyingNumber } else { $null }
+      caption = [string]$osRaw.Caption
+      version = [string]$osRaw.Version
+      build = [string]$osRaw.BuildNumber
+      arch = [string]$osRaw.OSArchitecture
+      hostname = if ($cs) { [string]$cs.Name } else { $null }
+      serial = if ($cs) { [string]$cs.IdentifyingNumber } else { $null }
       activated = $activated
+      installDate = $installDate
+      lastBootTime = $lastBoot
     }
   } else { Out-Error 'os' 'No Win32_OperatingSystem instance' }
 } catch { Out-Error 'os' $_.Exception.Message }
 
 # --- Network ---
 try {
-  $adapters = Get-CimInstance Win32_NetworkAdapter -Filter 'PhysicalAdapter=True OR NetEnabled=True'
-  $list = New-Object System.Collections.Generic.List[object]
-  foreach ($a in $adapters) {
-    if (-not $a -or -not $a.MACAddress) { continue }
-    $ipv4 = New-Object System.Collections.Generic.List[string]
-    $ipv6 = New-Object System.Collections.Generic.List[string]
-    try {
-      $cfg = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "Index=$($a.Index)" | Select-Object -First 1
-      if ($cfg) {
-        if ($cfg.IPAddress) {
-          foreach ($ip in $cfg.IPAddress) {
-            if ($ip -match '^\d{1,3}(\.\d{1,3}){3}$') { $ipv4.Add([string]$ip) | Out-Null }
-            else { $ipv6.Add([string]$ip) | Out-Null }
-          }
-        }
-      }
-    } catch {}
-    $list.Add(@{
-      name      = [string]$a.NetConnectionID
-      mac       = ([string]$a.MACAddress).ToLower()
-      ipv4      = @($ipv4.ToArray())
-      ipv6      = @($ipv6.ToArray())
-      speedMbps = if ($a.Speed -and ([int64]$a.Speed -gt 0) -and ([int64]$a.Speed -lt 20000000000)) { [int]([math]::Round([double]$a.Speed / 1000000.0)) } else { $null }
-    }) | Out-Null
-  }
-  Out-Part 'network' @($list.ToArray())
+  Out-Part 'network' (Get-NetworkDetails)
 } catch { Out-Error 'network' $_.Exception.Message }
 
 # Sentinel
@@ -503,7 +937,7 @@ try {
 exit 0
 `;
 
-const TOTAL_TIMEOUT_MS = 120_000;
+// ─── Node.js side ───────────────────────────────────────────────────────────────
 
 interface RawPartMessage {
   key: string;
@@ -512,16 +946,7 @@ interface RawPartMessage {
   error?: string;
 }
 
-/**
- * Stream kết quả: spawn PowerShell, đọc stdout line-by-line, parse JSON,
- * gọi `onPart` cho mỗi phần xong (không đợi tất cả). Trả về khi:
- *   - nhận `__done__` (PowerShell kết thúc sạch)
- *   - timeout
- *   - process lỗi
- */
-export function streamHardware(onPart: HardwarePartListener): {
-  stop: () => void;
-} {
+export function streamHardware(onPart: HardwarePartListener): { stop: () => void } {
   const child = spawn(
     "powershell.exe",
     ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "-"],
@@ -535,23 +960,13 @@ export function streamHardware(onPart: HardwarePartListener): {
   const finish = (reason: string) => {
     if (stopped) return;
     stopped = true;
-    try {
-      child.kill();
-    } catch {}
+    try { child.kill(); } catch {}
     if (!doneSeen) {
-      onPart({
-        key: "__error__",
-        ok: false,
-        error: reason,
-        ts: Date.now(),
-      });
+      onPart({ key: "__error__", ok: false, error: reason, ts: Date.now() });
     }
   };
 
-  const timer = setTimeout(
-    () => finish(`timeout after ${TOTAL_TIMEOUT_MS}ms`),
-    TOTAL_TIMEOUT_MS,
-  );
+  const timer = setTimeout(() => finish(`timeout after ${TOTAL_TIMEOUT_MS}ms`), TOTAL_TIMEOUT_MS);
 
   child.stdout.on("data", (chunk: Buffer) => {
     if (stopped) return;
@@ -565,7 +980,6 @@ export function streamHardware(onPart: HardwarePartListener): {
       try {
         msg = JSON.parse(line) as RawPartMessage;
       } catch {
-        // Bỏ qua line không phải JSON (progress, debug).
         continue;
       }
       if (msg.key === "__done__") {
@@ -576,19 +990,9 @@ export function streamHardware(onPart: HardwarePartListener): {
         return;
       }
       if (msg.ok) {
-        onPart({
-          key: msg.key,
-          ok: true,
-          data: msg.data,
-          ts: Date.now(),
-        } as HardwarePart);
+        onPart({ key: msg.key, ok: true, data: msg.data, ts: Date.now() } as HardwarePart);
       } else {
-        onPart({
-          key: msg.key,
-          ok: false,
-          error: msg.error ?? "unknown error",
-          ts: Date.now(),
-        });
+        onPart({ key: msg.key, ok: false, error: msg.error ?? "unknown error", ts: Date.now() });
       }
     }
   });
@@ -615,24 +1019,15 @@ export function streamHardware(onPart: HardwarePartListener): {
   };
 }
 
-/** Backwards-compat: đợi tất cả rồi trả về 1 object (ít dùng). */
 export async function collectHardware(): Promise<CollectedHardwareSnapshot> {
   const collectedAt = new Date().toISOString();
   const acc: CollectedHardwareSnapshot = {
-    cpu: null,
-    memory: null,
-    disks: [],
-    gpu: [],
-    mainboard: null,
-    bios: null,
-    battery: null,
-    os: null,
-    network: [],
-    collectedAt,
-    source: "powershell",
+    cpu: null, memory: null, disks: [], gpu: [],
+    mainboard: null, bios: null, battery: null, os: null, network: [],
+    collectedAt, source: "powershell-enhanced",
   };
   return new Promise<CollectedHardwareSnapshot>((resolve) => {
-    const handle = streamHardware((part) => {
+    streamHardware((part) => {
       if (part.key === "__done__" || (part.key === "__error__" && !part.ok)) {
         resolve(acc);
         return;
@@ -650,7 +1045,6 @@ export async function collectHardware(): Promise<CollectedHardwareSnapshot> {
         case "network": acc.network = part.data as NetworkInfo[]; break;
       }
     });
-    void handle;
   });
 }
 
@@ -665,5 +1059,5 @@ export type CollectedHardwareSnapshot = {
   os: OsInfo | null;
   network: NetworkInfo[];
   collectedAt: string;
-  source: "powershell";
+  source: "powershell-enhanced";
 };

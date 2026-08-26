@@ -1,106 +1,150 @@
 // Type declarations for the Electron preload bridge.
-// This file mirrors the runtime surface exposed by `apps/mini-tool/src/preload/index.ts`
-// so the renderer can use `window.lap.*` with full type-safety.
-
 export interface IpcResult<T> {
   ok: boolean;
   data?: T;
   error?: string;
 }
 
+export interface CpuInfo {
+  name: string | null;
+  manufacturer: string | null;
+  cores: number | null;
+  threads: number | null;
+  baseGhz: number | null;
+  turboGhz: number | null;
+  cacheL1Kb: number | null;
+  cacheL2Kb: number | null;
+  cacheL3Kb: number | null;
+  socket: string | null;
+  architecture: string | null;
+  processNm: number | null;
+  tdpW: number | null;
+}
+
+export interface MemoryModule {
+  slot: string | null;
+  sizeBytes: number | null;
+  speedMhz: number | null;
+  configuredMhz: number | null;
+  smbiosSpeedMhz: number | null;
+  platformMaxMhz: number | null;
+  type: string | null;
+  generation: string | null;
+  manufacturer: string | null;
+  partNumber: string | null;
+  serialNumber: string | null;
+  voltageMv: number | null;
+  clTiming: string | null;
+}
+
+export interface MemoryInfo {
+  totalBytes: number | null;
+  usedBytes: number | null;
+  freeBytes: number | null;
+  slots: number | null;
+  platformMaxMhz: number | null;
+  platformCpuName: string | null;
+  modules: MemoryModule[];
+}
+
+export interface DiskInfo {
+  name: string | null;
+  model: string | null;
+  type: string | null;
+  capacityGb: number | null;
+  freeGb: number | null;
+  mediaType: string | null;
+  interfaceType: string | null;
+  firmwareRevision: string | null;
+  serialNumber: string | null;
+  tempC: number | null;
+  healthStatus: string | null;
+}
+
+export interface GpuInfo {
+  name: string | null;
+  driverVersion: string | null;
+  vramMb: number | null;
+  vramSharedMb: number | null;
+  vramType: string | null;
+  busWidth: number | null;
+  computeUnits: number | null;
+}
+
+export interface MainboardInfo {
+  manufacturer: string | null;
+  product: string | null;
+  serial: string | null;
+  version: string | null;
+  biosVersion: string | null;
+}
+
+export interface BiosInfo {
+  manufacturer: string | null;
+  version: string | null;
+  releaseDate: string | null;
+  smbiosVersion: string | null;
+}
+
+export interface BatteryInfo {
+  name: string | null;
+  status: string | null;
+  chemistry: string | null;
+  designCapacityMwh: number | null;
+  fullChargeCapacityMwh: number | null;
+  healthPct: number | null;
+  cycleCount: number | null;
+  voltageMv: number | null;
+  currentRateMw: number | null;
+  dischargeRateMw: number | null;
+}
+
+export interface OsInfo {
+  caption: string | null;
+  version: string | null;
+  build: string | null;
+  arch: string | null;
+  hostname: string | null;
+  serial: string | null;
+  activated: boolean | null;
+  installDate: string | null;
+  lastBootTime: string | null;
+}
+
+export interface NetworkInfo {
+  name: string | null;
+  mac: string | null;
+  ipv4: string[];
+  ipv6: string[];
+  speedMbps: number | null;
+  driverVersion: string | null;
+  type: string | null;
+}
+
 export interface CollectedHardware {
-  cpu: {
-    name: string | null;
-    manufacturer: string | null;
-    cores: number | null;
-    threads: number | null;
-    baseGhz: number | null;
-    socket: string | null;
-  } | null;
-  memory: {
-    totalBytes: number | null;
-    usedBytes: number | null;
-    freeBytes: number | null;
-    slots: number | null;
-    platformMaxMhz: number | null;
-    platformCpuName: string | null;
-    modules: Array<{
-      sizeBytes: number | null;
-      speedMhz: number | null;
-      configuredMhz: number | null;
-      smbiosSpeedMhz: number | null;
-      platformMaxMhz: number | null;
-      type: string | null;
-      generation: string | null;
-      manufacturer: string | null;
-      slot: string | null;
-    }>;
-  } | null;
-  disks: Array<{
-    name: string | null;
-    model: string | null;
-    type: string | null;
-    capacityGb: number | null;
-    mediaType: string | null;
-    interfaceType: string | null;
-    pnpDeviceId: string | null;
-  }>;
-  gpu: Array<{
-    name: string | null;
-    driverVersion: string | null;
-    vramMb: number | null;
-  }>;
-  mainboard: {
-    manufacturer: string | null;
-    product: string | null;
-    serial: string | null;
-    version: string | null;
-  } | null;
-  bios: {
-    manufacturer: string | null;
-    version: string | null;
-    releaseDate: string | null;
-    smbiosVersion: string | null;
-  } | null;
-  battery: {
-    name: string | null;
-    status: string | null;
-    chemistry: string | null;
-    designCapacityMwh: number | null;
-    fullChargeCapacityMwh: number | null;
-    healthPct: number | null;
-    voltageMv: number | null;
-  } | null;
-  os: {
-    caption: string | null;
-    version: string | null;
-    build: string | null;
-    arch: string | null;
-    hostname: string | null;
-    serial: string | null;
-    activated: boolean | null;
-  } | null;
-  network: Array<{
-    name: string | null;
-    mac: string | null;
-    ipv4: string[];
-    ipv6: string[];
-    speedMbps: number | null;
-  }>;
+  cpu: CpuInfo | null;
+  memory: MemoryInfo | null;
+  disks: DiskInfo[];
+  gpu: GpuInfo[];
+  mainboard: MainboardInfo | null;
+  bios: BiosInfo | null;
+  battery: BatteryInfo | null;
+  os: OsInfo | null;
+  network: NetworkInfo[];
   collectedAt: string;
-  source: "powershell";
+  source: string;
 }
 
 export type HardwarePart =
-  | { key: "cpu"; ok: true; data: CollectedHardware["cpu"]; ts: number }
-  | { key: "memory"; ok: true; data: CollectedHardware["memory"]; ts: number }
-  | { key: "disks"; ok: true; data: CollectedHardware["disks"]; ts: number }
-  | { key: "gpu"; ok: true; data: CollectedHardware["gpu"]; ts: number }
-  | { key: "mainboard"; ok: true; data: CollectedHardware["mainboard"]; ts: number }
-  | { key: "bios"; ok: true; data: CollectedHardware["bios"]; ts: number }
-  | { key: "battery"; ok: true; data: CollectedHardware["battery"]; ts: number }
-  | { key: "os"; ok: true; data: CollectedHardware["os"]; ts: number }
-  | { key: "network"; ok: true; data: CollectedHardware["network"]; ts: number }
+  | { key: "cpu"; ok: true; data: CpuInfo | null; ts: number }
+  | { key: "memory"; ok: true; data: MemoryInfo | null; ts: number }
+  | { key: "disks"; ok: true; data: DiskInfo[]; ts: number }
+  | { key: "gpu"; ok: true; data: GpuInfo[]; ts: number }
+  | { key: "mainboard"; ok: true; data: MainboardInfo | null; ts: number }
+  | { key: "bios"; ok: true; data: BiosInfo | null; ts: number }
+  | { key: "battery"; ok: true; data: BatteryInfo | null; ts: number }
+  | { key: "os"; ok: true; data: OsInfo | null; ts: number }
+  | { key: "network"; ok: true; data: NetworkInfo[]; ts: number }
   | { key: "__done__"; ok: true; ts: number }
   | { key: string; ok: false; error: string; ts: number };
 
