@@ -25,6 +25,7 @@ import type {
   CollectedHardware,
   HardwarePart,
 } from "../types/window";
+import { useSessionStore } from "@/store";
 
 function formatBytes(bytes: number | null | undefined): string {
   if (!bytes || bytes <= 0) return "—";
@@ -169,6 +170,7 @@ const INITIAL_DATA: CollectedHardware = {
 };
 
 export function HardwareTab() {
+  const { setHardware } = useSessionStore();
   const [data, setData] = React.useState<CollectedHardware>(INITIAL_DATA);
   const [status, setStatus] = React.useState<Record<string, PartStatus>>({
     cpu: "loading", memory: "loading", disks: "loading", gpu: "loading",
@@ -201,6 +203,12 @@ export function HardwareTab() {
       if (part.key === "__done__") {
         setStreaming(false);
         setDoneAt(new Date().toISOString());
+        // Save hardware data to store for upload
+        setData((prev) => {
+          const snapshot = { ...prev, collectedAt: new Date().toISOString(), source: "powershell-enhanced" };
+          setHardware(snapshot);
+          return snapshot;
+        });
         setStatus((prev) => {
           const next = { ...prev };
           for (const k of Object.keys(next)) {

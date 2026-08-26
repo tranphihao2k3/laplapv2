@@ -181,6 +181,68 @@ export function registerIpcHandlers(): void {
     },
   );
 
+  // ── Empty Recycle Bin ────────────────────────────────────────────────────────
+  ipcMain.handle("lap:optimize:empty-recycle", async () => {
+    try {
+      const result = await runPwshCommand(
+        `Clear-RecycleBin -Force -ErrorAction SilentlyContinue; Write-Output 'Done'`,
+        60_000,
+      );
+      return { ok: true, data: result };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  // ── Disable Startup Apps ─────────────────────────────────────────────────────
+  ipcMain.handle("lap:optimize:disable-startup", async () => {
+    try {
+      const script = `$disabled = 0; $failed = 0; $items = Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location; foreach ($item in $items) { try { if ($item.Location -match 'HKCU') { Remove-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" -Name $item.Name -Force -ErrorAction Stop; $disabled++ } elseif ($item.Location -match 'HKLM') { try { Remove-ItemProperty -Path "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" -Name $item.Name -Force -ErrorAction Stop; $disabled++ } catch { $failed++ } } } catch { $failed++ } }; @{disabled=$disabled;failed=$failed} | ConvertTo-Json -Compress`;
+      const result = await runPwshCommand(script, 30_000);
+      return { ok: true, data: result };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  // ── Defrag / Optimize Drives ─────────────────────────────────────────────────
+  ipcMain.handle("lap:optimize:optimize-drive", async (_evt, driveLetter: string) => {
+    try {
+      if (typeof driveLetter !== "string" || !driveLetter) {
+        throw new Error("Missing driveLetter");
+      }
+      const letter = driveLetter.replace(/[\\\/]$/, "").toUpperCase();
+      const script = `$ErrorActionPreference='SilentlyContinue'; $disk = Get-CimInstance Win32_DiskDrive | Where-Object { $_.Model -match 'ssd|nvme|m\\.2' } | Select-Object -First 1; if ($disk) { Write-Output "SKIP:SSD" } else { $out = & defrag.exe ${letter}: /F /V 2>&1 | Out-String; Write-Output $out }`;
+      const result = await runPwshCommand(script, 300_000);
+      return { ok: true, data: result };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  // ── CPU Benchmark (built-in, no FurMark needed) ──────────────────────────────
+  ipcMain.handle("lap:bench:cpu-benchmark", async (_evt, durationSec: number) => {
+    try {
+      const duration = typeof durationSec === "number" && durationSec > 0 ? durationSec : 10;
+      const script = `$sw = [Diagnostics.Stopwatch]::StartNew(); $iter = 0; $targetMs = ${duration} * 1000; while ($sw.ElapsedMilliseconds -lt $targetMs) { $null = [Math]::Sqrt(123456.789 * [Math]::PI); $iter++ }; $elapsed = $sw.ElapsedMilliseconds; $opsPerSec = [Math]::Round($iter / ($elapsed / 1000.0), 0); $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1; @{iterations=$iter;elapsedMs=$elapsed;opsPerSec=$opsPerSec;cpuName=$cpu.Name;cores=$cpu.NumberOfCores;threads=$cpu.NumberOfLogicalProcessors} | ConvertTo-Json -Compress`;
+      const result = await runPwshCommand(script, (duration + 10) * 1000);
+      return { ok: true, data: result };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  // ── Get Drive List (for defrag) ─────────────────────────────────────────────
+  ipcMain.handle("lap:optimize:get-drives", async () => {
+    try {
+      const script = `Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Select-Object DeviceID, VolumeName, @{N='freeGb';E={[math]::Round($_.FreeSpace/1GB,1)}}, @{N='totalGb';E={[math]::Round($_.Size/1GB,1)}} | ConvertTo-Json -Compress`;
+      const result = await runPwshCommand(script, 15_000);
+      return { ok: true, data: result };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
   ipcMain.handle("lap:upload:status", async () => {
     const session = getStoredSession();
     return {

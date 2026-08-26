@@ -1,3 +1,4 @@
+// OptimizeTab.tsx — Các thao tác tối ưu máy
 import * as React from "react";
 import {
   Trash2,
@@ -10,6 +11,9 @@ import {
   AlertTriangle,
   PlayCircle,
   ImagePlus,
+  Zap,
+  RefreshCcw,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,385 +42,493 @@ interface OptimizeAction {
   description: string;
   icon: React.ReactNode;
   dangerous?: boolean;
-  notImplemented?: boolean;
-  renderTrigger?: (state: ActionState) => React.ReactNode;
-  run: (state: ActionState) => Promise<void>;
-}
-
-interface ActionState {
-  _id: string;
-  isLoading: boolean;
-  setLoading: (v: boolean) => void;
+  category: "clean" | "system" | "hardware" | "security";
+  run: (setLoading: (v: boolean) => void) => Promise<void>;
 }
 
 function runPwshAction(
-  state: ActionState,
+  setLoading: (v: boolean) => void,
   promise: () => Promise<{ ok: boolean; error?: string }>,
-  onSuccess?: (msg: string) => void,
-  setLoading?: (id: string, v: boolean) => void,
+  onSuccess?: string,
 ): Promise<void> {
-  if (setLoading) {
-    setLoading(state._id, true);
-  } else {
-    state.setLoading(true);
-  }
+  setLoading(true);
   return promise()
     .then((res) => {
       if (res.ok) {
-        const msg = "Hoàn tất";
-        toast.success(onSuccess ? onSuccess(msg) ?? msg : msg);
+        toast.success(onSuccess ?? "Hoàn tất");
       } else {
         toast.error(res.error ?? "Thất bại");
       }
     })
     .catch((err: Error) => toast.error(err.message))
-    .finally(() => {
-      if (setLoading) {
-        setLoading(state._id, false);
-      } else {
-        state.setLoading(false);
-      }
-    }) as unknown as Promise<void>;
+    .finally(() => setLoading(false)) as unknown as Promise<void>;
 }
 
-function buildAction(setLoading: (id: string, v: boolean) => void): OptimizeAction[] {
-  return [
+function buildActions(
+  setLoading: (id: string, v: boolean) => void,
+  drives: { deviceId: string; volumeName: string | null; freeGb: number; totalGb: number }[],
+): OptimizeAction[] {
+  const a: OptimizeAction[] = [
+    // ── Clean ──────────────────────────────────────────────────────
     {
       id: "clean-temp",
       title: "Dọn rác (Temp + Prefetch)",
-      description:
-        "Xoá file tạm trong %TEMP%, %LOCALAPPDATA%\\Temp, C:\\Windows\\Temp và C:\\Windows\\Prefetch.",
+      description: "Xoá file tạm trong %TEMP%, %LOCALAPPDATA%\\Temp, C:\\Windows\\Temp và C:\\Windows\\Prefetch.",
       icon: <Trash2 className="h-4 w-4" />,
-      run: (state) =>
-        runPwshAction(
-          state,
-          async () => {
-            const res = await window.lap.optimize.cleanTemp();
-            return res.ok
-              ? { ok: true }
-              : { ok: false, error: res.error ?? "Lỗi không xác định" };
-          },
-          () => "Đã dọn file tạm",
-          setLoading,
-        ),
-    },
-    {
-      id: "disable-startup",
-      title: "Tắt ứng dụng khởi động cùng Windows",
-      description:
-        "(chưa tích hợp — dùng Task Manager > Startup hoặc Autoruns trên máy thật).",
-      icon: <PowerOff className="h-4 w-4" />,
-      notImplemented: true,
-      run: async () => {
-        toast.info("Chưa hỗ trợ trong phiên bản này");
-      },
+      category: "clean",
+      dangerous: false,
+      run: (setL) =>
+        runPwshAction(setL, async () => {
+          const res = await window.lap.optimize.cleanTemp();
+          return res.ok ? { ok: true } : { ok: false, error: res.error };
+        }, "Đã dọn file tạm"),
     },
     {
       id: "empty-recycle",
-      title: "Làm trống thùng rác",
-      description:
-        "(chưa tích hợp — chuẩn bị cho Phase 2).",
+      title: "Làm trống Thùng rác",
+      description: "Xoá vĩnh viễn tất cả file trong Recycle Bin của tất cả ổ đĩa.",
       icon: <Recycle className="h-4 w-4" />,
-      notImplemented: true,
-      run: async () => {
-        toast.info("Chưa hỗ trợ trong phiên bản này");
-      },
+      category: "clean",
+      dangerous: true,
+      run: (setL) =>
+        runPwshAction(setL, async () => {
+          const res = await window.lap.optimize.emptyRecycle();
+          return res.ok ? { ok: true } : { ok: false, error: res.error };
+        }, "Đã làm trống Thùng rác"),
     },
     {
-      id: "defrag-hdd",
-      title: "Chống phân mảnh (HDD)",
-      description:
-        "(chưa tích hợp — chỉ áp dụng cho HDD; SSD tự động bỏ qua).",
-      icon: <HardDrive className="h-4 w-4" />,
-      notImplemented: true,
-      run: async () => {
-        toast.info("Chưa hỗ trợ trong phiên bản này");
-      },
+      id: "disable-startup",
+      title: "Tắt ứng dụng khởi động",
+      description: "Gỡ bỏ các ứng dụng chạy cùng Windows khỏi registry HKCU (HKLM cần quyền admin).",
+      icon: <PowerOff className="h-4 w-4" />,
+      category: "clean",
+      dangerous: true,
+      run: (setL) =>
+        runPwshAction(setL, async () => {
+          const res = await window.lap.optimize.disableStartup();
+          if (!res.ok) return { ok: false, error: res.error };
+          try {
+            const parsed = JSON.parse(res.data?.stdout ?? "{}");
+            const disabled = parsed.disabled ?? 0;
+            const failed = parsed.failed ?? 0;
+            toast.success(`Đã tắt ${disabled} ứng dụng${failed > 0 ? `, ${failed} cần quyền admin` : ""}`);
+            return { ok: true };
+          } catch {
+            return res.ok ? { ok: true } : { ok: false, error: res.error };
+          }
+        }, "Đã tắt ứng dụng khởi động"),
     },
+
+    // ── Hardware ─────────────────────────────────────────────────
+    {
+      id: "defrag-hdd",
+      title: "Tối ưu / Chống phân mảnh ổ",
+      description: "Chạy defrag trên ổ HDD. SSD sẽ tự bỏ qua (Windows tối ưu tự động).",
+      icon: <HardDrive className="h-4 w-4" />,
+      category: "hardware",
+      dangerous: false,
+      run: (setL) =>
+        runPwshAction(setL, async () => {
+          if (drives.length === 0) {
+            toast.info("Không tìm thấy ổ đĩa");
+            return { ok: true };
+          }
+          const selectedDrive = drives[0].deviceId.replace(/:/, "");
+          const res = await window.lap.optimize.optimizeDrive(selectedDrive);
+          if (!res.ok) return { ok: false, error: res.error };
+          const out = res.data?.stdout ?? "";
+          if (out.includes("SKIP") || out.toLowerCase().includes("ssd")) {
+            toast.info("SSD detected — defrag không cần thiết cho SSD");
+          } else {
+            toast.success("Đã tối ưu ổ " + selectedDrive);
+          }
+          return { ok: true };
+        }, ""),
+    },
+
+    // ── Security ────────────────────────────────────────────────
     {
       id: "disable-bitlocker",
       title: "Tắt BitLocker (C:)",
-      description:
-        "Giải mã ổ C: — cần quyền admin. Có thể mất nhiều giờ tuỳ dung lượng ổ.",
+      description: "Giải mã ổ C: — cần quyền admin. Có thể mất nhiều giờ tuỳ dung lượng ổ.",
       icon: <ShieldOff className="h-4 w-4" />,
+      category: "security",
       dangerous: true,
-      run: (state) =>
-        runPwshAction(
-          state,
-          async () => {
-            const res = await window.lap.optimize.disableBitlocker();
-            return res.ok
-              ? { ok: true }
-              : { ok: false, error: res.error ?? "Lỗi không xác định" };
-          },
-          () => "Đã yêu cầu tắt BitLocker (chạy nền)",
-          setLoading,
-        ),
+      run: (setL) =>
+        runPwshAction(setL, async () => {
+          const res = await window.lap.optimize.disableBitlocker();
+          return res.ok ? { ok: true } : { ok: false, error: res.error };
+        }, "Đã yêu cầu tắt BitLocker (chạy nền)"),
     },
+
+    // ── System ──────────────────────────────────────────────────
     {
       id: "rename-pc",
       title: "Đổi tên máy tính",
       description: "Đổi Computer Name — yêu cầu restart để hoàn tất.",
       icon: <PencilLine className="h-4 w-4" />,
+      category: "system",
       dangerous: true,
-      renderTrigger: (s) => <RenamePcTrigger loading={s.isLoading} />,
-      run: (state) =>
-        runPwshAction(
-          state,
-          async () => {
-            const input = document.getElementById(
-              "rename-pc-input",
-            ) as HTMLInputElement | null;
-            if (!input?.value) {
-              return { ok: false, error: "Chưa nhập tên mới" };
-            }
-            const res = await window.lap.optimize.renamePc(input.value);
-            return res.ok
-              ? { ok: true }
-              : { ok: false, error: res.error ?? "Lỗi không xác định" };
-          },
-          () => "Đã đổi tên máy (khởi động lại để áp dụng)",
-          setLoading,
-        ),
+      run: (setL) => {
+        const input = document.getElementById("rename-pc-input") as HTMLInputElement | null;
+        if (!input?.value) {
+          toast.error("Chưa nhập tên mới");
+          return Promise.resolve();
+        }
+        return runPwshAction(setL, async () => {
+          const res = await window.lap.optimize.renamePc(input.value);
+          return res.ok ? { ok: true } : { ok: false, error: res.error };
+        }, "Đã đổi tên máy (khởi động lại để áp dụng)");
+      },
     },
     {
       id: "set-wallpaper",
       title: "Đổi hình nền",
       description: "Chọn file ảnh rồi set làm wallpaper cho màn hình chính.",
       icon: <ImageIcon className="h-4 w-4" />,
-      dangerous: true,
-      renderTrigger: (s) => <SetWallpaperTrigger loading={s.isLoading} />,
-      run: (state) =>
-        runPwshAction(
-          state,
-          async () => {
-            const input = document.getElementById(
-              "wallpaper-input",
-            ) as HTMLInputElement | null;
-            if (!input?.value) {
-              return { ok: false, error: "Chưa chọn file" };
-            }
-            const res = await window.lap.optimize.setWallpaper(input.value);
-            return res.ok
-              ? { ok: true }
-              : { ok: false, error: res.error ?? "Lỗi không xác định" };
-          },
-          () => "Đã đổi hình nền",
-          setLoading,
-        ),
+      category: "system",
+      dangerous: false,
+      run: (setL) => {
+        const input = document.getElementById("wallpaper-input") as HTMLInputElement | null;
+        if (!input?.value) {
+          toast.error("Chưa chọn file");
+          return Promise.resolve();
+        }
+        return runPwshAction(setL, async () => {
+          const res = await window.lap.optimize.setWallpaper(input.value);
+          return res.ok ? { ok: true } : { ok: false, error: res.error };
+        }, "Đã đổi hình nền");
+      },
     },
   ];
+  return a;
 }
 
-function RenamePcTrigger({ loading }: { loading: boolean }) {
-  const [name, setName] = React.useState("");
-
+function DriveSelector({
+  drives,
+  selected,
+  onChange,
+}: {
+  drives: { deviceId: string; volumeName: string | null; freeGb: number; totalGb: number }[];
+  selected: string;
+  onChange: (v: string) => void;
+}) {
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button disabled={loading} variant="destructive">
-          <AlertTriangle className="h-4 w-4" /> Chạy
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Đổi tên máy tính?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Cần khởi động lại máy để tên mới có hiệu lực. KTV chịu trách nhiệm về thay đổi này.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="rename-pc-input">Tên máy mới</Label>
-          <Input
-            id="rename-pc-input"
-            value={name}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-            placeholder="VD: LAPTOP-CANTHO-01"
-            spellCheck={false}
-          />
-        </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Huỷ</AlertDialogCancel>
-          <AlertDialogAction disabled={!name.trim()}>Tiếp tục</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <select
+      value={selected}
+      onChange={(e) => onChange(e.target.value)}
+      className="mt-2 w-full rounded-md border border-border/60 bg-card px-2 py-1.5 text-sm"
+    >
+      {drives.map((d) => (
+        <option key={d.deviceId} value={d.deviceId}>
+          {d.deviceId} {d.volumeName ? `(${d.volumeName})` : ""} — {d.totalGb} GB ({d.freeGb} GB trống)
+        </option>
+      ))}
+    </select>
   );
 }
 
-function SetWallpaperTrigger({ loading }: { loading: boolean }) {
-  const [path, setPath] = React.useState("");
-  const handlePick = async () => {
-    const res = await window.lap.dialog.pickFile([
-      { name: "Hình ảnh", extensions: ["jpg", "jpeg", "png", "bmp", "webp"] },
-    ]);
-    if (res.ok && res.data && !res.data.canceled && res.data.filePaths[0]) {
-      setPath(res.data.filePaths[0]);
-    }
-  };
-
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button disabled={loading} variant="destructive">
-          <ImagePlus className="h-4 w-4" /> Chạy
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Đổi hình nền?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Hình nền sẽ được áp dụng cho tất cả user trên máy. Có thể đổi lại bất kỳ lúc nào.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="wallpaper-input">Đường dẫn ảnh</Label>
-          <div className="flex gap-2">
-            <Input
-              id="wallpaper-input"
-              value={path}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPath(e.target.value)}
-              placeholder="C:\\Wallpapers\\laptop.jpg"
-              className="font-mono text-xs"
-            />
-            <Button variant="outline" size="icon" onClick={handlePick} aria-label="Chọn file">
-              <ImageIcon className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Huỷ</AlertDialogCancel>
-          <AlertDialogAction disabled={!path.trim()}>Áp dụng</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-interface ActionButtonProps {
+interface ActionCardProps {
   action: OptimizeAction;
-  state: ActionState;
+  isLoading: boolean;
+  onRun: () => void;
 }
 
-function ActionButton({ action, state }: ActionButtonProps) {
-  if (action.renderTrigger) {
-    return action.renderTrigger(state);
+function ActionCard({ action, isLoading, onRun }: ActionCardProps) {
+  if (action.id === "rename-pc") {
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant={action.dangerous ? "destructive" : "default"} className="w-full">
+            <PlayCircle className="mr-1 h-4 w-4" /> Chạy
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{action.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cần khởi động lại máy để tên mới có hiệu lực. KTV chịu trách nhiệm về thay đổi này.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="rename-pc-input">Tên máy mới</Label>
+            <Input
+              id="rename-pc-input"
+              placeholder="VD: LAPTOP-CANTHO-01"
+              spellCheck={false}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Huỷ</AlertDialogCancel>
+            <AlertDialogAction disabled={isLoading} onClick={onRun}>
+              {isLoading ? "Đang chạy..." : "Tiếp tục"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
   }
+
+  if (action.id === "set-wallpaper") {
+    const [path, setPath] = React.useState("");
+    const handlePick = async () => {
+      const res = await window.lap.dialog.pickFile([
+        { name: "Hình ảnh", extensions: ["jpg", "jpeg", "png", "bmp", "webp"] },
+      ]);
+      if (res.ok && res.data && !res.data.canceled && res.data.filePaths[0]) {
+        setPath(res.data.filePaths[0]);
+        const input = document.getElementById("wallpaper-input") as HTMLInputElement;
+        if (input) input.value = res.data.filePaths[0];
+      }
+    };
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant={action.dangerous ? "destructive" : "default"} className="w-full">
+            <PlayCircle className="mr-1 h-4 w-4" /> Chạy
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{action.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hình nền sẽ được áp dụng cho tất cả user trên máy.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label>Đường dẫn ảnh</Label>
+            <div className="flex gap-2">
+              <Input
+                id="wallpaper-input"
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                placeholder="C:\\Wallpapers\\laptop.jpg"
+                className="font-mono text-xs"
+              />
+              <Button variant="outline" size="icon" onClick={handlePick}>
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Huỷ</AlertDialogCancel>
+            <AlertDialogAction disabled={!path.trim() || isLoading} onClick={onRun}>
+              {isLoading ? "Đang chạy..." : "Áp dụng"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
+  if (action.id === "defrag-hdd") {
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant={action.dangerous ? "destructive" : "default"} className="w-full">
+            <PlayCircle className="mr-1 h-4 w-4" /> Chạy
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{action.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {action.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Huỷ</AlertDialogCancel>
+            <AlertDialogAction disabled={isLoading} onClick={onRun}>
+              {isLoading ? "Đang tối ưu..." : "Bắt đầu tối ưu"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
+  // Default: confirm dialog for dangerous, direct run for safe
+  if (action.dangerous) {
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="destructive" className="w-full">
+            <PlayCircle className="mr-1 h-4 w-4" /> {isLoading ? "Đang chạy..." : "Chạy"}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{action.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Thao tác có thể ảnh hưởng tới hệ thống. KTV chịu trách nhiệm về thay đổi này.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Huỷ</AlertDialogCancel>
+            <AlertDialogAction disabled={isLoading} onClick={onRun}>
+              Xác nhận
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
   return (
     <Button
-      variant={action.dangerous ? "destructive" : "default"}
-      disabled={state.isLoading}
-      onClick={() => void action.run(state)}
+      variant="default"
+      className="w-full"
+      disabled={isLoading}
+      onClick={onRun}
     >
-      <PlayCircle className="h-4 w-4" /> Chạy
+      {isLoading ? (
+        <RefreshCcw className="mr-1 h-4 w-4 animate-spin" />
+      ) : (
+        <PlayCircle className="mr-1 h-4 w-4" />
+      )}
+      {isLoading ? "Đang chạy..." : "Chạy"}
     </Button>
   );
 }
 
-function ConfirmActionButton({
-  action,
-  state,
-}: ActionButtonProps) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant={action.dangerous ? "destructive" : "default"}>
-          <PlayCircle className="h-4 w-4" /> Chạy
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{action.title}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {action.dangerous
-              ? "Thao tác có thể ảnh hưởng tới hệ thống. KTV chịu trách nhiệm về thay đổi này."
-              : "Xác nhận chạy thao tác tối ưu?"}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Huỷ</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              state.setLoading(true);
-              void action.run(state);
-            }}
-          >
-            Xác nhận
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
+const CATEGORY_LABELS: Record<string, string> = {
+  clean: "Dọn dẹp",
+  system: "Hệ thống",
+  hardware: "Phần cứng",
+  security: "Bảo mật",
+};
+
+const CATEGORY_ORDER = ["clean", "system", "hardware", "security"];
 
 export function OptimizeTab() {
   const { ktvMode } = useSessionStore();
   const [loadingSet, setLoadingSet] = React.useState<Set<string>>(new Set());
+  const [drives, setDrives] = React.useState<
+    { deviceId: string; volumeName: string | null; freeGb: number; totalGb: number }[]
+  >([]);
 
-  const setLoading = React.useCallback((id: string, v: boolean) => {
-    setLoadingSet((prev) => {
-      const next = new Set(prev);
-      if (v) next.add(id);
-      else next.delete(id);
-      return next;
+  const setLoading = React.useCallback(
+    (id: string, v: boolean) => {
+      setLoadingSet((prev) => {
+        const next = new Set(prev);
+        if (v) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    void window.lap.optimize.getDrives().then((res) => {
+      if (!res.ok || !res.data?.stdout) return;
+      try {
+        const raw = res.data.stdout.trim();
+        const parsed = JSON.parse(raw);
+        const list = Array.isArray(parsed) ? parsed : [parsed];
+        setDrives(
+          list.map((d: Record<string, unknown>) => ({
+            deviceId: String(d.DeviceID ?? d.deviceId ?? ""),
+            volumeName: d.VolumeName ? String(d.VolumeName) : null,
+            freeGb: typeof d.freeGb === "number" ? d.freeGb : 0,
+            totalGb: typeof d.totalGb === "number" ? d.totalGb : 0,
+          })),
+        );
+      } catch {
+        // ignore parse errors
+      }
     });
   }, []);
 
-  const actions = React.useMemo(() => buildAction({ setLoading }), [setLoading]);
+  const actions = React.useMemo(
+    () => buildActions((id, v) => setLoading(id, v), drives),
+    [drives, setLoading],
+  );
+
+  const grouped = React.useMemo(() => {
+    const map: Record<string, OptimizeAction[]> = {};
+    for (const action of actions) {
+      if (!map[action.category]) map[action.category] = [];
+      map[action.category].push(action);
+    }
+    return map;
+  }, [actions]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Tối ưu máy</h2>
         <p className="text-sm text-muted-foreground">
           Các thao tác dọn dẹp, bảo trì và tinh chỉnh Windows. Một số thao tác cần quyền admin.
         </p>
-        {!ktvMode ? (
+        {!ktvMode && (
           <p className="mt-1 text-xs text-muted-foreground">
             Một số thao tác nâng cao chỉ hiển thị khi bật chế độ KTV.
           </p>
-        ) : null}
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {actions.map((action) => {
-          const visible = !action.notImplemented || ktvMode;
-          if (!visible) return null;
-          const isLoading = loadingSet.has(action.id);
-          const state: ActionState = { _id: action.id, isLoading, setLoading: (v) => setLoading(action.id, v) };
-          return (
-            <Card key={action.id} className="flex flex-col">
-              <CardHeader className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-md bg-primary/10 p-1.5 text-primary">
-                    {action.icon}
-                  </span>
-                  <CardTitle className="text-sm">{action.title}</CardTitle>
-                  {action.dangerous ? (
-                    <Badge variant="destructive" className="ml-auto">
-                      Nguy hiểm
-                    </Badge>
-                  ) : null}
-                  {action.notImplemented ? (
-                    <Badge variant="outline" className="ml-auto">
-                      Sắp có
-                    </Badge>
-                  ) : null}
-                </div>
-                <CardDescription>{action.description}</CardDescription>
-              </CardHeader>
-              <Separator />
-              <CardContent className="flex flex-1 items-end justify-between pt-4">
-                {action.dangerous ? (
-                  <ConfirmActionButton action={action} state={state} />
-                ) : (
-                  <ActionButton action={action} state={state} />
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {/* Drives info */}
+      {drives.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {drives.map((d) => (
+            <div
+              key={d.deviceId}
+              className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/40 px-3 py-1.5 text-xs"
+            >
+              <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-medium">{d.deviceId}</span>
+              <span className="text-muted-foreground">
+                {d.totalGb} GB ({d.freeGb} GB trống)
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {CATEGORY_ORDER.map((cat) => {
+        const catActions = grouped[cat];
+        if (!catActions || catActions.length === 0) return null;
+        return (
+          <div key={cat}>
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold">{CATEGORY_LABELS[cat] ?? cat}</h3>
+              <div className="h-px flex-1 bg-border/40" />
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {catActions.map((action) => {
+                const isLoading = loadingSet.has(action.id);
+                return (
+                  <Card key={action.id} className="flex flex-col">
+                    <CardHeader className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-primary/10 p-1.5 text-primary">
+                          {action.icon}
+                        </span>
+                        <CardTitle className="text-sm">{action.title}</CardTitle>
+                        {action.dangerous ? (
+                          <Badge variant="destructive" className="ml-auto">
+                            Nguy hiểm
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <CardDescription className="text-xs">{action.description}</CardDescription>
+                    </CardHeader>
+                    <Separator />
+                    <CardContent className="flex flex-1 items-end pt-4">
+                      <ActionCard
+                        action={action}
+                        isLoading={isLoading}
+                        onRun={() => action.run((v) => setLoading(action.id, v))}
+                      />
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

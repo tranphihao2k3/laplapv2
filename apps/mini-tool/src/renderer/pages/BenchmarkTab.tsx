@@ -1,5 +1,6 @@
+// BenchmarkTab.tsx — GPU (FurMark) + CPU (built-in) benchmarks
 import * as React from "react";
-import { Gauge, Play, Save, FolderOpen, CheckCircle2 } from "lucide-react";
+import { Gauge, Play, Save, FolderOpen, CheckCircle2, Cpu, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useSessionStore } from "@/store";
+import { cn } from "@/lib/utils";
 
 type Preset = "1080p" | "1440p" | "4K";
 
@@ -17,6 +19,15 @@ const PRESETS: { id: Preset; label: string; width: number; height: number }[] = 
   { id: "1440p", label: "1440p (2560×1440)", width: 2560, height: 1440 },
   { id: "4K", label: "4K (3840×2160)", width: 3840, height: 2160 },
 ];
+
+interface CpuBenchmarkResult {
+  iterations: number;
+  elapsedMs: number;
+  opsPerSec: number;
+  cpuName: string;
+  cores: number;
+  threads: number;
+}
 
 export function BenchmarkTab() {
   const { benchmark, setBenchmark } = useSessionStore();
@@ -31,6 +42,11 @@ export function BenchmarkTab() {
   );
   const [fps, setFps] = React.useState<string>(benchmark?.fps ? String(benchmark.fps) : "");
 
+  // CPU benchmark state
+  const [cpuBusy, setCpuBusy] = React.useState(false);
+  const [cpuDuration, setCpuDuration] = React.useState(10);
+  const [cpuResult, setCpuResult] = React.useState<CpuBenchmarkResult | null>(null);
+
   React.useEffect(() => {
     void window.lap.bench.furmarkDetect().then((res) => {
       if (res.ok && res.data?.found && res.data.path) {
@@ -42,26 +58,18 @@ export function BenchmarkTab() {
   }, []);
 
   const handlePickFile = async () => {
-    const res = await window.lap.dialog.pickFile([
-      { name: "Executable", extensions: ["exe"] },
-    ]);
+    const res = await window.lap.dialog.pickFile([{ name: "Executable", extensions: ["exe"] }]);
     if (res.ok && res.data && !res.data.canceled && res.data.filePaths[0]) {
       setFurmarkPath(res.data.filePaths[0]);
     }
   };
 
   const handleLaunch = async () => {
-    if (!furmarkPath) {
-      toast.error("Chưa có đường dẫn FurMark");
-      return;
-    }
+    if (!furmarkPath) { toast.error("Chưa có đường dẫn FurMark"); return; }
     setBusy(true);
     try {
       const res = await window.lap.bench.furmarkLaunch(furmarkPath);
-      if (!res.ok) {
-        toast.error(res.error ?? "Không chạy được FurMark");
-        return;
-      }
+      if (!res.ok) { toast.error(res.error ?? "Không chạy được FurMark"); return; }
       toast.success("Đã khởi động FurMark. Chạy benchmark rồi nhập điểm bên dưới.");
     } catch (err) {
       toast.error((err as Error).message);
@@ -73,14 +81,8 @@ export function BenchmarkTab() {
   const handleSave = () => {
     const scoreNum = Number(score);
     const fpsNum = fps ? Number(fps) : undefined;
-    if (!Number.isFinite(scoreNum) || scoreNum <= 0) {
-      toast.error("Điểm không hợp lệ");
-      return;
-    }
-    if (fpsNum !== undefined && !Number.isFinite(fpsNum)) {
-      toast.error("FPS không hợp lệ");
-      return;
-    }
+    if (!Number.isFinite(scoreNum) || scoreNum <= 0) { toast.error("Điểm không hợp lệ"); return; }
+    if (fpsNum !== undefined && !Number.isFinite(fpsNum)) { toast.error("FPS không hợp lệ"); return; }
     const presetLabel = PRESETS.find((p) => p.id === preset)?.label ?? preset;
     setBenchmark({
       tool: "FurMark",
@@ -89,18 +91,41 @@ export function BenchmarkTab() {
       preset: presetLabel,
       capturedAt: new Date().toISOString(),
     });
-    toast.success("Đã lưu điểm benchmark");
+    toast.success("Đã lưu điểm GPU benchmark");
+  };
+
+  // CPU Benchmark
+  const handleCpuBenchmark = async () => {
+    setCpuBusy(true);
+    setCpuResult(null);
+    try {
+      const res = await window.lap.bench.cpuBenchmark(cpuDuration);
+      if (!res.ok) { toast.error(res.error ?? "Benchmark thất bại"); return; }
+      const stdout = res.data?.stdout ?? "";
+      try {
+        const parsed = JSON.parse(stdout.trim()) as CpuBenchmarkResult;
+        setCpuResult(parsed);
+        toast.success(`CPU benchmark hoàn tất: ${(parsed.opsPerSec / 1_000_000).toFixed(1)} M ops/s`);
+      } catch {
+        toast.error("Không parse được kết quả benchmark");
+      }
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setCpuBusy(false);
+    }
   };
 
   return (
     <div className="space-y-5">
+      {/* ── GPU Benchmark ── */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Gauge className="h-5 w-5" /> FurMark GPU Benchmark
           </CardTitle>
           <CardDescription>
-            Khởi động FurMark để chạy stress test. Sau khi hoàn tất, nhập điểm và FPS vào bên dưới.
+            Khởi động FurMark để chạy stress test GPU. Sau khi hoàn tất, nhập điểm và FPS bên dưới.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -114,7 +139,7 @@ export function BenchmarkTab() {
                 className="font-mono text-xs"
                 spellCheck={false}
               />
-              <Button variant="outline" size="icon" onClick={handlePickFile} aria-label="Chọn file">
+              <Button variant="outline" size="icon" onClick={handlePickFile}>
                 <FolderOpen className="h-4 w-4" />
               </Button>
             </div>
@@ -154,7 +179,7 @@ export function BenchmarkTab() {
               <Play className="h-4 w-4" /> {busy ? "Đang khởi động..." : "Chạy FurMark"}
             </Button>
             <p className="text-xs text-muted-foreground">
-              FurMark sẽ chạy ở chế độ fullscreen. Sau khi điểm hiển thị, đóng FurMark rồi nhập số điểm vào đây.
+              FurMark chạy ở chế độ fullscreen. Đóng FurMark rồi nhập số điểm.
             </p>
           </div>
 
@@ -199,14 +224,126 @@ export function BenchmarkTab() {
         </CardContent>
       </Card>
 
+      {/* ── CPU Benchmark ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cpu className="h-5 w-5" /> CPU Benchmark (tích hợp)
+          </CardTitle>
+          <CardDescription>
+            Benchmark CPU tích hợp sẵn — không cần cài thêm phần mềm. Đo tốc độ tính toán số học.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="cpu-dur" className="whitespace-nowrap">Thời gian test:</Label>
+              <select
+                id="cpu-dur"
+                value={cpuDuration}
+                onChange={(e) => setCpuDuration(Number(e.target.value))}
+                className="rounded-md border border-border/60 bg-card px-2 py-1 text-sm"
+              >
+                <option value={5}>5 giây</option>
+                <option value={10}>10 giây</option>
+                <option value={20}>20 giây</option>
+                <option value={30}>30 giây</option>
+              </select>
+            </div>
+            <Button onClick={handleCpuBenchmark} disabled={cpuBusy}>
+              {cpuBusy ? (
+                <Zap className="mr-1 h-4 w-4 animate-pulse" />
+              ) : (
+                <Play className="mr-1 h-4 w-4" />
+              )}
+              {cpuBusy ? "Đang benchmark..." : "Chạy CPU Benchmark"}
+            </Button>
+          </div>
+
+          {cpuResult ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <CpuStat
+                  label="CPU"
+                  value={cpuResult.cpuName?.split(" ").slice(0, 4).join(" ") ?? "—"}
+                />
+                <CpuStat
+                  label="Nhân / Luồng"
+                  value={`${cpuResult.cores} / ${cpuResult.threads}`}
+                />
+                <CpuStat
+                  label="Thời gian"
+                  value={`${(cpuResult.elapsedMs / 1000).toFixed(1)}s`}
+                />
+                <CpuStat
+                  label="Tốc độ"
+                  value={`${(cpuResult.opsPerSec / 1_000_000).toFixed(1)} M/s`}
+                  highlight
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setBenchmark({
+                      tool: `CPU: ${cpuResult.cpuName?.split(" ").slice(0, 3).join(" ") ?? "CPU"}`,
+                      score: Math.round(cpuResult.opsPerSec / 1_000_000 * 100),
+                      fps: undefined,
+                      preset: `${cpuDuration}s`,
+                      capturedAt: new Date().toISOString(),
+                    });
+                    toast.success("Đã lưu CPU benchmark");
+                  }}
+                >
+                  <Save className="mr-1 h-3.5 w-3.5" /> Lưu CPU benchmark
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(
+                      `CPU: ${cpuResult.cpuName} | ${cpuResult.cores}C/${cpuResult.threads}T | ${(cpuResult.opsPerSec / 1_000_000).toFixed(1)} M ops/s`
+                    );
+                    toast.success("Đã copy");
+                  }}
+                >
+                  <Zap className="mr-1 h-3.5 w-3.5" /> Copy
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          <p className="text-xs text-muted-foreground">
+            Benchmark đo số phép tính số học dấu phẩy động mỗi giây (FLOPS approximation).
+            Kết quả phụ thuộc workload — chỉ dùng để so sánh tương đối giữa các máy.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* ── UserBenchmark ── */}
       <Card>
         <CardHeader>
           <CardTitle>UserBenchmark / Khác</CardTitle>
           <CardDescription>
-            Hiện chưa tích hợp tự động. Có thể chạy thủ công rồi nhập điểm vào tab Upload.
+            Chạy thủ công rồi nhập điểm vào tab Upload.
           </CardDescription>
         </CardHeader>
       </Card>
+    </div>
+  );
+}
+
+function CpuStat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card/40 p-2.5 text-center">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={cn(
+        "mt-0.5 font-mono text-sm font-semibold",
+        highlight ? "text-emerald-400" : "text-foreground"
+      )}>
+        {value}
+      </p>
     </div>
   );
 }

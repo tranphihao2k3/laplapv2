@@ -26,6 +26,8 @@ const lap = {
     furmarkDetect: () => invoke<FurmarkDetectResult>("lap:bench:furmark:detect"),
     furmarkLaunch: (exePath: string) =>
       invoke<PwshResult>("lap:bench:furmark:launch", exePath),
+    cpuBenchmark: (durationSec: number) =>
+      invoke<{ stdout: string; stderr: string; exitCode: number }>("lap:bench:cpu-benchmark", durationSec),
   },
   optimize: {
     cleanTemp: () => invoke<PwshResult>("lap:optimize:clean-temp"),
@@ -35,6 +37,12 @@ const lap = {
       invoke<PwshResult>("lap:optimize:rename-pc", newName),
     setWallpaper: (filePath: string) =>
       invoke<PwshResult>("lap:optimize:set-wallpaper", filePath),
+    emptyRecycle: () => invoke<PwshResult>("lap:optimize:empty-recycle"),
+    disableStartup: () => invoke<PwshResult>("lap:optimize:disable-startup"),
+    optimizeDrive: (driveLetter: string) =>
+      invoke<PwshResult>("lap:optimize:optimize-drive", driveLetter),
+    getDrives: () =>
+      invoke<{ stdout: string; stderr: string; exitCode: number }>("lap:optimize:get-drives"),
   },
   upload: {
     status: () =>

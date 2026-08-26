@@ -189,12 +189,17 @@ export interface LapApi {
   bench: {
     furmarkDetect: () => Promise<IpcResult<FurmarkDetectResult>>;
     furmarkLaunch: (exePath: string) => Promise<IpcResult<PwshResult>>;
+    cpuBenchmark: (durationSec: number) => Promise<IpcResult<PwshResult>>;
   };
   optimize: {
     cleanTemp: () => Promise<IpcResult<PwshResult>>;
     disableBitlocker: () => Promise<IpcResult<PwshResult>>;
     renamePc: (newName: string) => Promise<IpcResult<PwshResult>>;
     setWallpaper: (filePath: string) => Promise<IpcResult<PwshResult>>;
+    emptyRecycle: () => Promise<IpcResult<PwshResult>>;
+    disableStartup: () => Promise<IpcResult<PwshResult>>;
+    optimizeDrive: (driveLetter: string) => Promise<IpcResult<PwshResult>>;
+    getDrives: () => Promise<IpcResult<PwshResult>>;
   };
   upload: {
     status: () => Promise<IpcResult<UploadStatusData>>;
