@@ -1,5 +1,6 @@
+// TestTab.tsx — Hardware test tab
 import * as React from "react";
-import { Volume2, Image as ImageIcon, Keyboard, Mic, Camera, VolumeX } from "lucide-react";
+import { Volume2, Image as ImageIcon, Keyboard, Mic, Camera, Wifi, MousePointer, WifiOff } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SpeakerTester } from "./test/SpeakerTester";
@@ -7,6 +8,8 @@ import { DisplayTester } from "./test/DisplayTester";
 import { KeyboardTester } from "./test/KeyboardTester";
 import { MicTester } from "./test/MicTester";
 import { CameraTester } from "./test/CameraTester";
+import { WifiTester } from "./test/WifiTester";
+import { TouchpadTester } from "./test/TouchpadTester";
 
 export function TestTab() {
   return (
@@ -28,8 +31,11 @@ export function TestTab() {
           <TabsTrigger value="camera" className="flex items-center gap-1.5">
             <Camera className="h-3.5 w-3.5" /> Camera
           </TabsTrigger>
-          <TabsTrigger value="mute" disabled className="opacity-40">
-            <VolumeX className="h-3.5 w-3.5" /> Touchpad (sắp có)
+          <TabsTrigger value="wifi" className="flex items-center gap-1.5">
+            <Wifi className="h-3.5 w-3.5" /> WiFi
+          </TabsTrigger>
+          <TabsTrigger value="touchpad" className="flex items-center gap-1.5">
+            <MousePointer className="h-3.5 w-3.5" /> Touchpad
           </TabsTrigger>
         </TabsList>
 
@@ -47,6 +53,12 @@ export function TestTab() {
         </TabsContent>
         <TabsContent value="camera" className="mt-4">
           <CameraTester />
+        </TabsContent>
+        <TabsContent value="wifi" className="mt-4">
+          <WifiTester />
+        </TabsContent>
+        <TabsContent value="touchpad" className="mt-4">
+          <TouchpadTester />
         </TabsContent>
       </Tabs>
     </div>

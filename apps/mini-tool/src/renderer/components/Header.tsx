@@ -1,4 +1,6 @@
-import { Laptop, Settings, ShieldCheck } from "lucide-react";
+// Header.tsx
+import { Laptop, Settings, ShieldCheck, RefreshCcw } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -10,14 +12,42 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { useSessionStore } from "@/store";
 
 interface HeaderProps {
   appVersion: string;
 }
 
+function SettingRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-border/40 bg-card/30 px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{label}</p>
+        {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
 export function Header({ appVersion }: HeaderProps) {
-  const { ktvMode, setKtvMode } = useSessionStore();
+  const { ktvMode, setKtvMode, settings, updateSettings, resetAll } = useSessionStore();
+
+  const handleResetAll = () => {
+    resetAll();
+    toast.success("Đã reset toàn bộ dữ liệu");
+  };
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/85 px-4 py-2.5 backdrop-blur-md">
@@ -50,31 +80,93 @@ export function Header({ appVersion }: HeaderProps) {
               <Settings className="h-4 w-4" />
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Cài đặt</DialogTitle>
               <DialogDescription>
-                Tùy chọn cục bộ cho máy KTV.
+                Tùy chỉnh hành vi của app. Settings được lưu cục bộ trên máy này.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-2 text-sm">
-              <div className="flex items-center justify-between rounded-lg border border-border/60 bg-card/40 px-3 py-2">
-                <div>
-                  <p className="font-medium">Chế độ KTV</p>
-                  <p className="text-xs text-muted-foreground">
-                    Hiện thêm các tùy chọn tối ưu nâng cao (BitLocker, đổi tên máy, đổi hình nền).
-                  </p>
-                </div>
-                <Switch
-                  checked={ktvMode}
-                  onCheckedChange={setKtvMode}
-                  aria-label="Bật chế độ KTV"
+
+            <div className="space-y-4 py-2">
+              {/* KTV Mode */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Giao diện</p>
+                <SettingRow
+                  label="Chế độ KTV mặc định"
+                  description="Mở app sẽ tự bật chế độ KTV (hiện tất cả thao tác nâng cao)."
+                  checked={settings.ktvModeDefault}
+                  onChange={(v) => updateSettings({ ktvModeDefault: v })}
+                />
+                <SettingRow
+                  label="Dark theme"
+                  description="Giao diện tối (hiện tại luôn bật)."
+                  checked={settings.darkTheme}
+                  onChange={(v) => updateSettings({ darkTheme: v })}
                 />
               </div>
-              <div className="rounded-lg border border-border/60 bg-card/40 px-3 py-2 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">Phiên bản</p>
-                <p className="mt-0.5">LapLap Mini Tool v{appVersion}</p>
-                <p className="mt-0.5">Electron {window.lap?.versions?.electron ?? "?"} · Node {window.lap?.versions?.node ?? "?"}</p>
+
+              <Separator />
+
+              {/* Scan */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quét</p>
+                <SettingRow
+                  label="Tự quét phần cứng khi mở app"
+                  description="Tab Phần cứng sẽ tự động bắt đầu quét ngay khi mở app."
+                  checked={settings.autoScanOnStartup}
+                  onChange={(v) => updateSettings({ autoScanOnStartup: v })}
+                />
+              </div>
+
+              <Separator />
+
+              {/* Test */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kiểm tra</p>
+                <SettingRow
+                  label="Bật test loa khi mở app"
+                  description="Tự động phát test tone khi mở tab Kiểm tra."
+                  checked={settings.soundTestEnabled}
+                  onChange={(v) => updateSettings({ soundTestEnabled: v })}
+                />
+              </div>
+
+              <Separator />
+
+              {/* Reset */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dữ liệu</p>
+                <div className="rounded-lg border border-border/40 bg-card/30 px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">Reset toàn bộ</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Xoá hardware, benchmark, tests và session đã lưu. Không ảnh hưởng settings.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResetAll}
+                      className="ml-3 shrink-0"
+                    >
+                      <RefreshCcw className="mr-1 h-3.5 w-3.5" />
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* About */}
+              <div className="rounded-lg border border-border/40 bg-card/30 px-3 py-2.5 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">LapLap Mini Tool</p>
+                <p className="mt-0.5">Phiên bản {appVersion}</p>
+                <p className="mt-0.5">
+                  Electron {window.lap?.versions?.electron ?? "?"} · Node {window.lap?.versions?.node ?? "?"} · {window.lap?.platform ?? "?"}
+                </p>
               </div>
             </div>
           </DialogContent>

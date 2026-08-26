@@ -196,6 +196,7 @@ export interface LapApi {
     disableStartup: () => Promise<IpcResult<PwshResult>>;
     optimizeDrive: (driveLetter: string) => Promise<IpcResult<PwshResult>>;
     getDrives: () => Promise<IpcResult<PwshResult>>;
+    scanWifi: () => Promise<IpcResult<PwshResult>>;
   };
   upload: {
     status: () => Promise<IpcResult<UploadStatusData>>;
