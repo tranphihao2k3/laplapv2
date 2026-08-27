@@ -64,6 +64,10 @@ export function MicTester() {
       src.connect(analyser);
       analyserRef.current = analyser;
       setPerm("granted");
+      // Resume AudioContext if it was suspended (required for AudioContext to work in some browsers)
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+        await audioCtxRef.current.resume();
+      }
       startMeter();
     } catch (err) {
       setPerm("denied");

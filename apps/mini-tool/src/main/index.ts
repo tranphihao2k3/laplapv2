@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, session } from "electron";
 import path from "node:path";
 import { registerIpcHandlers } from "./ipc";
 
@@ -19,6 +19,15 @@ function createWindow(): BrowserWindow {
       sandbox: false,
       webSecurity: true,
     },
+  });
+
+  // Allow microphone and camera requests from the app
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === "media" || permission === "media-video" || permission === "media-audio") {
+      callback(true);
+    } else {
+      callback(false);
+    }
   });
 
   win.once("ready-to-show", () => {

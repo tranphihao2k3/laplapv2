@@ -13,51 +13,63 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "systeminformation": "^5.23.5",
-    "electron-store": "^8.2.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-progress": "^1.1.5",
-    "@radix-ui/react-switch": "^1.2.6",
-    "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-progress": "^1.1.5",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
-    "lucide-react": "^0.453.0",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-store": "^8.2.0",
+    "lucide-react": "^0.453.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sonner": "^1.7.4",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
-    "sonner": "^1.7.4",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
-    "electron-vite": "^2.3.0",
-    "electron-builder": "^25.1.8",
-    "vite": "^5.4.10",
-    "@vitejs/plugin-react": "^4.3.3",
-    "typescript": "^5.6.3",
-    "tailwindcss": "^3.4.14",
-    "postcss": "^8.4.47",
-    "autoprefixer": "^10.4.20",
     "@types/node": "^22.8.7",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
   },
   "build": {
     "appId": "store.laplap.mini-tool",
     "productName": "LapLap Mini Tool",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "package.json"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
     "extraResources": [
-      { "from": "scripts", "to": "scripts" },
-      { "from": ".secret.example", "to": ".secret.example" }
+      {
+        "from": "scripts",
+        "to": "scripts"
+      },
+      {
+        "from": ".secret.example",
+        "to": ".secret.example"
+      }
     ],
     "win": {
-      "target": ["portable"],
+      "target": [
+        "portable"
+      ],
       "artifactName": "LapLap-Mini-Tool-Portable-${version}.exe"
     },
     "portable": {

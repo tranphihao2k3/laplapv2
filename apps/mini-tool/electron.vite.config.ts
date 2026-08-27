@@ -13,7 +13,7 @@ export default defineConfig({
         fileName: () => "index",
       },
       rollupOptions: {
-        external: ["electron", "electron-store", "systeminformation"],
+        external: ["electron", "electron-store"],
         output: {
           entryFileNames: "index.cjs",
           format: "cjs",

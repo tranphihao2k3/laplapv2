@@ -92,23 +92,31 @@ export function App() {
               <TabsContent value="connect">
                 <ConnectTab />
               </TabsContent>
-              <TabsContent value="hardware">
-                <TabErrorBoundary>
-                  <HardwareTab />
-                </TabErrorBoundary>
-              </TabsContent>
-              <TabsContent value="benchmark">
-                <BenchmarkTab />
-              </TabsContent>
-              <TabsContent value="test">
-                <TestTab />
-              </TabsContent>
-              <TabsContent value="optimize">
-                <OptimizeTab />
-              </TabsContent>
-              <TabsContent value="upload">
-                <UploadTab />
-              </TabsContent>
+          <TabsContent value="hardware">
+            <TabErrorBoundary>
+              <HardwareTab />
+            </TabErrorBoundary>
+          </TabsContent>
+          <TabsContent value="benchmark">
+            <TabErrorBoundary>
+              <BenchmarkTab />
+            </TabErrorBoundary>
+          </TabsContent>
+          <TabsContent value="test">
+            <TabErrorBoundary>
+              <TestTab />
+            </TabErrorBoundary>
+          </TabsContent>
+          <TabsContent value="optimize">
+            <TabErrorBoundary>
+              <OptimizeTab />
+            </TabErrorBoundary>
+          </TabsContent>
+          <TabsContent value="upload">
+            <TabErrorBoundary>
+              <UploadTab />
+            </TabErrorBoundary>
+          </TabsContent>
             </Tabs>
           </main>
 

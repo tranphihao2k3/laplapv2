@@ -123,6 +123,17 @@ export function SpeakerTester() {
   const [results, setResults] = React.useState<Record<string, "pass" | "fail">>({});
 
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     async function load() {
@@ -174,11 +185,17 @@ export function SpeakerTester() {
         audio.pause();
         setPlaying(false);
       } else {
-        const src = getAudioSrc(songs[currentIdx]);
-        if (audio.src !== src && src.startsWith("blob:")) {
-          audio.src = src;
-          audio.load();
+        // Revoke previous blob URL before creating new one
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+          blobUrlRef.current = null;
         }
+        const src = getAudioSrc(songs[currentIdx]);
+        if (src.startsWith("blob:")) {
+          blobUrlRef.current = src;
+        }
+        audio.src = src;
+        audio.load();
         await audio.play();
         setPlaying(true);
       }

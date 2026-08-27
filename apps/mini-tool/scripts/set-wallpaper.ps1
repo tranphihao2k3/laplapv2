@@ -53,8 +53,8 @@ try {
 
     # Validate extension image
     $ext = [System.IO.Path]::GetExtension($ImagePath).ToLower()
-    if ($ext -notin @('.jpg', '.jpeg', '.png', '.bmp')) {
-        Fail-Out "Dinh dang khong ho tro: $ext (chi .jpg/.jpeg/.png/.bmp)"
+    if ($ext -notin @('.jpg', '.jpeg', '.png', '.bmp', '.webp')) {
+        Fail-Out "Dinh dang khong ho tro: $ext (chi .jpg/.jpeg/.png/.bmp/.webp)"
     }
 
     # Resolve full path (PSScriptRoot/relative -> absolute)
