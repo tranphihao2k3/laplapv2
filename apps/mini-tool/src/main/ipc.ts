@@ -331,11 +331,13 @@ export function registerIpcHandlers(): void {
     if (!parsed.success) {
       return { ok: false, error: "Invalid session import arguments" };
     }
+    const existing = getStoredSession();
+    // Only update fields that are explicitly provided; keep existing values otherwise
     setStoredSession({
       sid: parsed.data.sid,
-      uploadUrl: parsed.data.uploadUrl ?? "",
-      webUrl: parsed.data.webUrl ?? "",
-      expiresAt: parsed.data.expiresAt ?? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      uploadUrl: parsed.data.uploadUrl !== undefined ? parsed.data.uploadUrl : (existing?.uploadUrl ?? ""),
+      webUrl: parsed.data.webUrl !== undefined ? parsed.data.webUrl : (existing?.webUrl ?? ""),
+      expiresAt: parsed.data.expiresAt ?? existing?.expiresAt ?? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       importedAt: new Date().toISOString(),
     });
     return { ok: true, data: getStoredSession() };
