@@ -189,8 +189,6 @@ CREATE TRIGGER trg_notify_new_product_upd
   EXECUTE FUNCTION notify_new_product();
 
 
--- newsletter_outbox: no policy = all denied. Add INSERT so product trigger works.
-CREATE POLICY "Allow authenticated inserts on newsletter_outbox"
-  ON newsletter_outbox FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+-- newsletter_outbox: No RLS - chỉ trigger + service_role truy cập (nội bộ).
+-- Bật RLS sẽ vỡ trigger vì function chạy SECURITY INVOKER (role = người INSERT product).
+ALTER TABLE newsletter_outbox DISABLE ROW LEVEL SECURITY;
