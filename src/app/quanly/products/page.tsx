@@ -1382,7 +1382,8 @@ export default function ProductsAdminPage() {
                       );
                     })}
                   </div>
-                )}
+                </div>
+              )}
               </div>
 
               {/* Giá bán nhanh + Tồn kho + Cửa hàng + Kho — chỉ hiện khi tạo mới và chưa có variant chi tiết */}
