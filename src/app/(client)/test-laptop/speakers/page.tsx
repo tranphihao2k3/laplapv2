@@ -72,17 +72,25 @@ export default function SpeakersPage() {
         <CardHeader>
           <CardTitle>Test Loa</CardTitle>
           <CardDescription>
-            Phát nhạc thực tế để kiểm tra loa trái, phải và âm thanh stereo. Khi bật nhạc,
-            bạn có thể chuyển sang tab khác — nhạc vẫn chạy ở thanh phát dưới cùng màn hình.
+            Phát nhạc để kiểm tra loa trái, phải và âm thanh stereo. App luôn có sẵn 4 bài test
+            tone/chirp phát local (không phụ thuộc mạng), kèm danh sách bài nhạc từ máy chủ.
+            Khi bật nhạc, bạn có thể chuyển sang tab khác — nhạc vẫn chạy ở thanh phát dưới cùng.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* ── Soft notice nếu remote fetch fail nhưng vẫn có bài local ── */}
+          {songsError && !loadingSongs ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              {songsError}
+            </div>
+          ) : null}
+
           {/* ── Album art / status area ── */}
           <div className="flex flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 py-10 gap-3">
             {loadingSongs ? (
               <Loader2 className="h-10 w-10 animate-spin text-zinc-400" />
-            ) : songsError ? (
+            ) : songsError && !hasSongs ? (
               <>
                 <VolumeX className="h-12 w-12 text-zinc-300" />
                 <p className="text-sm text-red-500">{songsError}</p>
@@ -106,7 +114,14 @@ export default function SpeakersPage() {
                   />
                 </div>
                 <div className="text-center">
-                  <p className="text-base font-semibold leading-tight">{currentSong?.title}</p>
+                  <p className="flex items-center justify-center gap-2 text-base font-semibold leading-tight">
+                    <span>{currentSong?.title}</span>
+                    {currentSong?.source === "builtin" ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700">
+                        local
+                      </span>
+                    ) : null}
+                  </p>
                   {currentSong?.artist && (
                     <p className="text-sm text-zinc-500 mt-0.5">{currentSong.artist}</p>
                   )}
@@ -202,7 +217,14 @@ export default function SpeakersPage() {
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate">{song.title}</p>
+                    <p className="truncate flex items-center gap-2">
+                      <span>{song.title}</span>
+                      {song.source === "builtin" ? (
+                        <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-700">
+                          local
+                        </span>
+                      ) : null}
+                    </p>
                     {song.artist && (
                       <p className="truncate text-xs text-zinc-400">{song.artist}</p>
                     )}

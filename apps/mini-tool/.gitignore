@@ -7,3 +7,6 @@ release
 !.env.example
 .secret
 .tmp-userdata
+# Thư mục chứa tool benchmark portable (FurMark, GPU-Z, etc.) dùng để test
+# local — KHÔNG commit lên repo vì là binary lớn, license không rõ ràng.
+APP_TEST/

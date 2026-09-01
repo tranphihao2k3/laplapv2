@@ -64,6 +64,10 @@
       {
         "from": ".secret.example",
         "to": ".secret.example"
+      },
+      {
+        "from": "APP_TEST/FurMark_win64",
+        "to": "APP_TEST/FurMark_win64"
       }
     ],
     "win": {

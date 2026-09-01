@@ -1,13 +1,32 @@
 import { ipcMain, dialog, shell, app, BrowserWindow } from "electron";
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { runPwshCommand, runPwshScript } from "./powershell";
 import { sign, getSecretFingerprint } from "./crypto";
 import { getStoredSession, setStoredSession, clearStoredSession } from "./session";
 import { buildUploadPayload, uploadToServer } from "./upload";
 import { readClipboardText } from "./clipboard";
-import { detectFurmark } from "./benchmark";
+import { detectFurmark, runFurmarkBenchmark, readLatestFurmarkScore } from "./benchmark";
 import { streamHardware } from "./hardware";
+import {
+  BUILTIN_AUDIO,
+  listAudioFiles,
+  type AudioFileInfo,
+} from "./audio";
 import { z } from "zod";
+
+let audioDir = "";
+
+export function setAudioDir(dir: string): void {
+  audioDir = dir;
+}
+
+function getAudioDirOrThrow(): string {
+  if (!audioDir) {
+    throw new Error("Audio directory not initialized");
+  }
+  return audioDir;
+}
 
 const OptimizeArgs = z.object({
   kind: z.enum([
@@ -92,6 +111,61 @@ export function registerIpcHandlers(): void {
       return { ok: false, error: (err as Error).message };
     }
   });
+
+  ipcMain.handle(
+    "lap:bench:furmark:run",
+    async (_evt, rawArgs: unknown) => {
+      try {
+        const args = rawArgs as {
+          exePath?: string;
+          width?: number;
+          height?: number;
+          durationSec?: number;
+          api?: "gl" | "vk";
+        };
+        if (!args || typeof args.exePath !== "string" || !args.exePath) {
+          throw new Error("Missing exePath");
+        }
+        const w = Number(args.width);
+        const h = Number(args.height);
+        const d = Number(args.durationSec);
+        if (!Number.isFinite(w) || w < 320 || w > 16384) {
+          throw new Error("Width không hợp lệ");
+        }
+        if (!Number.isFinite(h) || h < 240 || h > 16384) {
+          throw new Error("Height không hợp lệ");
+        }
+        if (!Number.isFinite(d) || d < 1 || d > 3600) {
+          throw new Error("Duration phải từ 1 đến 3600 giây");
+        }
+        const result = await runFurmarkBenchmark({
+          exePath: args.exePath,
+          width: w,
+          height: h,
+          durationSec: d,
+          api: args.api === "vk" ? "vk" : "gl",
+        });
+        return { ok: true, data: result };
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "lap:bench:furmark:readScore",
+    async (_evt, csvPath: unknown) => {
+      try {
+        if (typeof csvPath !== "string" || !csvPath) {
+          throw new Error("Missing csvPath");
+        }
+        const result = await readLatestFurmarkScore(csvPath);
+        return { ok: true, data: result };
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
+    },
+  );
 
   ipcMain.handle("lap:optimize:run", async (_evt, args: unknown) => {
     const parsed = OptimizeArgs.safeParse(args);
@@ -351,6 +425,117 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("lap:clipboard:read", async () => {
     try {
       return { ok: true, data: readClipboardText() };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  // ── Audio (speaker test files served via lap-audio://) ──────────────────────
+  ipcMain.handle("lap:audio:list", async () => {
+    try {
+      const dir = getAudioDirOrThrow();
+      const builtinNames = new Set(BUILTIN_AUDIO.map((b) => b.fileName));
+      const items: AudioFileInfo[] = await listAudioFiles(dir, {
+        builtinFileNames: builtinNames,
+      });
+      return { ok: true, data: { dir, items } };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  /**
+   * Đọc nội dung file audio thành ArrayBuffer để renderer tạo blob URL.
+   * Ổn định hơn custom protocol khi dev/HMR hoặc khi file trong userData cache.
+   */
+  ipcMain.handle(
+    "lap:audio:read",
+    async (_evt, fileName: unknown): Promise<{ ok: boolean; data?: { mime: string; buffer: ArrayBuffer }; error?: string }> => {
+      try {
+        if (typeof fileName !== "string" || !fileName) {
+          throw new Error("Missing fileName");
+        }
+        const dir = getAudioDirOrThrow();
+        const decoded = decodeURIComponent(fileName).replace(/^\/+/, "");
+        // Chỉ cho phép tên file đơn giản, không có path separator
+        if (decoded.includes("..") || /[\\/]/.test(decoded)) {
+          throw new Error("Invalid fileName");
+        }
+        const full = path.join(dir, decoded);
+        const stat = await fs.stat(full);
+        if (!stat.isFile()) throw new Error("Not a file");
+        const buf = await fs.readFile(full);
+        const ext = path.extname(full).toLowerCase();
+        const mime = (() => {
+          switch (ext) {
+            case ".wav": return "audio/wav";
+            case ".mp3": return "audio/mpeg";
+            case ".ogg": return "audio/ogg";
+            case ".m4a": return "audio/mp4";
+            case ".flac": return "audio/flac";
+            default: return "application/octet-stream";
+          }
+        })();
+        // Convert Node Buffer → ArrayBuffer-backed Uint8Array để IPC
+        // serialize an toàn (không bị Buffer.toString('latin1') mất bytes).
+        const ab = new ArrayBuffer(buf.byteLength);
+        new Uint8Array(ab).set(buf);
+        return { ok: true, data: { mime, buffer: ab } };
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
+    },
+  );
+
+  ipcMain.handle("lap:audio:reveal", async () => {
+    try {
+      const dir = getAudioDirOrThrow();
+      // Make sure the folder exists before showing it
+      await fs.mkdir(dir, { recursive: true });
+      shell.showItemInFolder(dir);
+      return { ok: true, data: { dir } };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  ipcMain.handle("lap:audio:add", async () => {
+    try {
+      const dir = getAudioDirOrThrow();
+      const win =
+        BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      const result = await dialog.showOpenDialog(win!, {
+        title: "Thêm file nhạc test (.wav / .mp3 / .ogg / .m4a)",
+        properties: ["openFile", "multiSelections"],
+        filters: [
+          {
+            name: "Audio",
+            extensions: ["wav", "mp3", "ogg", "m4a", "flac"],
+          },
+        ],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return { ok: true, data: { added: 0 } };
+      }
+      let added = 0;
+      const skipped: string[] = [];
+      for (const src of result.filePaths) {
+        const ext = path.extname(src).toLowerCase();
+        const allowed = [".wav", ".mp3", ".ogg", ".m4a", ".flac"];
+        if (!allowed.includes(ext)) {
+          skipped.push(src);
+          continue;
+        }
+        const base = path.basename(src);
+        const dest = path.join(dir, base);
+        if (src.toLowerCase() === dest.toLowerCase()) {
+          added++;
+          continue;
+        }
+        await fs.copyFile(src, dest);
+        added++;
+      }
+      return { ok: true, data: { added, skipped } };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

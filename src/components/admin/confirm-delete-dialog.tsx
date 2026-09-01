@@ -68,7 +68,7 @@ export function ConfirmDeleteDialog({
   if (isControlled) {
     return (
       <AlertDialog
-        open={openProp && safeId}
+        open={Boolean(openProp) && Boolean(safeId)}
         onOpenChange={(o) => onOpenChange?.(o)}
       >
         <AlertDialogContent>

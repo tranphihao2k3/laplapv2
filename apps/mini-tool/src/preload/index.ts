@@ -4,8 +4,12 @@ import type {
   CollectedHardware,
   HardwarePart,
   FurmarkDetectResult,
+  FurmarkBenchmarkResult,
+  FurmarkLatestResult,
+  FurmarkScoreRow,
   PwshResult,
   StoredSession,
+  AudioFileInfo,
 } from "./api";
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> =>
@@ -26,6 +30,15 @@ const lap = {
     furmarkDetect: () => invoke<FurmarkDetectResult>("lap:bench:furmark:detect"),
     furmarkLaunch: (exePath: string) =>
       invoke<PwshResult>("lap:bench:furmark:launch", exePath),
+    furmarkRun: (args: {
+      exePath: string;
+      width: number;
+      height: number;
+      durationSec: number;
+      api?: "gl" | "vk";
+    }) => invoke<FurmarkBenchmarkResult>("lap:bench:furmark:run", args),
+    furmarkReadScore: (csvPath: string) =>
+      invoke<FurmarkLatestResult>("lap:bench:furmark:readScore", csvPath),
     cpuBenchmark: (durationSec: number) =>
       invoke<{ stdout: string; stderr: string; exitCode: number }>("lap:bench:cpu-benchmark", durationSec),
   },
@@ -74,6 +87,16 @@ const lap = {
   },
   clipboard: {
     read: () => invoke<string>("lap:clipboard:read"),
+  },
+  audio: {
+    list: () =>
+      invoke<{ dir: string; items: AudioFileInfo[] }>("lap:audio:list"),
+    reveal: () =>
+      invoke<{ dir: string }>("lap:audio:reveal"),
+    add: () =>
+      invoke<{ added: number; skipped: string[] }>("lap:audio:add"),
+    read: (fileName: string) =>
+      invoke<{ mime: string; buffer: ArrayBuffer }>("lap:audio:read", fileName),
   },
   shell: {
     openExternal: (url: string) =>
