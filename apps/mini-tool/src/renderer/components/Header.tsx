@@ -64,8 +64,13 @@ export function Header({ appVersion }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden items-center gap-2 rounded-full border border-border/60 bg-card/50 px-3 py-1 text-xs text-muted-foreground sm:flex">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+        <div
+          className="hidden items-center gap-2 rounded-full border border-border/60 bg-card/50 px-3 py-1 text-xs text-muted-foreground sm:flex"
+          title={ktvMode
+            ? "Đang bật: hiện các thao tác nâng cao (Xoá thùng rác, Tắt ứng dụng khởi động, Defrag, Tắt BitLocker, Đổi tên máy)."
+            : "Bật để hiện thao tác nâng cao (KTV = Kỹ Thuật Viên)."}
+        >
+          <ShieldCheck className={`h-3.5 w-3.5 ${ktvMode ? "text-emerald-500" : "text-zinc-400"}`} />
           <span>Chế độ KTV</span>
           <Switch
             checked={ktvMode}

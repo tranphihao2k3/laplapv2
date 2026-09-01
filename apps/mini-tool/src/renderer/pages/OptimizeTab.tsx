@@ -43,6 +43,11 @@ interface OptimizeAction {
   icon: React.ReactNode;
   dangerous?: boolean;
   category: "clean" | "system" | "hardware" | "security";
+  /**
+   * Đánh dấu thao tác "nâng cao" — chỉ hiện khi KTV mode = ON.
+   * Mặc định false (hiện cho cả user thường).
+   */
+  requiresKtv?: boolean;
   run: (setLoading: (v: boolean) => void) => Promise<void>;
 }
 
@@ -90,6 +95,7 @@ function buildActions(
       icon: <Recycle className="h-4 w-4" />,
       category: "clean",
       dangerous: true,
+      requiresKtv: true,
       run: (setL) =>
         runPwshAction(setL, async () => {
           const res = await window.lap.optimize.emptyRecycle();
@@ -103,6 +109,7 @@ function buildActions(
       icon: <PowerOff className="h-4 w-4" />,
       category: "clean",
       dangerous: true,
+      requiresKtv: true,
       run: (setL) =>
         runPwshAction(setL, async () => {
           const res = await window.lap.optimize.disableStartup();
@@ -127,6 +134,7 @@ function buildActions(
       icon: <HardDrive className="h-4 w-4" />,
       category: "hardware",
       dangerous: false,
+      requiresKtv: true,
       run: (setL) =>
         runPwshAction(setL, async () => {
           if (drives.length === 0) {
@@ -154,6 +162,7 @@ function buildActions(
       icon: <ShieldOff className="h-4 w-4" />,
       category: "security",
       dangerous: true,
+      requiresKtv: true,
       run: (setL) =>
         runPwshAction(setL, async () => {
           const res = await window.lap.optimize.disableBitlocker();
@@ -169,6 +178,7 @@ function buildActions(
       icon: <PencilLine className="h-4 w-4" />,
       category: "system",
       dangerous: true,
+      requiresKtv: true,
       run: (setL) => {
         const input = document.getElementById("rename-pc-input") as HTMLInputElement | null;
         if (!input?.value) {
@@ -441,8 +451,12 @@ export function OptimizeTab() {
   }, []);
 
   const actions = React.useMemo(
-    () => buildActions((id, v) => setLoading(id, v), drives),
-    [drives, setLoading],
+    () => {
+      const all = buildActions((id, v) => setLoading(id, v), drives);
+      // Ẩn các thao tác nâng cao khi chưa bật KTV mode.
+      return ktvMode ? all : all.filter((a) => !a.requiresKtv);
+    },
+    [drives, setLoading, ktvMode],
   );
 
   const grouped = React.useMemo(() => {

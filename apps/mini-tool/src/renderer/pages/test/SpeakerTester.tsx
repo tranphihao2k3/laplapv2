@@ -1,5 +1,17 @@
 import * as React from "react";
-import { Play, Pause, Loader2, CheckCircle2, XCircle, Volume2, VolumeX, Speaker } from "lucide-react";
+import {
+  Play,
+  Pause,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Volume2,
+  VolumeX,
+  Speaker,
+  FolderOpen,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,217 +20,177 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/store";
+import type { AudioFileInfo } from "@/types/window";
 
-interface Song {
-  id: string;
-  title: string;
-  artist: string | null;
-  file_url: string;
-  duration_seconds: number | null;
-}
-
-const FALLBACK_SONGS: Song[] = [
-  {
-    id: "tone-440",
-    title: "Test Tone 440Hz",
-    artist: "LapLap Tool",
-    file_url: "generate:440",
-    duration_seconds: 3,
-  },
-  {
-    id: "tone-880",
-    title: "Test Tone 880Hz",
-    artist: "LapLap Tool",
-    file_url: "generate:880",
-    duration_seconds: 3,
-  },
-  {
-    id: "chirp",
-    title: "Chirp Test (20Hz-20kHz)",
-    artist: "LapLap Tool",
-    file_url: "generate:chirp",
-    duration_seconds: 5,
-  },
-];
-
-function generateTestTone(frequency: number, durationSec = 3, sampleRate = 44100): string {
-  const numSamples = sampleRate * durationSec;
-  const buffer = new ArrayBuffer(44 + numSamples * 2);
-  const view = new DataView(buffer);
-
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-  };
-  writeString(0, "RIFF");
-  view.setUint32(4, 36 + numSamples * 2, true);
-  writeString(8, "WAVE");
-  writeString(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, "data");
-  view.setUint32(40, numSamples * 2, true);
-
-  let offset = 44;
-  for (let i = 0; i < numSamples; i++) {
-    const t = i / sampleRate;
-    const envelope = Math.min(1, t * 10) * Math.min(1, (durationSec - t) * 10);
-    const sample = Math.sin(2 * Math.PI * frequency * t) * envelope * 0.8;
-    view.setInt16(offset, Math.round(sample * 32767), true);
-    offset += 2;
-  }
-
-  const blob = new Blob([buffer], { type: "audio/wav" });
-  return URL.createObjectURL(blob);
-}
-
-function generateChirp(durationSec = 5, sampleRate = 44100): string {
-  const numSamples = sampleRate * durationSec;
-  const buffer = new ArrayBuffer(44 + numSamples * 2);
-  const view = new DataView(buffer);
-
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-  };
-  writeString(0, "RIFF");
-  view.setUint32(4, 36 + numSamples * 2, true);
-  writeString(8, "WAVE");
-  writeString(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, "data");
-  view.setUint32(40, numSamples * 2, true);
-
-  let offset = 44;
-  for (let i = 0; i < numSamples; i++) {
-    const t = i / sampleRate;
-    const ratio = t / durationSec;
-    const freq = 20 + (20000 - 20) * ratio;
-    const envelope = Math.min(1, t * 5) * Math.min(1, (durationSec - t) * 5);
-    const sample = Math.sin(2 * Math.PI * freq * t) * envelope * 0.6;
-    view.setInt16(offset, Math.round(sample * 32767), true);
-    offset += 2;
-  }
-
-  const blob = new Blob([buffer], { type: "audio/wav" });
-  return URL.createObjectURL(blob);
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function SpeakerTester() {
   const { upsertTest } = useSessionStore();
-  const [songs, setSongs] = React.useState<Song[]>([]);
+  const [songs, setSongs] = React.useState<AudioFileInfo[]>([]);
+  const [audioDir, setAudioDir] = React.useState<string>("");
   const [loadingSongs, setLoadingSongs] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [currentIdx, setCurrentIdx] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [results, setResults] = React.useState<Record<string, "pass" | "fail">>({});
+  const [busy, setBusy] = React.useState<"add" | "refresh" | null>(null);
 
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
-  const blobUrlRef = React.useRef<string | null>(null);
 
+  // Cache blob URLs theo fileName để tránh request IPC nhiều lần
+  // và đảm bảo phát ổn định qua các lần chuyển tab / chọn lại.
+  const blobUrlCache = React.useRef<Map<string, string>>(new Map());
+  // Map từ current blob URL đang dùng → để revoke khi unmount
+  const loadedUrlsRef = React.useRef<Set<string>>(new Set());
+
+  const loadList = React.useCallback(async () => {
+    try {
+      setLoadingSongs(true);
+      const res = await window.lap.audio.list();
+      if (!res.ok || !res.data) {
+        throw new Error(res.error ?? "Không tải được danh sách audio");
+      }
+      setSongs(res.data.items);
+      setAudioDir(res.data.dir);
+      setError(null);
+      if (res.data.items.length === 0) {
+        setError("Thư mục audio trống. Bấm 'Thêm file nhạc' để thêm MP3/WAV.");
+      }
+    } catch (err) {
+      setError((err as Error).message);
+      setSongs([]);
+    } finally {
+      setLoadingSongs(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadList();
+  }, [loadList]);
+
+  // Reset index if list shrank
+  React.useEffect(() => {
+    if (currentIdx >= songs.length && songs.length > 0) {
+      setCurrentIdx(0);
+    }
+  }, [songs.length, currentIdx]);
+
+  /**
+   * Lấy blob URL cho 1 file audio. Cache lại để lần sau dùng ngay.
+   * Nếu cache lỗi (file bị xóa), tự xóa cache và retry.
+   */
+  const getBlobUrl = React.useCallback(async (song: AudioFileInfo): Promise<string> => {
+    const cached = blobUrlCache.current.get(song.fileName);
+    if (cached) return cached;
+    const res = await window.lap.audio.read(song.fileName);
+    if (!res.ok || !res.data) {
+      throw new Error(res.error ?? "Không đọc được file audio");
+    }
+    const blob = new Blob([res.data.buffer], { type: res.data.mime });
+    const url = URL.createObjectURL(blob);
+    blobUrlCache.current.set(song.fileName, url);
+    loadedUrlsRef.current.add(url);
+    return url;
+  }, []);
+
+  // Cleanup tất cả blob URLs khi unmount
   React.useEffect(() => {
     return () => {
-      audioRef.current?.pause();
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
+      for (const url of loadedUrlsRef.current) {
+        URL.revokeObjectURL(url);
       }
-    };
-  }, []);
-
-  React.useEffect(() => {
-    async function load() {
-      try {
-        setLoadingSongs(true);
-        const res = await fetch(
-          "https://laplapcantho.store/api/v1/speaker-songs?active_only=true&pageSize=10",
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as { data?: { items?: Song[] } };
-        const items = json.data?.items ?? [];
-        if (items.length > 0) {
-          setSongs(items);
-        } else {
-          setSongs(FALLBACK_SONGS);
-        }
-      } catch {
-        setError("Không tải được danh sách bài test. Dùng bài mặc định.");
-        setSongs(FALLBACK_SONGS);
-      } finally {
-        setLoadingSongs(false);
-      }
-    }
-    void load();
-  }, []);
-
-  React.useEffect(() => {
-    return () => {
+      loadedUrlsRef.current.clear();
+      blobUrlCache.current.clear();
       audioRef.current?.pause();
     };
   }, []);
-
-  const getAudioSrc = (song: Song): string => {
-    if (song.file_url.startsWith("generate:")) {
-      const type = song.file_url.replace("generate:", "");
-      if (type === "440") return generateTestTone(440, 3);
-      if (type === "880") return generateTestTone(880, 3);
-      if (type === "chirp") return generateChirp(5);
-      return generateTestTone(440, 3);
-    }
-    return song.file_url;
-  };
 
   const handleTogglePlay = async () => {
     const audio = audioRef.current;
     if (!audio || !songs[currentIdx]) return;
+    const song = songs[currentIdx];
     try {
       if (playing) {
         audio.pause();
         setPlaying(false);
-      } else {
-        // Revoke previous blob URL before creating new one
-        if (blobUrlRef.current) {
-          URL.revokeObjectURL(blobUrlRef.current);
-          blobUrlRef.current = null;
-        }
-        const src = getAudioSrc(songs[currentIdx]);
-        if (src.startsWith("blob:")) {
-          blobUrlRef.current = src;
-        }
-        audio.src = src;
-        audio.load();
-        await audio.play();
-        setPlaying(true);
+        return;
       }
+      // Lấy blob URL (cache sẵn cho những lần sau)
+      const url = await getBlobUrl(song);
+      if (audio.src !== url) {
+        audio.src = url;
+        audio.load();
+      }
+      await audio.play();
+      setPlaying(true);
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(`Không phát được: ${(err as Error).message}`);
+      setPlaying(false);
     }
   };
 
   const handleSelect = (idx: number) => {
+    if (idx === currentIdx) return;
     setCurrentIdx(idx);
     setPlaying(false);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      // Xóa src để browser giải phóng buffer; sẽ set lại khi user bấm Phát.
+      audioRef.current.removeAttribute("src");
+      audioRef.current.load();
     }
   };
 
-  const recordResult = (song: Song, result: "pass" | "fail") => {
+  const handleReveal = async () => {
+    try {
+      const res = await window.lap.audio.reveal();
+      if (!res.ok) toast.error(res.error ?? "Không mở được thư mục");
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const handleAdd = async () => {
+    try {
+      setBusy("add");
+      const res = await window.lap.audio.add();
+      if (!res.ok) {
+        toast.error(res.error ?? "Thêm file thất bại");
+        return;
+      }
+      if (res.data && res.data.added > 0) {
+        toast.success(`Đã thêm ${res.data.added} file vào thư mục audio`);
+        await loadList();
+      } else {
+        toast.info("Không có file nào được thêm");
+      }
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setBusy("refresh");
+      await loadList();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const recordResult = (song: AudioFileInfo, result: "pass" | "fail") => {
     setResults((r) => ({ ...r, [song.id]: result }));
     upsertTest({
       type: "speaker",
       result,
-      payload: { songId: song.id, title: song.title },
+      payload: { songId: song.id, title: song.title, file: song.fileName },
       capturedAt: new Date().toISOString(),
     });
     toast[result === "pass" ? "success" : "error"](
@@ -228,6 +200,7 @@ export function SpeakerTester() {
 
   const passCount = Object.values(results).filter((v) => v === "pass").length;
   const failCount = Object.values(results).filter((v) => v === "fail").length;
+  const currentSong = songs[currentIdx];
 
   return (
     <Card>
@@ -237,10 +210,47 @@ export function SpeakerTester() {
           Test loa
         </CardTitle>
         <CardDescription>
-          Phát từng bài và đánh dấu nghe rõ / có vấn đề. Dùng bài mặc định nếu API không tải được.
+          Phát từng bài và đánh dấu nghe rõ / có vấn đề. File nhạc được lưu cố định trong thư mục audio của
+          app, bạn có thể copy thêm MP3/WAV vào đó bất kỳ lúc nào.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleAdd} disabled={busy !== null}>
+            {busy === "add" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Thêm file nhạc
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleReveal}>
+            <FolderOpen className="h-4 w-4" />
+            Mở thư mục audio
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleRefresh}
+            disabled={busy !== null || loadingSongs}
+          >
+            {busy === "refresh" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Tải lại
+          </Button>
+          {audioDir ? (
+            <span
+              className="truncate text-[10px] text-muted-foreground"
+              title={audioDir}
+            >
+              {audioDir}
+            </span>
+          ) : null}
+        </div>
+
         {loadingSongs ? (
           <div className="space-y-2">
             <Skeleton className="h-12 w-full" />
@@ -251,7 +261,7 @@ export function SpeakerTester() {
 
         {error ? <p className="text-xs text-amber-500">{error}</p> : null}
 
-        {!loadingSongs ? (
+        {!loadingSongs && songs.length > 0 ? (
           <div className="space-y-2">
             {songs.map((song, i) => (
               <div
@@ -262,10 +272,17 @@ export function SpeakerTester() {
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{song.title}</p>
-                  {song.artist ? (
-                    <p className="truncate text-xs text-muted-foreground">{song.artist}</p>
-                  ) : null}
+                  <p className="flex items-center gap-2 truncate text-sm font-medium">
+                    {song.title}
+                    {song.source === "builtin" ? (
+                      <Badge variant="outline" className="text-[9px] uppercase">
+                        Mặc định
+                      </Badge>
+                    ) : null}
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {song.fileName} · {song.mime} · {fmtSize(song.sizeBytes)}
+                  </p>
                 </div>
                 <Button
                   size="sm"
@@ -301,27 +318,33 @@ export function SpeakerTester() {
           </div>
         ) : null}
 
-        {songs[currentIdx] ? (
+        {currentSong ? (
           <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
-            <Button onClick={handleTogglePlay} disabled={!songs[currentIdx]}>
+            <Button onClick={handleTogglePlay}>
               {playing ? <Pause className="h-4 w-4" /> : <Speaker className="h-4 w-4" />}
               {playing ? "Tạm dừng" : "Phát"}
             </Button>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm">
-                {songs[currentIdx].title}{" "}
+                {currentSong.title}{" "}
                 <span className="text-xs text-muted-foreground">
                   ({currentIdx + 1}/{songs.length})
                 </span>
               </p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {currentSong.fileName} · {currentSong.mime} · {fmtSize(currentSong.sizeBytes)}
+              </p>
             </div>
             <audio
               ref={audioRef}
-              preload="metadata"
+              preload="auto"
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
               onEnded={() => setPlaying(false)}
-              className="hidden"
+              onError={() => {
+                setPlaying(false);
+                toast.error("Audio element lỗi - kiểm tra file trong thư mục audio");
+              }}
             />
           </div>
         ) : null}

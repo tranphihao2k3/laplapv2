@@ -69,6 +69,7 @@ export interface GpuInfo {
   vramType: string | null;
   busWidth: number | null;
   computeUnits: number | null;
+  tdpW: number | null;
 }
 
 export interface MainboardInfo {
@@ -121,6 +122,18 @@ export interface NetworkInfo {
   type: string | null;
 }
 
+export interface AudioFileInfo {
+  id: string;
+  title: string;
+  fileName: string;
+  path: string;
+  url: string;
+  mime: string;
+  sizeBytes: number;
+  durationSec: number | null;
+  source: "builtin" | "user";
+}
+
 export interface CollectedHardware {
   cpu: CpuInfo | null;
   memory: MemoryInfo | null;
@@ -151,8 +164,44 @@ export type HardwarePart =
 export interface FurmarkDetectResult {
   found: boolean;
   path: string | null;
-  source: "env" | "where" | "registry" | null;
+  source: "env" | "where" | "appdata" | "packaged" | "repo" | null;
   version: string | null;
+  error?: string;
+}
+
+export interface FurmarkScoreRow {
+  date: string;
+  demo: string;
+  platform: string;
+  vendor: string;
+  renderer: string;
+  apiVersion: string;
+  width: number;
+  height: number;
+  fullscreen: string;
+  antialiasing: string;
+  duration: number;
+  maxGpuTemp: number;
+  score: number;
+  avgFps: number;
+  minFps: number;
+  maxFps: number;
+}
+
+export interface FurmarkBenchmarkResult {
+  ok: true;
+  csvPath: string;
+  pid: number;
+  exited: boolean;
+  exitCode: number | null;
+  pending: boolean;
+}
+
+export interface FurmarkLatestResult {
+  found: boolean;
+  row: FurmarkScoreRow | null;
+  csvPath: string | null;
+  error?: string;
 }
 
 export interface PwshResult {
@@ -185,6 +234,16 @@ export interface LapApi {
   bench: {
     furmarkDetect: () => Promise<IpcResult<FurmarkDetectResult>>;
     furmarkLaunch: (exePath: string) => Promise<IpcResult<PwshResult>>;
+    furmarkRun: (args: {
+      exePath: string;
+      width: number;
+      height: number;
+      durationSec: number;
+      api?: "gl" | "vk";
+    }) => Promise<IpcResult<FurmarkBenchmarkResult>>;
+    furmarkReadScore: (
+      csvPath: string,
+    ) => Promise<IpcResult<FurmarkLatestResult>>;
     cpuBenchmark: (durationSec: number) => Promise<IpcResult<PwshResult>>;
   };
   optimize: {
@@ -219,6 +278,12 @@ export interface LapApi {
   };
   clipboard: {
     read: () => Promise<IpcResult<string>>;
+  };
+  audio: {
+    list: () => Promise<IpcResult<{ dir: string; items: AudioFileInfo[] }>>;
+    reveal: () => Promise<IpcResult<{ dir: string }>>;
+    add: () => Promise<IpcResult<{ added: number; skipped: string[] }>>;
+    read: (fileName: string) => Promise<IpcResult<{ mime: string; buffer: ArrayBuffer }>>;
   };
   shell: {
     openExternal: (url: string) => Promise<IpcResult<boolean>>;

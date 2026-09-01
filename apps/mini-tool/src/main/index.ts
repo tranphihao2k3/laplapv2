@@ -1,8 +1,44 @@
-import { app, BrowserWindow, shell, session } from "electron";
+import { app, BrowserWindow, shell, session, protocol, net } from "electron";
 import path from "node:path";
-import { registerIpcHandlers } from "./ipc";
+import { registerIpcHandlers, setAudioDir } from "./ipc";
+import {
+  ensureTestAudioDir,
+  resolveAudioPath,
+  BUILTIN_AUDIO,
+} from "./audio";
 
 const isDev = !app.isPackaged;
+
+// Register custom scheme as privileged so it can serve audio (and bypass CSP).
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "lap-audio",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true,
+    },
+  },
+]);
+
+async function registerAudioProtocol(audioDir: string): Promise<void> {
+  protocol.handle("lap-audio", async (request) => {
+    try {
+      const url = new URL(request.url);
+      const resolved = await resolveAudioPath(audioDir, url.pathname);
+      if (!resolved) {
+        return new Response("Not found", { status: 404 });
+      }
+      return net.fetch(`file://${resolved.replace(/\\/g, "/")}`);
+    } catch (err) {
+      return new Response(`Audio error: ${(err as Error).message}`, {
+        status: 500,
+      });
+    }
+  });
+}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -23,7 +59,7 @@ function createWindow(): BrowserWindow {
 
   // Allow microphone and camera requests from the app
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    if (permission === "media" || permission === "media-video" || permission === "media-audio") {
+    if (permission === "media") {
       callback(true);
     } else {
       callback(false);
@@ -54,7 +90,12 @@ if (process.env["LAPLAP_PORTABLE"] === "1" || !app.isPackaged) {
   app.setPath("userData", path.join(process.cwd(), ".tmp-userdata"));
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const audioDir = await ensureTestAudioDir(app.getPath("userData"));
+  setAudioDir(audioDir);
+  await registerAudioProtocol(audioDir);
+  console.log(`[audio] test files ready at: ${audioDir}`);
+
   registerIpcHandlers();
   createWindow();
 

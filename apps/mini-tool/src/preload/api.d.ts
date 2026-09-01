@@ -155,8 +155,44 @@ export type HardwarePart =
 export interface FurmarkDetectResult {
   found: boolean;
   path: string | null;
-  source: "env" | "where" | "registry" | null;
+  source: "env" | "where" | "appdata" | "packaged" | "repo" | null;
   version: string | null;
+  error?: string;
+}
+
+export interface FurmarkBenchmarkResult {
+  ok: true;
+  csvPath: string;
+  pid: number;
+  exited: boolean;
+  exitCode: number | null;
+  pending: boolean;
+}
+
+export interface FurmarkLatestResult {
+  found: boolean;
+  row: FurmarkScoreRow | null;
+  csvPath: string | null;
+  error?: string;
+}
+
+export interface FurmarkScoreRow {
+  date: string;
+  demo: string;
+  platform: string;
+  vendor: string;
+  renderer: string;
+  apiVersion: string;
+  width: number;
+  height: number;
+  fullscreen: string;
+  antialiasing: string;
+  duration: number;
+  maxGpuTemp: number;
+  score: number;
+  avgFps: number;
+  minFps: number;
+  maxFps: number;
 }
 
 export interface PwshResult {
@@ -171,6 +207,18 @@ export interface StoredSession {
   webUrl: string;
   expiresAt: string;
   importedAt: string;
+}
+
+export interface AudioFileInfo {
+  id: string;
+  title: string;
+  fileName: string;
+  path: string;
+  url: string;
+  mime: string;
+  sizeBytes: number;
+  durationSec: number | null;
+  source: "builtin" | "user";
 }
 
 export interface UploadStatusData {
@@ -189,6 +237,16 @@ export interface LapApi {
   bench: {
     furmarkDetect: () => Promise<IpcResult<FurmarkDetectResult>>;
     furmarkLaunch: (exePath: string) => Promise<IpcResult<PwshResult>>;
+    furmarkRun: (input: {
+      exePath: string;
+      width: number;
+      height: number;
+      durationSec: number;
+      api?: "gl" | "vk";
+    }) => Promise<IpcResult<FurmarkBenchmarkResult>>;
+    furmarkReadScore: (
+      csvPath: string,
+    ) => Promise<IpcResult<FurmarkLatestResult>>;
     cpuBenchmark: (durationSec: number) => Promise<IpcResult<PwshResult>>;
   };
   optimize: {
@@ -223,6 +281,12 @@ export interface LapApi {
   };
   clipboard: {
     read: () => Promise<IpcResult<string>>;
+  };
+  audio: {
+    list: () => Promise<IpcResult<{ dir: string; items: AudioFileInfo[] }>>;
+    reveal: () => Promise<IpcResult<{ dir: string }>>;
+    add: () => Promise<IpcResult<{ added: number; skipped: string[] }>>;
+    read: (fileName: string) => Promise<IpcResult<{ mime: string; buffer: ArrayBuffer }>>;
   };
   shell: {
     openExternal: (url: string) => Promise<IpcResult<boolean>>;

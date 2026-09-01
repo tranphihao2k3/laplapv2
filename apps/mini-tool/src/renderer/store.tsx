@@ -55,6 +55,7 @@ export interface SessionStore {
 const Ctx = React.createContext<SessionStore | null>(null);
 
 const STORAGE_KEY = "laplap-mini-tool-v1";
+const HARDWARE_KEY = "laplap-mini-tool-hardware-v1";
 
 function loadSettings(): AppSettings {
   try {
@@ -70,7 +71,36 @@ function saveSettings(s: AppSettings): void {
   } catch {}
 }
 
+/**
+ * Persist hardware snapshot vào localStorage để cache qua page reload.
+ * Khi hardware không có (null) → xóa cache.
+ */
+function loadCachedHardware(): CollectedHardware | null {
+  try {
+    const raw = localStorage.getItem(HARDWARE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CollectedHardware;
+    if (parsed && typeof parsed === "object" && "cpu" in parsed) {
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+function saveCachedHardware(h: CollectedHardware | null): void {
+  try {
+    if (!h) {
+      localStorage.removeItem(HARDWARE_KEY);
+      return;
+    }
+    localStorage.setItem(HARDWARE_KEY, JSON.stringify(h));
+  } catch {
+    // localStorage có thể đầy hoặc bị disable; bỏ qua.
+  }
+}
+
 const initialSettings = loadSettings();
+const initialHardware = loadCachedHardware();
 
 const initial: Omit<
   SessionStore,
@@ -83,14 +113,14 @@ const initial: Omit<
   | "resetAll"
 > = {
   session: null,
-  hardware: null,
+  hardware: initialHardware,
   benchmark: null,
   tests: [],
   ktvMode: initialSettings.ktvModeDefault,
   settings: initialSettings,
 };
 
-function cloneState() {
+function cloneState(): Omit<SessionStore, keyof SessionStore> {
   return {
     session: initial.session,
     hardware: initial.hardware,
@@ -115,7 +145,10 @@ export function SessionStoreProvider(props: { children: React.ReactNode }) {
     () => ({
       ...state,
       setSession: (session) => setState((s) => ({ ...s, session })),
-      setHardware: (hardware) => setState((s) => ({ ...s, hardware })),
+      setHardware: (hardware) => {
+        saveCachedHardware(hardware);
+        setState((s) => ({ ...s, hardware }));
+      },
       setBenchmark: (benchmark) => setState((s) => ({ ...s, benchmark })),
       upsertTest: (t) =>
         setState((s) => {
@@ -136,7 +169,8 @@ export function SessionStoreProvider(props: { children: React.ReactNode }) {
         }),
       resetAll: () => {
         saveSettings(DEFAULT_SETTINGS);
-        setState(cloneState());
+        saveCachedHardware(null);
+        setState(cloneState() as never);
       },
     }),
     [state],

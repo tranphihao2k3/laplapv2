@@ -67,6 +67,7 @@ export type GpuInfo = {
   vramType: string | null;
   busWidth: number | null;
   computeUnits: number | null;
+  tdpW: number | null;
 };
 
 export type MainboardInfo = {
@@ -156,6 +157,38 @@ function Out-Error([string]$key, [string]$msg) {
 # ══════════════════════════════════════════════════════════════
 # CPU — WMI + Registry (HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor)
 # ══════════════════════════════════════════════════════════════
+function Convert-SocketDesignation {
+  param([string]$raw)
+  if (-not $raw -or $raw.Trim() -eq '') { return $null }
+  $r = $raw.Trim()
+  $map = @{
+    'FCLGA1700' = 'LGA1700 (Intel 12/13/14-gen)';
+    'LGA1700'   = 'LGA1700 (Intel 12/13/14-gen)';
+    'LGA1200'   = 'LGA1200 (Intel 10/11-gen)';
+    'LGA1151'   = 'LGA1151 (Intel 6/7/8/9-gen)';
+    'LGA1150'   = 'LGA1150 (Intel 4/5-gen)';
+    'LGA1155'   = 'LGA1155 (Intel 2/3-gen)';
+    'LGA1156'   = 'LGA1156 (Intel 1-gen)';
+    'LGA2066'   = 'LGA2066 (Intel X-series)';
+    'LGA2011'   = 'LGA2011 (Intel X-series)';
+    'LGA4189'   = 'LGA4189 (Intel Xeon Scalable)';
+    'LGA4189-4' = 'LGA4189-4 (Intel Xeon)';
+    'SP3'       = 'SP3 (AMD EPYC)';
+    'SP6'       = 'SP6 (AMD EPYC)';
+    'AM5'       = 'AM5 (AMD Ryzen 7000+)';
+    'AM4'       = 'AM4 (AMD Ryzen/AM4 APU)';
+    'AM3'       = 'AM3 (AMD Phenom II/Athlon II)';
+    'AM3PLUS'   = 'AM3+ (AMD FX)';
+    'FM2'       = 'FM2 (AMD Trinity APUs)';
+    'FM2PLUS'   = 'FM2+ (AMD Kaveri APUs)';
+    'STRX4'     = 'sTRX4 (AMD Threadripper 3000)';
+    'TR4'       = 'TR4 (AMD Threadripper 1000/2000)';
+  }
+  $key = $r.ToUpper().Replace(' ', '').Replace('+','PLUS')
+  if ($map.ContainsKey($key)) { return $map[$key] }
+  return $r
+}
+
 function Get-CpuDetails {
   $result = @{}
 
@@ -167,7 +200,6 @@ function Get-CpuDetails {
     $result['cores'] = if ($c.NumberOfCores -gt 0) { [int]$c.NumberOfCores } else { $null }
     $result['threads'] = if ($c.NumberOfLogicalProcessors -gt 0) { [int]$c.NumberOfLogicalProcessors } else { $null }
     $result['baseGhz'] = if ($c.MaxClockSpeed) { [math]::Round([double]$c.MaxClockSpeed / 1000.0, 2) } else { $null }
-    $result['socket'] = [string]$c.SocketDesignation
     $result['processNm'] = if ($c.LoadPercentage -ge 0) { [int]$c.LoadPercentage } else { $null }
     # Architecture: 0=x86, 5=ARM, 6=IA64, 9=AMD64, 12=ARM64
     $archMap = @{ 0 = 'x86'; 5 = 'ARM'; 6 = 'IA64'; 9 = 'AMD64'; 12 = 'ARM64' }
@@ -228,6 +260,31 @@ function Get-CpuDetails {
           if ($i+25 -lt $b.Length) {
             $smThreads = [int]$b[$i+25]
             if ($smThreads -gt 0) { $result['threads'] = $smThreads }
+          }
+          # Socket designation từ SMBIOS Type 4 offset 4 (string index 1-based)
+          if ($i+4 -lt $b.Length) {
+            $socketIdx = [int]$b[$i+4]
+            if ($socketIdx -gt 0) {
+              # Tìm string #socketIdx trong bảng string ngay sau structure body.
+              $strStart = $i + $len
+              $strNum = 1
+              $found = $false
+              while ($strStart -lt ($b.Length - 1) -and -not $found) {
+                if ($b[$strStart] -eq 0) { $strStart++ }
+                $strLen = [int]$b[$strStart]
+                if ($strNum -eq $socketIdx) {
+                  if ($strLen -gt 0 -and ($strStart + 1 + $strLen) -le $b.Length) {
+                    $raw = [System.Text.Encoding]::ASCII.GetString($b[($strStart+1)..($strStart+$strLen)])
+                    $socket = Convert-SocketDesignation $raw
+                    $result['socket'] = $socket
+                  }
+                  $found = $true
+                } else {
+                  $strStart += 1 + $strLen
+                  $strNum++
+                }
+              }
+            }
           }
           break
         }
@@ -317,6 +374,56 @@ function Get-CpuDetails {
 # ══════════════════════════════════════════════════════════════
 # Memory — WMI + SMBIOS Type 17 + Registry
 # ══════════════════════════════════════════════════════════════
+function Normalize-RamManufacturer {
+  param([string]$raw)
+  if (-not $raw -or $raw.Trim() -eq '') { return $null }
+  $r = $raw.Trim().ToLower()
+  
+  # Hex codes và vendor ID mapping
+  if ($r -match '^0x') {
+    $hex = $r -replace '^0x',''
+    switch ($hex) {
+      '802c' { return 'Micron' }
+      '80ad' { return 'SK hynix' }
+      '80ce' { return 'Samsung' }
+      '859b' { return 'Crucial' }
+      '04cd' { return 'Transcend' }
+      '014f' { return 'Transcend' }
+      '029e' { return 'Corsair' }
+      '04cb' { return 'A-DATA' }
+      '0215' { return 'Corsair' }
+      '0198' { return 'HyperX' }
+      '0420' { return 'Nanya' }
+      '1315' { return 'PNY' }
+      '867f' { return 'Kingston' }
+      default { return $raw }
+    }
+  }
+  
+  # Text matching
+  if ($r -match 'micron|crucial') { return 'Micron/Crucial' }
+  if ($r -match 'sk.*hynix|hynix') { return 'SK hynix' }
+  if ($r -match 'samsung') { return 'Samsung' }
+  if ($r -match 'kingston') { return 'Kingston' }
+  if ($r -match 'corsair') { return 'Corsair' }
+  if ($r -match 'g\.?skill|gskill') { return 'G.Skill' }
+  if ($r -match 'hyperx') { return 'HyperX (Kingston)' }
+  if ($r -match 'adata|a-data') { return 'ADATA' }
+  if ($r -match 'team.*group|teamgroup') { return 'Team Group' }
+  if ($r -match 'patriot') { return 'Patriot' }
+  if ($r -match 'mushkin') { return 'Mushkin' }
+  if ($r -match 'pny') { return 'PNY' }
+  if ($r -match 'transcend') { return 'Transcend' }
+  if ($r -match 'kingmax') { return 'Kingmax' }
+  if ($r -match 'apacer') { return 'Apacer' }
+  if ($r -match 'geil') { return 'GeIL' }
+  if ($r -match 'nanya') { return 'Nanya' }
+  if ($r -match 'elpida') { return 'Elpida' }
+  if ($r -match 'ramaxel') { return 'Ramaxel' }
+  
+  return $raw
+}
+
 function Get-SmbiosType17Max {
   $result = New-Object System.Collections.Generic.List[object]
   try {
@@ -449,7 +556,7 @@ function Get-MemoryTiming {
             $trp = $bytes[44]
             $tras = $bytes[45]
             if ($cl -and $trcd -and $trp -and $tras) {
-              return "${cl}-${trcd}-${trp}-${tras}"
+              return "\${cl}-\${trcd}-\${trp}-\${tras}"
             }
           }
         }
@@ -518,6 +625,7 @@ function Get-GpuDetails {
       vramType = $null
       busWidth = $null
       computeUnits = $null
+      tdpW = $null
     }
 
     # DirectX adapter info (chuẩn xác hơn cho VRAM)
@@ -554,27 +662,108 @@ function Get-GpuDetails {
       } catch {}
     }
 
-    # Compute units (GPU cores) - estimate từ tên GPU
+    # Compute units (GPU cores) + TDP - estimate từ tên GPU
     $vram = $item.vramMb
-    if ($gName -match 'rtx\s*40[89]0') { $item.computeUnits = 16384 }
-    elseif ($gName -match 'rtx\s*40[67]0') { $item.computeUnits = 9728 }
-    elseif ($gName -match 'rtx\s*40[56]0') { $item.computeUnits = 6144 }
-    elseif ($gName -match 'rtx\s*30[89]0') { $item.computeUnits = 10496 }
-    elseif ($gName -match 'rtx\s*30[67]0') { $item.computeUnits = 5888 }
-    elseif ($gName -match 'rtx\s*30[56]0') { $item.computeUnits = 4352 }
-    elseif ($gName -match 'rtx\s*20[89]0') { $item.computeUnits = 4352 }
-    elseif ($gName -match 'rtx\s*20[67]0') { $item.computeUnits = 2944 }
-    elseif ($gName -match 'rtx\s*20[56]0') { $item.computeUnits = 2176 }
-    elseif ($gName -match 'gtx\s*16[50]0') { $item.computeUnits = 1408 }
-    elseif ($gName -match 'gtx\s*16[30]0') { $item.computeUnits = 768 }
-    elseif ($gName -match 'rx\s*7[0-9]0\s*xt') { $item.computeUnits = 5120 }
-    elseif ($gName -match 'rx\s*7[0-9]0') { $item.computeUnits = 3584 }
-    elseif ($gName -match 'rx\s*6[0-9]0\s*xt') { $item.computeUnits = 4608 }
-    elseif ($gName -match 'rx\s*6[0-9]0') { $item.computeUnits = 2304 }
-    elseif ($gName -match 'rx\s*5[0-9]0') { $item.computeUnits = 2560 }
-    elseif ($gName -match 'arc\s*a[0-9]{3}') { $item.computeUnits = 2048 }
-    elseif ($gName -match 'intel.*uhd') { $item.computeUnits = 96 }
-    elseif ($gName -match 'intel.*iris') { $item.computeUnits = 384 }
+    
+    # NVIDIA Desktop RTX 50 series
+    if ($gName -match 'rtx\s*50[89]0') { $item.computeUnits = 21504; $item.tdpW = 575 }
+    elseif ($gName -match 'rtx\s*50[67]0') { $item.computeUnits = 12800; $item.tdpW = 400 }
+    elseif ($gName -match 'rtx\s*50[56]0') { $item.computeUnits = 8192; $item.tdpW = 250 }
+    
+    # NVIDIA Desktop RTX 40 series
+    elseif ($gName -match 'rtx\s*4090') { $item.computeUnits = 16384; $item.tdpW = 450 }
+    elseif ($gName -match 'rtx\s*4080') { $item.computeUnits = 9728; $item.tdpW = 320 }
+    elseif ($gName -match 'rtx\s*4070\s*ti\s*super') { $item.computeUnits = 8448; $item.tdpW = 285 }
+    elseif ($gName -match 'rtx\s*4070\s*ti') { $item.computeUnits = 7680; $item.tdpW = 285 }
+    elseif ($gName -match 'rtx\s*4070\s*super') { $item.computeUnits = 7168; $item.tdpW = 220 }
+    elseif ($gName -match 'rtx\s*4070') { $item.computeUnits = 5888; $item.tdpW = 200 }
+    elseif ($gName -match 'rtx\s*4060\s*ti') { $item.computeUnits = 4352; $item.tdpW = 165 }
+    elseif ($gName -match 'rtx\s*4060') { $item.computeUnits = 3072; $item.tdpW = 115 }
+    elseif ($gName -match 'rtx\s*4050') { $item.computeUnits = 2560; $item.tdpW = 100 }
+    
+    # NVIDIA Laptop RTX 40 series
+    elseif ($gName -match 'rtx\s*4090.*laptop') { $item.computeUnits = 9728; $item.tdpW = 175 }
+    elseif ($gName -match 'rtx\s*4080.*laptop') { $item.computeUnits = 7424; $item.tdpW = 150 }
+    elseif ($gName -match 'rtx\s*4070.*laptop') { $item.computeUnits = 4608; $item.tdpW = 140 }
+    elseif ($gName -match 'rtx\s*4060.*laptop') { $item.computeUnits = 3072; $item.tdpW = 115 }
+    elseif ($gName -match 'rtx\s*4050.*laptop') { $item.computeUnits = 2560; $item.tdpW = 95 }
+    
+    # NVIDIA Desktop RTX 30 series
+    elseif ($gName -match 'rtx\s*3090\s*ti') { $item.computeUnits = 10752; $item.tdpW = 450 }
+    elseif ($gName -match 'rtx\s*3090') { $item.computeUnits = 10496; $item.tdpW = 350 }
+    elseif ($gName -match 'rtx\s*3080\s*ti') { $item.computeUnits = 10240; $item.tdpW = 350 }
+    elseif ($gName -match 'rtx\s*3080') { $item.computeUnits = 8704; $item.tdpW = 320 }
+    elseif ($gName -match 'rtx\s*3070\s*ti') { $item.computeUnits = 6144; $item.tdpW = 290 }
+    elseif ($gName -match 'rtx\s*3070') { $item.computeUnits = 5888; $item.tdpW = 220 }
+    elseif ($gName -match 'rtx\s*3060\s*ti') { $item.computeUnits = 4864; $item.tdpW = 200 }
+    elseif ($gName -match 'rtx\s*3060') { $item.computeUnits = 3584; $item.tdpW = 170 }
+    elseif ($gName -match 'rtx\s*3050') { $item.computeUnits = 2560; $item.tdpW = 130 }
+    
+    # NVIDIA Laptop RTX 30 series
+    elseif ($gName -match 'rtx\s*3080.*laptop') { $item.computeUnits = 6144; $item.tdpW = 165 }
+    elseif ($gName -match 'rtx\s*3070.*laptop') { $item.computeUnits = 5120; $item.tdpW = 140 }
+    elseif ($gName -match 'rtx\s*3060.*laptop') { $item.computeUnits = 3840; $item.tdpW = 115 }
+    elseif ($gName -match 'rtx\s*3050.*laptop|rtx\s*3050\s*ti.*laptop') { $item.computeUnits = 2560; $item.tdpW = 95 }
+    
+    # NVIDIA RTX 20 series
+    elseif ($gName -match 'rtx\s*2080\s*ti') { $item.computeUnits = 4352; $item.tdpW = 260 }
+    elseif ($gName -match 'rtx\s*2080\s*super') { $item.computeUnits = 3072; $item.tdpW = 250 }
+    elseif ($gName -match 'rtx\s*2080') { $item.computeUnits = 2944; $item.tdpW = 215 }
+    elseif ($gName -match 'rtx\s*2070\s*super') { $item.computeUnits = 2560; $item.tdpW = 215 }
+    elseif ($gName -match 'rtx\s*2070') { $item.computeUnits = 2304; $item.tdpW = 175 }
+    elseif ($gName -match 'rtx\s*2060\s*super') { $item.computeUnits = 2176; $item.tdpW = 175 }
+    elseif ($gName -match 'rtx\s*2060') { $item.computeUnits = 1920; $item.tdpW = 160 }
+    
+    # NVIDIA GTX 16 series
+    elseif ($gName -match 'gtx\s*1660\s*ti') { $item.computeUnits = 1536; $item.tdpW = 120 }
+    elseif ($gName -match 'gtx\s*1660\s*super') { $item.computeUnits = 1408; $item.tdpW = 125 }
+    elseif ($gName -match 'gtx\s*1660') { $item.computeUnits = 1408; $item.tdpW = 120 }
+    elseif ($gName -match 'gtx\s*1650\s*super') { $item.computeUnits = 1280; $item.tdpW = 100 }
+    elseif ($gName -match 'gtx\s*1650') { $item.computeUnits = 896; $item.tdpW = 75 }
+    elseif ($gName -match 'gtx\s*1630') { $item.computeUnits = 512; $item.tdpW = 75 }
+    
+    # AMD Radeon RX 7000 series
+    elseif ($gName -match 'rx\s*7900\s*xtx') { $item.computeUnits = 6144; $item.tdpW = 355 }
+    elseif ($gName -match 'rx\s*7900\s*xt') { $item.computeUnits = 5376; $item.tdpW = 315 }
+    elseif ($gName -match 'rx\s*7800\s*xt') { $item.computeUnits = 3840; $item.tdpW = 263 }
+    elseif ($gName -match 'rx\s*7700\s*xt') { $item.computeUnits = 3456; $item.tdpW = 245 }
+    elseif ($gName -match 'rx\s*7600\s*xt') { $item.computeUnits = 2048; $item.tdpW = 190 }
+    elseif ($gName -match 'rx\s*7600') { $item.computeUnits = 2048; $item.tdpW = 165 }
+    
+    # AMD Radeon RX 6000 series
+    elseif ($gName -match 'rx\s*6950\s*xt') { $item.computeUnits = 5120; $item.tdpW = 335 }
+    elseif ($gName -match 'rx\s*6900\s*xt') { $item.computeUnits = 5120; $item.tdpW = 300 }
+    elseif ($gName -match 'rx\s*6800\s*xt') { $item.computeUnits = 4608; $item.tdpW = 300 }
+    elseif ($gName -match 'rx\s*6800') { $item.computeUnits = 3840; $item.tdpW = 250 }
+    elseif ($gName -match 'rx\s*6750\s*xt') { $item.computeUnits = 2560; $item.tdpW = 250 }
+    elseif ($gName -match 'rx\s*6700\s*xt') { $item.computeUnits = 2560; $item.tdpW = 230 }
+    elseif ($gName -match 'rx\s*6700') { $item.computeUnits = 2304; $item.tdpW = 175 }
+    elseif ($gName -match 'rx\s*6650\s*xt') { $item.computeUnits = 2048; $item.tdpW = 180 }
+    elseif ($gName -match 'rx\s*6600\s*xt') { $item.computeUnits = 2048; $item.tdpW = 160 }
+    elseif ($gName -match 'rx\s*6600') { $item.computeUnits = 1792; $item.tdpW = 132 }
+    elseif ($gName -match 'rx\s*6500\s*xt') { $item.computeUnits = 1024; $item.tdpW = 107 }
+    elseif ($gName -match 'rx\s*6400') { $item.computeUnits = 768; $item.tdpW = 53 }
+    
+    # AMD Radeon RX 5000 series
+    elseif ($gName -match 'rx\s*5700\s*xt') { $item.computeUnits = 2560; $item.tdpW = 225 }
+    elseif ($gName -match 'rx\s*5700') { $item.computeUnits = 2304; $item.tdpW = 180 }
+    elseif ($gName -match 'rx\s*5600\s*xt') { $item.computeUnits = 2304; $item.tdpW = 150 }
+    elseif ($gName -match 'rx\s*5500\s*xt') { $item.computeUnits = 1408; $item.tdpW = 130 }
+    
+    # Intel Arc
+    elseif ($gName -match 'arc\s*a770') { $item.computeUnits = 4096; $item.tdpW = 225 }
+    elseif ($gName -match 'arc\s*a750') { $item.computeUnits = 3584; $item.tdpW = 225 }
+    elseif ($gName -match 'arc\s*a580') { $item.computeUnits = 3072; $item.tdpW = 185 }
+    elseif ($gName -match 'arc\s*a380') { $item.computeUnits = 1024; $item.tdpW = 75 }
+    elseif ($gName -match 'arc\s*a310') { $item.computeUnits = 768; $item.tdpW = 75 }
+    
+    # Intel Integrated Graphics
+    elseif ($gName -match 'intel.*uhd.*770') { $item.computeUnits = 256; $item.tdpW = 30 }
+    elseif ($gName -match 'intel.*uhd.*730') { $item.computeUnits = 192; $item.tdpW = 25 }
+    elseif ($gName -match 'intel.*uhd.*630|intel.*uhd.*graphics\s*630') { $item.computeUnits = 192; $item.tdpW = 25 }
+    elseif ($gName -match 'intel.*uhd') { $item.computeUnits = 96; $item.tdpW = 15 }
+    elseif ($gName -match 'intel.*iris.*xe') { $item.computeUnits = 768; $item.tdpW = 28 }
+    elseif ($gName -match 'intel.*iris') { $item.computeUnits = 384; $item.tdpW = 28 }
 
     $gpuList.Add($item) | Out-Null
   }
@@ -775,6 +964,7 @@ try {
       elseif ($gen -in 'DDR','DDR2','DDR3','DDR4','DDR?') { $platMaxForGen = $platMax.ddr4Max }
     }
     $timing = Get-MemoryTiming $slot
+    $normalizedMfr = Normalize-RamManufacturer ([string]$m.Manufacturer)
     $modules.Add(@{
       slot = $slot
       sizeBytes = $cap
@@ -784,7 +974,7 @@ try {
       platformMaxMhz = $platMaxForGen
       type = [string]$m.MemoryType
       generation = $gen
-      manufacturer = [string]$m.Manufacturer
+      manufacturer = $normalizedMfr
       partNumber = [string]$m.PartNumber
       serialNumber = [string]$m.SerialNumber
       voltageMv = if ($m.ConfiguredVoltage -gt 0) { [int]($m.ConfiguredVoltage / 1000) } else { $null }

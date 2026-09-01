@@ -18,8 +18,6 @@ import {
   Volume2,
   VolumeX,
   Music2,
-  ArrowLeft,
-  ArrowRight,
   X,
 } from "lucide-react";
 
@@ -30,6 +28,7 @@ export type Song = {
   artist: string | null;
   file_url: string;
   duration_seconds: number | null;
+  source?: "builtin" | "remote";
 };
 
 export type Channel = "left" | "right" | "both";
@@ -94,10 +93,75 @@ async function safePause(
   audio.pause();
 }
 
+// ── Built-in test audio (served by Next.js API route) ────────────────────────
+const BUILTIN_SONGS: Song[] = [
+  {
+    id: "test-tone-440",
+    title: "Test Tone 440 Hz",
+    artist: "LapLap Test",
+    file_url: "/api/v1/test-audio/440",
+    duration_seconds: 3,
+    source: "builtin",
+  },
+  {
+    id: "test-tone-880",
+    title: "Test Tone 880 Hz",
+    artist: "LapLap Test",
+    file_url: "/api/v1/test-audio/880",
+    duration_seconds: 3,
+    source: "builtin",
+  },
+  {
+    id: "test-tone-1000",
+    title: "Test Tone 1 kHz",
+    artist: "LapLap Test",
+    file_url: "/api/v1/test-audio/1000",
+    duration_seconds: 3,
+    source: "builtin",
+  },
+  {
+    id: "test-chirp",
+    title: "Chirp 20 Hz → 20 kHz",
+    artist: "LapLap Test",
+    file_url: "/api/v1/test-audio/chirp",
+    duration_seconds: 5,
+    source: "builtin",
+  },
+];
+
+const CACHE_NAME = "laplap-test-audio-v1";
+
+/**
+ * Pre-fetch & cache all built-in test audio into Cache Storage so subsequent
+ * plays are instant and survive offline. Fire-and-forget — failures are
+ * silently logged because the network fetch itself is the fallback path.
+ */
+async function precacheBuiltinAudio(): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const urls = BUILTIN_SONGS.map((s) => s.file_url);
+    await Promise.all(
+      urls.map(async (url) => {
+        const cached = await cache.match(url);
+        if (cached) return;
+        try {
+          const res = await fetch(url, { cache: "reload" });
+          if (res.ok) await cache.put(url, res.clone());
+        } catch {
+          // ignore — first play will still work via direct fetch
+        }
+      }),
+    );
+  } catch (err) {
+    console.warn("[audio] precache failed", err);
+  }
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 export function TestLaptopAudioProvider({ children }: { children: React.ReactNode }) {
   // Songs
-  const [songs, setSongs] = useState<Song[]>([]);
+  const [songs, setSongs] = useState<Song[]>(BUILTIN_SONGS);
   const [loadingSongs, setLoadingSongs] = useState(true);
   const [songsError, setSongsError] = useState<string | null>(null);
 
@@ -119,9 +183,13 @@ export function TestLaptopAudioProvider({ children }: { children: React.ReactNod
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playPromiseRef = useRef<Promise<void> | null>(null);
 
-  // ── Fetch songs ─────────────────────────────────────────────────────────────
+  // ── Pre-cache built-in audio + fetch remote songs ───────────────────────────
   useEffect(() => {
     let cancelled = false;
+
+    // Kick off cache pre-fetch in parallel; do not block UI
+    void precacheBuiltinAudio();
+
     (async () => {
       try {
         setLoadingSongs(true);
@@ -129,16 +197,25 @@ export function TestLaptopAudioProvider({ children }: { children: React.ReactNod
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
-        const items: Song[] = json?.data?.items ?? [];
-        setSongs(items);
+        const items: Song[] = (json?.data?.items ?? []).map((s: Song) => ({
+          ...s,
+          source: "remote",
+        }));
+        // Built-in first, then remote
+        setSongs([...BUILTIN_SONGS, ...items]);
+        setSongsError(null);
       } catch (e) {
         if (cancelled) return;
-        setSongsError("Không thể tải danh sách bài nhạc.");
-        console.error(e);
+        // Keep built-in list, show a friendly notice
+        setSongsError(
+          "Không tải được danh sách bài nhạc từ máy chủ. Vẫn dùng được các bài test mặc định.",
+        );
+        console.warn("[audio] remote song fetch failed", e);
       } finally {
         if (!cancelled) setLoadingSongs(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -181,8 +258,7 @@ export function TestLaptopAudioProvider({ children }: { children: React.ReactNod
 
     if (!audioRef.current) {
       const audio = new Audio();
-      audio.crossOrigin = "anonymous";
-      audio.preload = "metadata";
+      audio.preload = "auto";
 
       audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
       audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
@@ -246,7 +322,7 @@ export function TestLaptopAudioProvider({ children }: { children: React.ReactNod
         if ((e as DOMException)?.name === "AbortError") return;
         setIsPlaying(false);
         if ((e as DOMException)?.name === "NotSupportedError") {
-          setSongsError("Không phát được file nhạc này (thiếu file trên Supabase Storage).");
+          setSongsError("Không phát được file nhạc này (thiếu file hoặc server chưa sẵn sàng).");
         }
       }
     }
@@ -351,7 +427,6 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
     currentTime,
     duration,
     volume,
-    channel,
     songs,
     currentIdx,
     collapsed,
@@ -363,11 +438,12 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
     seek,
     setChannel,
     setVolume,
-    setIdx,
   } = useAudioPlayer();
 
   // Ẩn hoàn toàn nếu chưa có bài hoặc đang load
   if (loadingSongs || !hasSongs || !currentSong) return null;
+
+  const isBuiltin = currentSong.source === "builtin";
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 pointer-events-none">
@@ -384,6 +460,7 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
               <p className="truncate text-xs font-semibold">{currentSong.title}</p>
               <p className="truncate text-[10px] text-zinc-500">
                 {currentSong.artist ?? "Đang phát"}
+                {isBuiltin ? " · local" : ""}
               </p>
             </div>
             <button
@@ -418,6 +495,7 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
                 </p>
                 <p className="truncate text-xs text-zinc-500">
                   {currentSong.artist ?? "Đang phát"} · {currentIdx + 1}/{songs.length}
+                  {isBuiltin ? " · local" : ""}
                 </p>
               </div>
               <button
