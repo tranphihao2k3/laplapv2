@@ -127,6 +127,31 @@ const BUILTIN_SONGS: Song[] = [
     duration_seconds: 5,
     source: "builtin",
   },
+  // ── Real music files (served from /public/Music/) ──────────────────────────
+  {
+    id: "music-hong-nhan-remix",
+    title: "Hồng Nhan Remix 2025",
+    artist: "Jack - J97 x Ness Remix",
+    file_url: "/Music/hong-nhan-remix-ness.mp3",
+    duration_seconds: 713,
+    source: "builtin",
+  },
+  {
+    id: "music-khuon-mat-dang-thuong",
+    title: "Khuôn Mặt Đáng Thương (Synthwave)",
+    artist: "Sơn Tùng M-TP",
+    file_url: "/Music/khuon-mat-dang-thuong-sontung-synthwave.mp3",
+    duration_seconds: 540,
+    source: "builtin",
+  },
+  {
+    id: "music-nhac-nay-nay",
+    title: "Nhạc Này Nẩy (Rap Việt Mix)",
+    artist: "HIEUTHUHAI, 24K.Right, Obito, Gill, Wxrdie, Tazle...",
+    file_url: "/Music/nhac-nay-nay-rap-viet-mix.mp3",
+    duration_seconds: 2625,
+    source: "builtin",
+  },
 ];
 
 const CACHE_NAME = "laplap-test-audio-v1";
