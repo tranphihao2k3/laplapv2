@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Edit, Save, X, FileText, Cpu, Gift, Layers3, Eye, Pencil, ClipboardCopy, LayoutGrid, List, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -158,14 +158,21 @@ export default function ProductsAdminPage() {
   // Tab cho ô mô tả chi tiết: chỉnh sửa HTML thô / xem preview render
   // Mặc định mở "preview" để user thấy ngay layout thật, click "Chỉnh sửa" khi cần soạn.
   const [descriptionTab, setDescriptionTab] = useState<"edit" | "preview">("preview");
+  const [imageDragging, setImageDragging] = useState(false);
 
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    handleImageFiles(Array.from(files));
+    e.target.value = "";
+  };
+
+  const handleImageFiles = (files: File[]) => {
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
 
     const newFiles: { file: File; localUrl: string }[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (const file of imageFiles) {
       const localUrl = URL.createObjectURL(file);
       newFiles.push({ file, localUrl });
     }
@@ -174,6 +181,34 @@ export default function ProductsAdminPage() {
     if (!coverUrl && newFiles.length > 0) {
       setCoverUrl(newFiles[0].localUrl);
     }
+  };
+
+  const onImageDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const onImageDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setImageDragging(true);
+  };
+
+  const onImageDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only clear dragging if leaving the drop zone entirely
+    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as HTMLElement)) {
+      setImageDragging(false);
+    }
+  };
+
+  const onImageDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setImageDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    handleImageFiles(files);
   };
 
   // Variants in current form
@@ -620,7 +655,37 @@ export default function ProductsAdminPage() {
     setVariants((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSave = async () => {
+  /** Reset form fields sau khi lưu thành công (dùng khi "Lưu & thêm tiếp"). */
+  const resetProductForm = () => {
+    setName("");
+    setSlug("");
+    setStatus("active");
+    setBrandId("");
+    setCategoryId("");
+    setSpecTemplateId("");
+    setSpecValues({});
+    setShortDesc("");
+    setDescription("");
+    setThumbnailUrl("");
+    setCoverUrl("");
+    setExistingImages([]);
+    setSelectedFiles([]);
+    setTagsInput("");
+    setSelectedGifts([]);
+    setSlugTouched(false);
+    setQuickPrice("");
+    setQuickStock(1);
+    // Kho giữ nguyên, chỉ reset variants
+    setVariants([]);
+    // Reset mô tả tab về preview
+    setDescriptionTab("preview");
+    // Revoke any remaining preview URLs
+    for (const item of selectedFiles) {
+      URL.revokeObjectURL(item.localUrl);
+    }
+  };
+
+  const handleSave = async (addAnother = false) => {
     if (!name || !slug) {
       toast.error("Vui lòng điền Tên và Slug sản phẩm");
       return;
@@ -763,11 +828,20 @@ export default function ProductsAdminPage() {
         }
       }
 
+      // Dọn preview URLs trước
       for (const item of selectedFiles) {
         URL.revokeObjectURL(item.localUrl);
       }
       setSelectedFiles([]);
-      setOpen(false);
+
+      if (addAnother) {
+        // Thêm tiếp: reset form nhưng giữ dialog mở + invalidate list để thấy sản phẩm vừa tạo
+        resetProductForm();
+        productsQuery.refetch();
+        toast.success(`Đã tạo "${savedProduct.name}". Tiếp tục thêm sản phẩm khác...`);
+      } else {
+        setOpen(false);
+      }
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -1231,7 +1305,13 @@ export default function ProductsAdminPage() {
               </div>
 
               {/* Ảnh đại diện — gọn hơn ở section cơ bản */}
-              <div className="space-y-2">
+              <div
+                className={`space-y-2 transition-all ${imageDragging ? "opacity-80" : ""}`}
+                onDragOver={onImageDragOver}
+                onDragEnter={onImageDragEnter}
+                onDragLeave={onImageDragLeave}
+                onDrop={onImageDrop}
+              >
                 <div className="flex items-center justify-between">
                   <Label>Hình ảnh sản phẩm</Label>
                   <Label
@@ -1251,12 +1331,28 @@ export default function ProductsAdminPage() {
                   />
                 </div>
                 {imagePreviews.length === 0 ? (
-                  <div className="border border-dashed rounded-lg p-4 text-center text-xs text-muted-foreground bg-muted/20">
-                    Chưa có hình ảnh. Tải lên để bắt đầu — click ảnh để chọn làm đại diện.
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-6 text-center text-xs transition-colors cursor-pointer ${imageDragging
+                        ? "border-primary bg-primary/5 text-primary font-medium"
+                        : "border-muted-foreground/40 bg-muted/20 text-muted-foreground"
+                      }`}
+                    onClick={() => document.getElementById("product-thumb-upload")?.click()}
+                  >
+                    {imageDragging ? (
+                      <>Thả ảnh vào đây...</>
+                    ) : (
+                      <>Chưa có hình ảnh. Kéo thả ảnh vào đây hoặc nhấn "Tải ảnh" — click ảnh để chọn làm đại diện.</>
+                    )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 sm:gap-3">
-                    {imagePreviews.map((imgUrl) => {
+                  <div className="relative">
+                    {imageDragging && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-primary bg-primary/10 backdrop-blur-sm">
+                        <span className="text-primary font-semibold text-sm">Thả ảnh để thêm...</span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 sm:gap-3">
+                      {imagePreviews.map((imgUrl) => {
                       const isCover = imgUrl === coverUrl;
                       return (
                         <div
@@ -1720,7 +1816,17 @@ export default function ProductsAdminPage() {
 
           <DialogFooter className="shrink-0 gap-2 sm:gap-2 border-t bg-background px-4 py-3 sm:px-6 sm:py-4">
             <Button variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">Huỷ</Button>
-            <Button onClick={handleSave} disabled={createProduct.isPending || updateProduct.isPending} className="w-full sm:w-auto">
+            {!editingProduct && (
+              <Button
+                variant="secondary"
+                onClick={() => void handleSave(true)}
+                disabled={createProduct.isPending || uploading}
+                className="w-full sm:w-auto"
+              >
+                <Plus className="mr-2 h-4 w-4" /> Lưu &amp; thêm tiếp
+              </Button>
+            )}
+            <Button onClick={() => void handleSave(false)} disabled={createProduct.isPending || updateProduct.isPending || uploading} className="w-full sm:w-auto">
               <Save className="mr-2 h-4 w-4" /> {editingProduct ? "Lưu thay đổi" : "Tạo sản phẩm"}
             </Button>
           </DialogFooter>

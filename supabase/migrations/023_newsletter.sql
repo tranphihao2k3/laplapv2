@@ -189,10 +189,8 @@ CREATE TRIGGER trg_notify_new_product_upd
   EXECUTE FUNCTION notify_new_product();
 
 
--- 6) Helper view: subscriber_count cho dashboard admin (optional, khong bat buoc)
--- Comment vi migration nen minimal, them sau neu can.
--- CREATE OR REPLACE VIEW v_newsletter_stats AS
--- SELECT
---   (SELECT COUNT(*) FROM newsletter_subscribers WHERE is_active AND confirmed) AS active_count,
---   (SELECT COUNT(*) FROM newsletter_subscribers WHERE NOT confirmed) AS pending_confirm,
---   (SELECT COUNT(*) FROM newsletter_outbox WHERE status = 'pending') AS pending_emails;
+-- newsletter_outbox: no policy = all denied. Add INSERT so product trigger works.
+CREATE POLICY "Allow authenticated inserts on newsletter_outbox"
+  ON newsletter_outbox FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
