@@ -224,7 +224,7 @@ export default function PaymentsPage() {
     const all = baseQ.data?.items ?? [];
     let collected = 0;
     let refunded = 0;
-    let count = all.length;
+    const count = all.length;
     for (const p of all) {
       const amt = Number(p.amount ?? 0);
       if (p.status === "refunded") refunded += amt;
