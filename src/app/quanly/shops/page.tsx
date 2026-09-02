@@ -298,7 +298,7 @@ export default function ShopsPage() {
           <DialogHeader>
             <DialogTitle>Thêm cửa hàng</DialogTitle>
             <DialogDescription>
-              Mã cửa hàng phải duy nhất trong hệ thống.
+              Mã cửa hàng sẽ được tự động tạo từ tên.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -306,13 +306,6 @@ export default function ShopsPage() {
               <Input
                 value={newForm.name ?? ""}
                 onChange={(e) => setNewForm((p) => ({ ...p, name: e.target.value }))}
-              />
-            </Field>
-            <Field label="Mã" required>
-              <Input
-                value={newForm.code ?? ""}
-                onChange={(e) => setNewForm((p) => ({ ...p, code: e.target.value }))}
-                placeholder="LPL-CT02"
               />
             </Field>
             <Field label="Số điện thoại">
@@ -340,7 +333,7 @@ export default function ShopsPage() {
               Huỷ
             </Button>
             <Button
-              disabled={create.isPending || !newForm.name || !newForm.code}
+              disabled={create.isPending || !newForm.name}
               onClick={() => {
                 create.mutate(newForm, {
                   onSuccess: () => {

@@ -19,10 +19,11 @@ export const organizationCreateSchema = z.object({
 export const organizationUpdateSchema = organizationCreateSchema.partial();
 
 // shops
+// shops — code is auto-generated server-side from name when not provided
 export const shopCreateSchema = z.object({
   organization_id: uuid.optional(),
   name: z.string().min(1).max(200),
-  code: z.string().min(1).max(50),
+  code: z.string().min(1).max(50).optional(),
   phone: phoneVN,
   email: email,
   address: z.string().nullable().optional(),
