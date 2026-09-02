@@ -8,6 +8,7 @@ export type ProductVariant = {
   cost_price: number | null;
   weight: number | null;
   is_active: boolean | null;
+  stock_qty: number;
 };
 
 export type ProductWithVariants = {

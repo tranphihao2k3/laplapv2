@@ -1,4 +1,7 @@
+"use client";
+
 import { ShieldCheck, Truck, RotateCcw, Headphones, CreditCard, PackageCheck } from "lucide-react";
+import { useStoreSettings } from "@/components/client/layout/use-store-settings";
 
 const POLICIES = [
   {
@@ -13,7 +16,7 @@ const POLICIES = [
   },
   {
     icon: RotateCcw,
-    title: "Đổi trả trong 15 ngày",
+    title: "Đổi trả 15 ngày",
     desc: "Đổi trả miễn phí trong vòng 15 ngày nếu sản phẩm lỗi do nhà sản xuất hoặc không đúng mô tả.",
   },
   {
@@ -34,9 +37,25 @@ const POLICIES = [
 ];
 
 export function WarrantyPolicy() {
+  const { settings } = useStoreSettings();
+  
+  // Get dynamic return policy days
+  const returnDays = settings?.return_policy_days ?? 15;
+  
+  // Update the return policy title dynamically
+  const policies = POLICIES.map((policy) => {
+    if (policy.title === "Đổi trả 15 ngày") {
+      return {
+        ...policy,
+        title: `Đổi trả ${returnDays} ngày`,
+      };
+    }
+    return policy;
+  });
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {POLICIES.map((p) => {
+      {policies.map((p) => {
         const Icon = p.icon;
         return (
           <div

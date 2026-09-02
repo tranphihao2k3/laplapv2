@@ -47,6 +47,19 @@ async function getProductBySlug(slug: string): Promise<ProductWithVariants | nul
   const variants: any[] = rawVariants ?? [];
   const activeVariants = variants.filter((v: { is_active?: boolean | null }) => v.is_active !== false);
 
+  // Fetch stock levels for active variants.
+  const stockByVariant = new Map<string, number>();
+  if (activeVariants.length > 0) {
+    const { data: rawStocks } = await supabase
+      .from("stock_levels")
+      .select("product_variant_id, available_qty")
+      .in("product_variant_id", activeVariants.map((v: { id: string }) => v.id));
+    for (const s of (rawStocks ?? []) as { product_variant_id: string | null; available_qty: number | null }[]) {
+      if (!s.product_variant_id) continue;
+      stockByVariant.set(s.product_variant_id, (stockByVariant.get(s.product_variant_id) ?? 0) + (s.available_qty ?? 0));
+    }
+  }
+
   // Gallery: ưu tiên mảng images, fallback về thumbnail_url.
   const galleryUrls: string[] = Array.isArray(product.images) && product.images.length > 0
     ? (product.images as string[]).filter(Boolean)
@@ -86,6 +99,7 @@ async function getProductBySlug(slug: string): Promise<ProductWithVariants | nul
       cost_price: v.cost_price,
       weight: v.weight,
       is_active: v.is_active,
+      stock_qty: stockByVariant.get(v.id) ?? 0,
     })),
     images,
   };

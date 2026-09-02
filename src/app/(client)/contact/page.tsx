@@ -8,16 +8,17 @@ import {
   MessageCircle,
   Facebook,
   Send,
-  Headphones,
   Building2,
   ArrowRight,
+  Globe,
+  Video,
 } from "lucide-react";
 import { env } from "@/lib/env";
 import { getStoreInfo } from "@/lib/store-info";
 import { telHref } from "@/lib/shop-info";
 import { Reveal } from "@/components/client/home/reveal";
 import { ContactForm } from "@/components/shared/contact-form";
-import { cn } from "@/lib/utils";
+import { ContactChannels } from "@/components/client/contact/contact-channels";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
@@ -38,47 +39,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const CHANNELS = [
-  {
-    Icon: Phone,
-    title: "Hotline bán hàng",
-    value: "1900 1234",
-    desc: "Tư vấn sản phẩm, báo giá, đặt hàng.",
-    accent:
-      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
-  },
-  {
-    Icon: Headphones,
-    title: "Hỗ trợ kỹ thuật",
-    value: "1900 1235",
-    desc: "Hỗ trợ sau bán hàng, bảo hành, sửa chữa.",
-    accent:
-      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
-  },
-  {
-    Icon: MessageCircle,
-    title: "Zalo / WhatsApp",
-    value: "0901 234 567",
-    desc: "Chat nhanh qua Zalo OA, phản hồi trong 5 phút.",
-    accent:
-      "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800",
-  },
-  {
-    Icon: Mail,
-    title: "Email",
-    value: "info@laplap.vn",
-    desc: "Gửi yêu cầu chi tiết, đính kèm tài liệu.",
-    accent:
-      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
-  },
-];
-
-const HOURS = [
-  { day: "Thứ 2 - Thứ 6", time: "8:00 - 21:00" },
-  { day: "Thứ 7", time: "8:00 - 22:00" },
-  { day: "Chủ nhật", time: "9:00 - 20:00" },
-];
-
 export default async function ContactPage() {
   const store = await getStoreInfo();
   const tel = telHref(store.phone);
@@ -87,6 +47,30 @@ export default async function ContactPage() {
   const mapsQuery = encodeURIComponent(store.address);
   const mapsEmbedUrl = `https://www.google.com/maps?q=${mapsQuery}&output=embed`;
   const mapsLink = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+
+  // Build opening hours display from store.opening_hours
+  const hoursDisplay = [];
+  if (store.opening_hours?.weekday) {
+    hoursDisplay.push({ day: "Thứ 2 - Thứ 6", time: store.opening_hours.weekday });
+  }
+  if (store.opening_hours?.saturday) {
+    hoursDisplay.push({ day: "Thứ 7", time: store.opening_hours.saturday });
+  }
+  if (store.opening_hours?.sunday) {
+    hoursDisplay.push({ day: "Chủ nhật", time: store.opening_hours.sunday });
+  }
+  if (store.opening_hours?.weekend) {
+    hoursDisplay.push({ day: "Cuối tuần", time: store.opening_hours.weekend });
+  }
+  if (store.opening_hours?.holidays) {
+    hoursDisplay.push({ day: "Ngày lễ", time: store.opening_hours.holidays });
+  }
+  // Fallback if nothing set
+  if (hoursDisplay.length === 0) {
+    hoursDisplay.push({ day: "Thứ 2 - Thứ 6", time: "8:00 - 21:00" });
+    hoursDisplay.push({ day: "Thứ 7", time: "8:00 - 22:00" });
+    hoursDisplay.push({ day: "Chủ nhật", time: "9:00 - 20:00" });
+  }
 
   return (
     <div className="pb-20">
@@ -133,27 +117,7 @@ export default async function ContactPage() {
 
       {/* Quick contact channels */}
       <section className="container pt-12 md:pt-16">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {CHANNELS.map(({ Icon, title, value, desc, accent }, i) => (
-            <Reveal key={title} variant="fade-up" delay={i * 80} threshold={0.1}>
-              <div className="group flex h-full flex-col rounded-2xl border border-border bg-card p-6 text-card-foreground transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
-                <div
-                  className={cn(
-                    "mb-4 flex h-12 w-12 items-center justify-center rounded-xl border transition-transform duration-300 group-hover:scale-110",
-                    accent,
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {title}
-                </h3>
-                <p className="mt-1.5 text-lg font-bold text-foreground">{value}</p>
-                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{desc}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
+        <ContactChannels />
       </section>
 
       {/* Form + Info */}
@@ -254,7 +218,7 @@ export default async function ContactPage() {
                   <div>
                     <p className="font-medium text-foreground">Giờ mở cửa</p>
                     <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                      {HOURS.map((h) => (
+                      {hoursDisplay.map((h) => (
                         <li
                           key={h.day}
                           className="flex justify-between gap-3 text-xs"
@@ -269,24 +233,70 @@ export default async function ContactPage() {
               </div>
 
               <div className="mt-6 flex items-center gap-3 border-t border-border pt-5">
-                <a
-                  href="https://facebook.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
-                  aria-label="Facebook"
-                >
-                  <Facebook className="h-4 w-4" />
-                </a>
-                <a
-                  href="https://zalo.me"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
-                  aria-label="Zalo"
-                >
-                  <Send className="h-4 w-4" />
-                </a>
+                {store.social_links?.facebook ? (
+                  <a
+                    href={store.social_links.facebook}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
+                    aria-label="Facebook"
+                  >
+                    <Facebook className="h-4 w-4" />
+                  </a>
+                ) : (
+                  <a
+                    href="https://facebook.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
+                    aria-label="Facebook"
+                  >
+                    <Facebook className="h-4 w-4" />
+                  </a>
+                )}
+                {store.social_links?.zalo ? (
+                  <a
+                    href={store.social_links.zalo}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
+                    aria-label="Zalo"
+                  >
+                    <Send className="h-4 w-4" />
+                  </a>
+                ) : (
+                  <a
+                    href="https://zalo.me"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
+                    aria-label="Zalo"
+                  >
+                    <Send className="h-4 w-4" />
+                  </a>
+                )}
+                {store.social_links?.website ? (
+                  <a
+                    href={store.social_links.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
+                    aria-label="Website"
+                  >
+                    <Globe className="h-4 w-4" />
+                  </a>
+                ) : null}
+                {store.social_links?.tiktok ? (
+                  <a
+                    href={store.social_links.tiktok}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"
+                    aria-label="TikTok"
+                  >
+                    <Video className="h-4 w-4" />
+                  </a>
+                ) : null}
                 <a
                   href={`mailto:${store.email}`}
                   className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:border-blue-500 hover:bg-blue-500 hover:text-white dark:hover:text-white"

@@ -13,6 +13,8 @@ export type PublicProduct = {
   categoryId: string | null;
   specs: Record<string, string>;
   inStock?: boolean;
+  /** Số tồn kho của variant đầu tiên — dùng để giới hạn add-to-cart. */
+  stockQty?: number;
   // Engagement (optional — undefined khi DB chưa có cột ở migration 026).
   rating?: number;
   reviewCount?: number;

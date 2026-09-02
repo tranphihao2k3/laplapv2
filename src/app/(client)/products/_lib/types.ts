@@ -10,6 +10,20 @@ export type PublicProduct = {
   tags: string[];
   specs: Record<string, string>;
   inStock?: boolean;
+  /** Số tồn kho của variant đầu tiên — dùng để giới hạn add-to-cart. */
+  stockQty?: number;
+  /** ID của biến thể đầu tiên còn hàng — dùng để add-to-cart trực tiếp từ card. */
+  variantId?: string;
+  /** Rating trung bình 0–5, optional — undefined khi DB chưa có column. */
+  rating?: number;
+  /** Số lượng đánh giá. */
+  reviewCount?: number;
+  /** Số lượng đã bán. */
+  soldCount?: number;
+  /** Badge "Mới về". */
+  isNew?: boolean;
+  /** Badge "Hot". */
+  isHot?: boolean;
 };
 
 export type ProductListResponse = {

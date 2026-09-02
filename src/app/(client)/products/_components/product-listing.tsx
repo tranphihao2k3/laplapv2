@@ -16,6 +16,7 @@ import { useProductFilters, useProductQueryState, useProducts } from "../_lib/us
 import { FilterPanel } from "./filter-panel";
 import { ProductToolbar } from "./product-toolbar";
 import { Pagination } from "./pagination";
+import { useAddToCart } from "@/components/client/cart/add-to-cart";
 
 function GridSkeleton() {
   return (
@@ -37,6 +38,7 @@ export function ProductListing() {
   const { data: filters } = useProductFilters();
   const { data, isLoading, isError, isFetching } = useProducts(query);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const addToCart = useAddToCart();
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -127,7 +129,7 @@ export function ProductListing() {
             >
               <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
                 {items.map((p) => (
-                  <HomeProductCard key={p.id} product={p} />
+                  <HomeProductCard key={p.id} product={p} onAddToCart={addToCart} />
                 ))}
               </div>
             </div>

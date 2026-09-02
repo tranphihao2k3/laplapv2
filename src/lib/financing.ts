@@ -142,6 +142,20 @@ export const DEFAULT_FINANCING: FinancingSetting = {
         { months: 18, monthlyRate: 1.75 },
       ],
     },
+    {
+      id: "mirae-asset",
+      name: "Mirae Asset",
+      note: "Lãi suất ưu đãi, hỗ trợ trả góp dài hạn lên đến 24 tháng",
+      minDownPercent: 15,
+      conversionFeePercent: 0,
+      terms: [
+        { months: 6, monthlyRate: 1.39 },
+        { months: 9, monthlyRate: 1.49 },
+        { months: 12, monthlyRate: 1.59 },
+        { months: 18, monthlyRate: 1.69 },
+        { months: 24, monthlyRate: 1.79 },
+      ],
+    },
   ],
 };
 

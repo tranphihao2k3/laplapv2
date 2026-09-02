@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useCartStore } from "@/stores/cart-store";
 
 function catIconFor(label: string): LucideIcon {
   const s = label.toLowerCase();
@@ -57,11 +58,20 @@ export function ClientHeader() {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<{ id: string; name: string; slug: string; price: number; image?: string | null }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const cartCount = 0;
+  const cartCount = useCartStore((s) => s.totalItems());
+  const cartBounceAt = useCartStore((s) => s.cartBounceAt);
+  const [bounceKey, setBounceKey] = useState(0);
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Trigger bounce animation when item is added to cart
+  useEffect(() => {
+    if (cartBounceAt) {
+      setBounceKey((k) => k + 1);
+    }
+  }, [cartBounceAt]);
 
   // Dùng React Query để cache danh mục — chỉ fetch 1 lần, navigate qua lại không fetch lại
   const { data: categoriesData } = useQuery({
@@ -323,7 +333,10 @@ export function ClientHeader() {
 
           <Link href="/cart">
             <Button variant="ghost" size="icon" className="relative">
-              <ShoppingCart className="h-5 w-5" />
+              <ShoppingCart 
+                key={bounceKey}
+                className={`h-5 w-5 transition-transform ${bounceKey > 0 ? "animate-cart-bounce" : ""}`} 
+              />
               {cartCount > 0 && (
                 <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px]">
                   {cartCount}

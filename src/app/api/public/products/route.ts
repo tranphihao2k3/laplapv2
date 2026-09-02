@@ -40,6 +40,10 @@ export type PublicProduct = {
   tags: string[];
   specs: Record<string, string>;
   inStock: boolean;
+  /** Số tồn kho của variant đầu tiên — dùng để giới hạn add-to-cart. */
+  stockQty?: number;
+  /** ID của biến thể đầu tiên còn hàng — dùng để add-to-cart trực tiếp từ card. */
+  variantId?: string;
   /** Rating trung bình 0–5, optional — undefined khi DB chưa có column. */
   rating?: number;
   /** Số lượng đánh giá. */
@@ -125,7 +129,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Giá thấp nhất + specs đã merge (dùng chung với trang /so-sanh).
-    const { minPrice: minPrice_, specs: specsByProduct } = mergeVariants(variants);
+    const { minPrice: minPrice_, specs: specsByProduct, firstActiveVariantId } = mergeVariants(variants);
 
     const stockByProduct = new Map<string, number>();
     for (const v of variants) {
@@ -135,6 +139,14 @@ export async function GET(req: NextRequest) {
         (stockByProduct.get(v.product_id) ?? 0) + (stockByVariant.get(v.id) ?? 0),
       );
     }
+
+    // Filter to only products with stockQty > 0 (at least one variant has stock).
+    const inStockProducts = products.filter((p) => (stockByProduct.get(p.id) ?? 0) > 0);
+    if (inStockProducts.length === 0) {
+      return NextResponse.json({ items: [], total: 0, page, limit, totalPages: 0 });
+    }
+
+    const inStockIds = inStockProducts.map((p) => p.id);
 
     // Engagement (rating/sold_count/is_new/is_hot) — query riêng và best-effort.
     // Nếu DB chưa có column (chưa apply 026) thì trả về map rỗng → V2 vẫn
@@ -152,7 +164,7 @@ export async function GET(req: NextRequest) {
       const { data: rawEngagement, error: engagementError } = await supabase
         .from("products")
         .select("id,rating_avg,review_count,sold_count,is_new,is_hot")
-        .in("id", ids);
+        .in("id", inStockIds);
       if (!engagementError && rawEngagement) {
         for (const row of rawEngagement as EngagementRow[]) {
           engagementByProduct.set(row.id, row);
@@ -162,8 +174,9 @@ export async function GET(req: NextRequest) {
       // Column chưa tồn tại → bỏ qua, V2 sẽ ẩn phần rating/sold.
     }
 
-    let items: PublicProduct[] = products.map((p) => {
+    let items: PublicProduct[] = inStockProducts.map((p) => {
       const eng = engagementByProduct.get(p.id);
+      const firstVariantId = firstActiveVariantId.get(p.id);
       const item: PublicProduct = {
         id: p.id,
         name: p.name,
@@ -176,6 +189,8 @@ export async function GET(req: NextRequest) {
         tags: keepValidNeedTags(p.tags),
         specs: specsByProduct.get(p.id) ?? {},
         inStock: (stockByProduct.get(p.id) ?? 0) > 0,
+        stockQty: firstVariantId ? (stockByVariant.get(firstVariantId) ?? 0) : 0,
+        variantId: firstVariantId,
       };
       if (eng) {
         if (typeof eng.rating_avg === "number") item.rating = eng.rating_avg;

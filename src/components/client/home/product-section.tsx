@@ -4,6 +4,7 @@ import { HomeProductCard } from "./home-product-card";
 import { useHomeProducts } from "./use-home-data";
 import { Reveal } from "./reveal";
 import { SectionHeader } from "./section-header";
+import { useAddToCart } from "@/components/client/cart/add-to-cart";
 
 export function ProductSection({
   title,
@@ -26,6 +27,7 @@ export function ProductSection({
 }) {
   const { data, isLoading } = useHomeProducts({ sort, brand, category, limit });
   const products = data?.items ?? [];
+  const addToCart = useAddToCart();
 
   if (!isLoading && products.length === 0) return null;
 
@@ -49,7 +51,7 @@ export function ProductSection({
             ))
           : products.slice(0, limit).map((p, i) => (
               <Reveal key={p.id} variant="fade-up" delay={i * 70} threshold={0.04}>
-                <HomeProductCard product={p} className="h-full" />
+                <HomeProductCard product={p} className="h-full" onAddToCart={addToCart} />
               </Reveal>
             ))}
       </div>
