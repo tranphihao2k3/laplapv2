@@ -41,6 +41,9 @@ import {
 import { httpGet, httpPatch, httpPost, httpDelete } from "@/lib/api/http";
 import { buildHeroSlide, HERO_TEMPLATES, type HomepageHeroSetting } from "@/lib/homepage-hero";
 import { FinancingSettings } from "./_components/financing-settings";
+import { TrustBadgesSettings } from "./_components/trust-badges-settings";
+import { ContactSettings } from "./_components/contact-settings";
+import { FooterSettings } from "./_components/footer-settings";
 import type { Paginated } from "@/lib/api/response";
 
 // ====== Types ======
@@ -96,6 +99,9 @@ export default function SettingsPage() {
           <TabsTrigger value="shop">Thông tin cửa hàng</TabsTrigger>
           <TabsTrigger value="org">Tổ chức</TabsTrigger>
           <TabsTrigger value="config">Cấu hình hệ thống</TabsTrigger>
+          <TabsTrigger value="trust">Trust Badges</TabsTrigger>
+          <TabsTrigger value="contact">Liên hệ</TabsTrigger>
+          <TabsTrigger value="footer">Footer</TabsTrigger>
         </TabsList>
       </div>
 
@@ -107,6 +113,15 @@ export default function SettingsPage() {
       </TabsContent>
       <TabsContent value="config">
         <SystemSettings />
+      </TabsContent>
+      <TabsContent value="trust">
+        <TrustBadgesSection />
+      </TabsContent>
+      <TabsContent value="contact">
+        <ContactSettings />
+      </TabsContent>
+      <TabsContent value="footer">
+        <FooterSection />
       </TabsContent>
     </Tabs>
   );
@@ -1003,6 +1018,169 @@ function SystemSettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ====== Trust Badges section ======
+function TrustBadgesSection() {
+  const qc = useQueryClient();
+  const [scope, setScope] = useState<"org" | "shop">("org");
+  const [scopeShopId, setScopeShopId] = useState<string | null>(null);
+
+  const shopsQ = useQuery({
+    queryKey: ["settings-shops"],
+    queryFn: () => httpGet<Paginated<Shop>>("/v1/shops", { page: 1, pageSize: 50 }),
+  });
+  const shops = shopsQ.data?.items ?? [];
+
+  function handleScopeChange(v: string) {
+    setScope(v as "org" | "shop");
+    if (v === "shop" && shops.length > 0) {
+      setScopeShopId(shops[0].id);
+    } else {
+      setScopeShopId(null);
+    }
+  }
+
+  const settingsFilter = scope === "shop" && scopeShopId ? { shop_id: scopeShopId } : {};
+
+  const settingsQ = useQuery({
+    queryKey: ["settings-config-trust", scope, scopeShopId],
+    queryFn: () =>
+      httpGet<Paginated<Setting>>("/v1/settings", { page: 1, pageSize: 100, ...settingsFilter }),
+  });
+  const items = settingsQ.data?.items ?? [];
+
+  const trustBadgesSetting = useMemo(() => {
+    return items.find((s) => s.key === "trust_badges") ?? null;
+  }, [items]);
+
+  return (
+    <div className="space-y-4">
+      {/* Scope selector */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <Label className="shrink-0">Phạm vi:</Label>
+          <Select value={scope} onValueChange={handleScopeChange}>
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="org">Toàn tổ chức</SelectItem>
+              <SelectItem value="shop">Theo cửa hàng</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {scope === "shop" && (
+          <div className="flex items-center gap-2">
+            <Label className="shrink-0">Cửa hàng:</Label>
+            <Select value={scopeShopId ?? ""} onValueChange={setScopeShopId}>
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="Chọn cửa hàng" />
+              </SelectTrigger>
+              <SelectContent>
+                {shops.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} ({s.code ?? "—"})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      <TrustBadgesSettings
+        raw={trustBadgesSetting?.value}
+        saving={false}
+        settingId={trustBadgesSetting?.id}
+        group="store"
+        keyName="trust_badges"
+        scope={scope}
+        shopId={scopeShopId}
+      />
+    </div>
+  );
+}
+
+// ====== Footer section ======
+function FooterSection() {
+  const [scope, setScope] = useState<"org" | "shop">("org");
+  const [scopeShopId, setScopeShopId] = useState<string | null>(null);
+
+  const shopsQ = useQuery({
+    queryKey: ["settings-shops"],
+    queryFn: () => httpGet<Paginated<Shop>>("/v1/shops", { page: 1, pageSize: 50 }),
+  });
+  const shops = shopsQ.data?.items ?? [];
+
+  function handleScopeChange(v: string) {
+    setScope(v as "org" | "shop");
+    if (v === "shop" && shops.length > 0) {
+      setScopeShopId(shops[0].id);
+    } else {
+      setScopeShopId(null);
+    }
+  }
+
+  const settingsFilter = scope === "shop" && scopeShopId ? { shop_id: scopeShopId } : {};
+
+  const settingsQ = useQuery({
+    queryKey: ["settings-config-footer", scope, scopeShopId],
+    queryFn: () =>
+      httpGet<Paginated<Setting>>("/v1/settings", { page: 1, pageSize: 100, ...settingsFilter }),
+  });
+  const items = settingsQ.data?.items ?? [];
+
+  const footerSetting = useMemo(() => {
+    return items.find((s) => s.key === "footer_settings") ?? null;
+  }, [items]);
+
+  return (
+    <div className="space-y-4">
+      {/* Scope selector */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <Label className="shrink-0">Phạm vi:</Label>
+          <Select value={scope} onValueChange={handleScopeChange}>
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="org">Toàn tổ chức</SelectItem>
+              <SelectItem value="shop">Theo cửa hàng</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {scope === "shop" && (
+          <div className="flex items-center gap-2">
+            <Label className="shrink-0">Cửa hàng:</Label>
+            <Select value={scopeShopId ?? ""} onValueChange={setScopeShopId}>
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="Chọn cửa hàng" />
+              </SelectTrigger>
+              <SelectContent>
+                {shops.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} ({s.code ?? "—"})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      <FooterSettings
+        raw={footerSetting?.value}
+        saving={false}
+        settingId={footerSetting?.id}
+        group="store"
+        keyName="footer_settings"
+        scope={scope}
+        shopId={scopeShopId}
+      />
     </div>
   );
 }

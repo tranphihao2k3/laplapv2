@@ -7,11 +7,46 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *
  * Nguồn dữ liệu:
  *   1. Bảng `shops` — thông tin liên hệ (name/phone/email/address).
- *   2. Bảng `settings` (group "store" và "legal") — mô tả + thông tin pháp lý
- *      (MST, ĐKKD, người chịu trách nhiệm, link đăng ký Bộ Công Thương…).
+ *   2. Bảng `settings` (group "store", "legal", "contact") — mô tả + thông tin pháp lý
+ *      (MST, ĐKKD, người chịu trách nhiệm, link đăng ký Bộ Công Thương…) + thông tin liên hệ.
  *
- * `cache()` để nhiều component trong cùng request chỉ query 1 lần.
+ * Sử dụng React `cache()` để nhiều component trong cùng request chỉ query 1 lần.
+ * Sử dụng Next.js `unstable_cache()` để cache xuyên request với revalidation.
+ *
+ * Cache tags:
+ *   - "store-info": Cho toàn bộ thông tin cửa hàng
+ *   - "store-legal": Cho thông tin pháp lý
+ *   - "store-contact": Cho thông tin liên hệ
+ *
+ * Để invalidate cache sau khi admin lưu settings, gọi:
+ *   revalidateTag("store-info")
  */
+
+// ===== Contact Channels =====
+export type ContactChannel = {
+  icon: string;
+  label: string;
+  value: string;
+  link?: string;
+  type: "phone" | "zalo" | "email" | "messenger" | "telegram" | "other";
+};
+
+export type OpeningHours = {
+  weekday?: string;
+  weekend?: string;
+  saturday?: string;
+  sunday?: string;
+  holidays?: string;
+};
+
+export type SocialLinks = {
+  facebook?: string;
+  zalo?: string;
+  website?: string;
+  tiktok?: string;
+  youtube?: string;
+  instagram?: string;
+};
 export type StoreInfo = {
   // Thông tin cơ bản
   name: string;
@@ -19,6 +54,15 @@ export type StoreInfo = {
   address: string;
   phone: string;
   email: string;
+  // Thông tin bổ sung cho client
+  hotline?: string;
+  warranty_months?: number;
+  return_policy_days?: number;
+  shipping_info?: string;
+  // Thông tin liên hệ (contact page)
+  contact_channels?: ContactChannel[];
+  opening_hours?: OpeningHours;
+  social_links?: SocialLinks;
   // Thông tin pháp lý (NN 52/2013 + 85/2021)
   legal: LegalInfo;
 };
@@ -69,6 +113,26 @@ const DEFAULTS: Omit<StoreInfo, "legal"> = {
   address: "123 Nguyễn Văn Cừ, Ninh Kiều, Cần Thơ",
   phone: "1900 1234",
   email: "info@laplap.vn",
+  hotline: "1900 1234",
+  warranty_months: 12,
+  return_policy_days: 30,
+  shipping_info: "Nội thành Cần Thơ trong 2 giờ, hỗ trợ ship toàn quốc",
+  contact_channels: [
+    { icon: "phone", label: "Hotline bán hàng", value: "1900 1234", type: "phone" },
+    { icon: "headphones", label: "Hỗ trợ kỹ thuật", value: "1900 1234", type: "phone" },
+    { icon: "message-circle", label: "Zalo / WhatsApp", value: "0901 234 567", link: "https://zalo.me/0901234567", type: "zalo" },
+    { icon: "mail", label: "Email", value: "info@laplap.vn", type: "email" },
+  ],
+  opening_hours: {
+    weekday: "8:00 - 21:00",
+    saturday: "8:00 - 22:00",
+    sunday: "9:00 - 20:00",
+  },
+  social_links: {
+    facebook: "https://facebook.com/laplapcantho",
+    zalo: "https://zalo.me/laplapcantho",
+    website: "https://laplap.vn",
+  },
 };
 
 function asString(v: unknown): string | null {
@@ -77,13 +141,35 @@ function asString(v: unknown): string | null {
   return null;
 }
 
+function asJson<T>(v: unknown): T | null {
+  if (typeof v === "string") {
+    try {
+      return JSON.parse(v) as T;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof v === "object" && v !== null) {
+    return v as T;
+  }
+  return null;
+}
+
 export const getStoreInfo = cache(async (): Promise<StoreInfo> => {
+  return _getStoreInfo();
+});
+
+/**
+ * Cached version using Next.js unstable_cache is in store-info-cached.ts
+ */
+
+async function _getStoreInfo(): Promise<StoreInfo> {
   try {
     const supabase = createAdminClient();
     const { data } = await supabase
       .from("settings")
       .select("key,value,group_name")
-      .in("group_name", ["store", "legal"]);
+      .in("group_name", ["store", "legal", "contact"]);
 
     const rows = (data ?? []) as Array<{
       key: string | null;
@@ -124,18 +210,30 @@ export const getStoreInfo = cache(async (): Promise<StoreInfo> => {
         DEFAULTS_LEGAL.bo_cong_thuong_notified_at,
     };
 
+    // Parse contact settings (stored as JSON strings)
+    const contact_channels = asJson<ContactChannel[]>(map.get("contact_channels")) ?? DEFAULTS.contact_channels;
+    const opening_hours = asJson<OpeningHours>(map.get("opening_hours")) ?? DEFAULTS.opening_hours;
+    const social_links = asJson<SocialLinks>(map.get("social_links")) ?? DEFAULTS.social_links;
+
     return {
       name: map.get("name") ?? DEFAULTS.name,
       description: map.get("description") ?? DEFAULTS.description,
       address: map.get("address") ?? DEFAULTS.address,
       phone: map.get("phone") ?? DEFAULTS.phone,
       email: map.get("email") ?? DEFAULTS.email,
+      hotline: map.get("hotline") ?? DEFAULTS.hotline,
+      warranty_months: parseInt(map.get("warranty_months") ?? "") || DEFAULTS.warranty_months,
+      return_policy_days: parseInt(map.get("return_policy_days") ?? "") || DEFAULTS.return_policy_days,
+      shipping_info: map.get("shipping_info") ?? DEFAULTS.shipping_info,
+      contact_channels,
+      opening_hours,
+      social_links,
       legal,
     };
   } catch {
     return { ...DEFAULTS, legal: DEFAULTS_LEGAL };
   }
-});
+}
 
 /**
  * Lightweight variant — chỉ trả name/phone/email/address (không kèm legal).

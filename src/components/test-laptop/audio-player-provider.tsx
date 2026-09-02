@@ -445,6 +445,33 @@ export function TestLaptopAudioProvider({ children }: { children: React.ReactNod
 }
 
 // ── Bottom sticky player ──────────────────────────────────────────────────────
+const STORAGE_KEY = "audio-player-position-v1";
+
+interface Position {
+  x: number;
+  y: number;
+}
+
+function loadPosition(): Position {
+  if (typeof window === "undefined") return { x: 0, y: 0 };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as Position;
+  } catch {
+    // ignore
+  }
+  return { x: 0, y: 0 };
+}
+
+function savePosition(pos: Position) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
+  } catch {
+    // ignore
+  }
+}
+
 function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSongs: boolean }) {
   const {
     currentSong,
@@ -465,16 +492,90 @@ function BottomPlayer({ hasSongs, loadingSongs }: { hasSongs: boolean; loadingSo
     setVolume,
   } = useAudioPlayer();
 
+  // Drag state
+  const [position, setPosition] = useState<Position>(loadPosition);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<Position>({ x: 0, y: 0 });
+  const hasRestoredRef = useRef(false);
+
+  // Restore position from localStorage after hydration
+  useEffect(() => {
+    if (hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
+    setPosition(loadPosition());
+  }, []);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only start drag if clicking on the drag handle area (top part)
+    const target = e.target as HTMLElement;
+    if (!target.closest("[data-drag-handle]")) return;
+    e.preventDefault();
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    };
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      setPosition({
+        x: e.clientX - dragStartRef.current.x,
+        y: e.clientY - dragStartRef.current.y,
+      });
+    };
+
+    const handleMouseUp = () => {
+      if (!isDragging) return;
+      setIsDragging(false);
+      // Save position when drag ends
+      savePosition(position);
+    };
+
+    if (isDragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, position]);
+
   // Ẩn hoàn toàn nếu chưa có bài hoặc đang load
   if (loadingSongs || !hasSongs || !currentSong) return null;
 
   const isBuiltin = currentSong.source === "builtin";
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 pointer-events-none">
+    <div
+      className={`fixed right-4 bottom-4 z-50 pointer-events-none ${isDragging ? "select-none" : ""}`}
+      style={{
+        transform: `translate(${position.x}px, ${position.y}px)`,
+      }}
+    >
       <div
-        className={`pointer-events-auto mx-auto max-w-3xl rounded-2xl border border-zinc-200 bg-white/95 shadow-2xl backdrop-blur-md transition-all`}
+        className={`pointer-events-auto w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-zinc-200 bg-white/95 shadow-2xl backdrop-blur-md transition-all ${isDragging ? "shadow-3xl ring-2 ring-zinc-400/50" : ""}`}
+        onMouseDown={handleMouseDown}
       >
+        {/* Drag handle */}
+        <div
+          data-drag-handle
+          className="flex items-center justify-center py-1.5 cursor-grab active:cursor-grabbing hover:bg-zinc-50 rounded-t-2xl select-none"
+          title="Kéo để di chuyển"
+        >
+          <div className="flex gap-0.5">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-1 h-1 rounded-full bg-zinc-400"
+              />
+            ))}
+          </div>
+        </div>
+
         {collapsed ? (
           // ── Compact view ───────────────────────────────────────────────────
           <div className="flex items-center gap-2 px-3 py-2">

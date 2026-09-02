@@ -5,30 +5,32 @@ import {
   Heart,
   Eye,
   ShoppingCart,
-  Star,
   PackageX,
   ArrowUpRight,
+  Cpu,
+  Monitor,
+  HardDrive,
+  MemoryStick,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { cn, formatCurrency } from "@/lib/utils";
+import { CompareToggle } from "@/components/client/compare/compare-toggle";
+import type { CompareItem } from "@/stores/compare-store";
 
 export type ProductCardV2Product = {
   id: string;
   name: string;
   slug: string;
   price: number;
-  image?: string;
+  image?: string | null;
   /** Giá gốc trước khi giảm (không bắt buộc). */
   originalPrice?: number;
-  /** Số lượng đã bán — hiển thị dạng "Đã bán 124". */
-  soldCount?: number;
-  /** Rating 0–5 — hiển thị 1 chữ số thập phân (vd 4.5). */
-  rating?: number;
-  /** Số lượng đánh giá — kết hợp với rating. */
-  reviewCount?: number;
   /** Còn hàng hay không — nếu false sẽ che ảnh bằng overlay "Hết hàng". */
   inStock?: boolean;
+  /** Số tồn kho của variant — dùng để giới hạn không vượt quá khi add-to-cart. */
+  stockQty?: number;
   /** Badge tuỳ biến (vd: "Mới về", "Hot", "Like new"). Ưu tiên sau cùng. */
   badge?: string;
   /** Bật badge "Mới về" xanh dương ở góc trên trái. */
@@ -37,6 +39,12 @@ export type ProductCardV2Product = {
   isHot?: boolean;
   /** % giảm giá override — nếu không truyền sẽ tự tính từ price/originalPrice. */
   discountPercent?: number;
+  /** product_variants.id — dùng để add-to-cart trực tiếp từ card. */
+  variantId?: string;
+  /** Thuộc tính variant hiển thị (vd: "16GB / 512GB / Đen"). */
+  attributes?: string;
+  /** Thông số kỹ thuật chính — hiển thị dạng tag nhỏ dưới tên sản phẩm. */
+  specs?: Record<string, string>;
 };
 
 type ProductCardV2Props = {
@@ -48,22 +56,67 @@ type ProductCardV2Props = {
   showWishlist?: boolean;
   /** Bật/tắt overlay quick-view khi hover (mặc định bật). */
   showQuickView?: boolean;
-  /** Callback khi bấm "Thêm vào giỏ". */
-  onAddToCart?: (product: ProductCardV2Product) => void;
+  /** Bật/tắt nút so sánh sản phẩm (mặc định bật). */
+  showCompare?: boolean;
+  /** Callback khi bấm "Thêm vào giỏ". Truyền useAddToCart từ add-to-cart.tsx. */
+  onAddToCart?: (product: ProductCardV2Product & {
+    productId: string;
+    variantId: string;
+    image: string | null;
+    attributes: string;
+    stockQty?: number;
+  }) => void;
   /** Callback khi bấm wishlist — truyền productId để parent quản lý state. */
   onWishlistToggle?: (productId: string, next: boolean) => void;
   /** Callback khi bấm quick-view. */
   onQuickView?: (product: ProductCardV2Product) => void;
 };
 
-function clampRating(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(5, value));
+/** Các key spec phổ biến cho laptop/electronics — thứ tự ưu tiên hiển thị. */
+const SPEC_PRIORITY_KEYS = ["cpu", "ram", "ssd", "storage", "screen", "display", "battery"] as const;
+type SpecKey = (typeof SPEC_PRIORITY_KEYS)[number];
+
+/** Icon cho từng loại spec. */
+const SPEC_ICONS: Partial<Record<SpecKey, React.ComponentType<{ className?: string }>>> = {
+  cpu: Cpu,
+  ram: MemoryStick,
+  ssd: HardDrive,
+  storage: HardDrive,
+  screen: Monitor,
+  display: Monitor,
+} as const;
+
+/** Label hiển thị cho từng loại spec. */
+const SPEC_LABELS: Record<SpecKey, string> = {
+  cpu: "CPU",
+  ram: "RAM",
+  ssd: "SSD",
+  storage: "HDD",
+  screen: "Màn",
+  display: "Màn",
+  battery: "Pin",
+};
+
+/**
+ * Trích xuất danh sách specs quan trọng nhất để hiển thị trên card.
+ * Lấy tối đa 4 spec theo thứ tự ưu tiên, bỏ qua giá trị rỗng.
+ */
+function getKeySpecs(specs: Record<string, string> = {}): Array<{ key: string; value: string }> {
+  const result: Array<{ key: string; value: string }> = [];
+  for (const key of SPEC_PRIORITY_KEYS) {
+    const value = specs[key];
+    if (value && typeof value === "string" && value.trim()) {
+      result.push({ key, value: value.trim() });
+      if (result.length >= 4) break;
+    }
+  }
+  return result;
 }
 
-function formatSoldCount(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
-  return String(n);
+/** Rút gọn giá trị spec quá dài để hiển thị gọn card. */
+function shortenSpecValue(value: string, maxLength = 18): string {
+  if (value.length <= maxLength) return value;
+  return value.slice(0, maxLength - 1) + "…";
 }
 
 export function ProductCardV2({
@@ -72,6 +125,7 @@ export function ProductCardV2({
   hideAddToCart = false,
   showWishlist = true,
   showQuickView = true,
+  showCompare = true,
   onAddToCart,
   onWishlistToggle,
   onQuickView,
@@ -88,11 +142,7 @@ export function ProductCardV2({
       ? Math.round(product.discountPercent)
       : computedDiscount;
 
-  const rating = product.rating !== undefined ? clampRating(product.rating) : null;
-  const sold =
-    typeof product.soldCount === "number" && product.soldCount >= 0
-      ? product.soldCount
-      : null;
+  const keySpecs = getKeySpecs(product.specs);
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -107,7 +157,15 @@ export function ProductCardV2({
     e.stopPropagation();
     setBusy(true);
     try {
-      onAddToCart?.(product);
+      // Build AddToCartOptions from ProductCardV2Product
+      onAddToCart?.({
+        ...product,
+        productId: product.id,
+        variantId: product.variantId ?? product.id,
+        image: product.image ?? null,
+        attributes: product.attributes ?? "",
+        stockQty: product.stockQty,
+      });
     } finally {
       window.setTimeout(() => setBusy(false), 350);
     }
@@ -211,6 +269,20 @@ export function ProductCardV2({
           </button>
         )}
 
+        {showCompare && (
+          <CompareToggle
+            product={
+              {
+                id: product.id,
+                name: product.name,
+                slug: product.slug,
+                image: product.image ?? null,
+                price: product.price,
+              } satisfies CompareItem
+            }
+          />
+        )}
+
         {/* Hover overlay: gradient + nút quick view */}
         {showQuickView && onQuickView && (
           <>
@@ -243,29 +315,28 @@ export function ProductCardV2({
           {product.name}
         </h3>
 
-        {/* Trust row: rating + sold */}
-        {(rating !== null || sold !== null) && (
-          <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            {rating !== null && (
-              <span className="inline-flex items-center gap-1" aria-label={`Đánh giá ${rating} trên 5`}>
-                <Star className={cn("h-3 w-3", rating > 0 ? "fill-amber-400 text-amber-400" : "text-slate-300")} />
-                <span className="font-medium text-slate-700 tabular-nums">{rating.toFixed(1)}</span>
-                {product.reviewCount !== undefined && product.reviewCount > 0 && (
-                  <span className="text-slate-400">({product.reviewCount})</span>
-                )}
-              </span>
-            )}
-            {rating !== null && sold !== null && (
-              <span aria-hidden className="h-3 w-px bg-slate-200" />
-            )}
-            {sold !== null && (
-              <span className="inline-flex items-center gap-1">
-                <span className="text-slate-400">Đã bán</span>
-                <span className="font-medium text-slate-700 tabular-nums">
-                  {formatSoldCount(sold)}
-                </span>
-              </span>
-            )}
+        {/* Key specs row — hiển thị tối đa 4 thông số quan trọng */}
+        {keySpecs.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {keySpecs.map(({ key, value }) => {
+              const Icon = SPEC_ICONS[key as SpecKey];
+              return (
+                <Badge
+                  key={key}
+                  variant="secondary"
+                  className={cn(
+                    "inline-flex items-center gap-0.5 whitespace-nowrap rounded-md px-1.5 py-0.5",
+                    "border-slate-200 bg-slate-50 text-[10px] font-medium text-slate-600",
+                    "transition-colors group-hover:border-slate-300 group-hover:bg-slate-100",
+                  )}
+                >
+                  {Icon && <Icon className="h-2.5 w-2.5 flex-shrink-0 opacity-70" />}
+                  <span className="max-w-[70px] truncate" title={value}>
+                    {shortenSpecValue(value, 14)}
+                  </span>
+                </Badge>
+              );
+            })}
           </div>
         )}
 
@@ -285,27 +356,46 @@ export function ProductCardV2({
       {/* ==== CTA footer ==== */}
       {!hideAddToCart && (
         <CardFooter className="relative z-0 p-3 pt-0 sm:p-4 sm:pt-0">
-          <Button
-            size="sm"
-            variant="default"
-            disabled={product.inStock === false || busy}
-            onClick={handleAddToCart}
-            aria-label={`Thêm ${product.name} vào giỏ hàng`}
-            className={cn(
-              "w-full rounded-xl text-xs font-semibold sm:text-sm",
-              "shadow-sm hover:shadow-md",
-            )}
-          >
-            <ShoppingCart
+          {product.variantId ? (
+            <Button
+              size="sm"
+              variant="default"
+              disabled={product.inStock === false || product.stockQty === 0 || busy}
+              onClick={handleAddToCart}
+              aria-label={`Thêm ${product.name} vào giỏ hàng`}
               className={cn(
-                "h-4 w-4 transition-transform duration-300",
-                !busy && "group-hover:scale-110",
+                "w-full rounded-xl text-xs font-semibold sm:text-sm",
+                "shadow-sm hover:shadow-md",
               )}
-            />
-            <span className="truncate">
-              {product.inStock === false ? "Hết hàng" : busy ? "Đã thêm" : "Thêm vào giỏ"}
-            </span>
-          </Button>
+            >
+              <ShoppingCart
+                className={cn(
+                  "h-4 w-4 transition-transform duration-300",
+                  !busy && "group-hover:scale-110",
+                )}
+              />
+              <span className="truncate">
+                {product.inStock === false || product.stockQty === 0
+                  ? "Hết hàng"
+                  : busy
+                    ? "Đã thêm!"
+                    : "Thêm vào giỏ"}
+              </span>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              asChild
+              aria-label={`Chọn phiên bản ${product.name}`}
+              className="w-full rounded-xl text-xs font-semibold sm:text-sm"
+            >
+              <Link href={`/products/${product.slug}`}>
+                <span className="truncate">Chọn phiên bản</span>
+                <ArrowUpRight className="ml-1 h-3.5 w-3.5 opacity-60" />
+              </Link>
+            </Button>
+          )}
         </CardFooter>
       )}
     </Card>

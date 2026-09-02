@@ -23,6 +23,8 @@ export type MergedVariantData = {
   specs: Map<string, Record<string, string>>;
   /** Trọng lượng từ cột weight của variant đầu tiên có giá trị. */
   weight: Map<string, number>;
+  /** ID của variant active đầu tiên — dùng để add-to-cart trực tiếp từ product listing. */
+  firstActiveVariantId: Map<string, string>;
 };
 
 /**
@@ -35,9 +37,15 @@ export function mergeVariants(variants: VariantForMerge[]): MergedVariantData {
   const minPrice = new Map<string, number>();
   const specs = new Map<string, Record<string, string>>();
   const weight = new Map<string, number>();
+  const firstActiveVariantId = new Map<string, string>();
 
   for (const v of variants) {
     if (!v.product_id || v.is_active === false) continue;
+
+    // Ghi nhận variant active đầu tiên
+    if (!firstActiveVariantId.has(v.product_id)) {
+      firstActiveVariantId.set(v.product_id, v.id);
+    }
 
     if (v.selling_price != null) {
       const cur = minPrice.get(v.product_id);
@@ -57,5 +65,5 @@ export function mergeVariants(variants: VariantForMerge[]): MergedVariantData {
     }
   }
 
-  return { minPrice, specs, weight };
+  return { minPrice, specs, weight, firstActiveVariantId };
 }

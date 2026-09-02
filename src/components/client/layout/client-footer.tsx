@@ -1,41 +1,22 @@
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { getStoreInfo } from "@/lib/store-info";
+import { getFooterSettings } from "@/lib/footer-settings";
 import { telHref } from "@/lib/shop-info";
 import { StoreContactInfo } from "@/components/shared/store-contact-info";
 
-const FOOTER_LINKS = {
-  "Về LapLap": [
-    { href: "/about", label: "Giới thiệu" },
-    { href: "/contact", label: "Liên hệ" },
-    { href: "/cau-hoi-thuong-gap", label: "Câu hỏi thường gặp" },
-    { href: "/about#tuyen-dung", label: "Tuyển dụng" },
-  ],
-  "Chính sách": [
-    { href: "/chinh-sach-bao-hanh", label: "Chính sách bảo hành" },
-    { href: "/chinh-sach-doi-tra", label: "Chính sách đổi trả" },
-    { href: "/chinh-sach-giao-hang", label: "Chính sách giao hàng" },
-    { href: "/chinh-sach-thanh-toan", label: "Chính sách thanh toán" },
-    { href: "/chinh-sach-bao-mat", label: "Chính sách bảo mật" },
-  ],
-  "Pháp lý": [
-    { href: "/dieu-khoan-su-dung", label: "Điều khoản sử dụng" },
-    { href: "/chinh-sach-giai-quyet-khieu-nai", label: "Giải quyết khiếu nại" },
-  ],
-  "Hỗ trợ": [
-    { href: "/cau-hoi-thuong-gap", label: "Hướng dẫn mua hàng" },
-    { href: "/chinh-sach-thanh-toan", label: "Thanh toán & vận chuyển" },
-    { href: "/tra-cuu-bao-hanh", label: "Tra cứu bảo hành" },
-    { href: "/dich-vu-sua-chua", label: "Dịch vụ sửa chữa" },
-    { href: "/contact", label: "Liên hệ hỗ trợ" },
-  ],
-};
-
-
 export async function ClientFooter() {
   // Dùng getStoreInfo() — đã bao gồm legal info (MST, ĐKKD, GCN...).
-  const store = await getStoreInfo();
+  // Dùng getFooterSettings() — lấy footer links, description, payment methods từ settings.
+  const [store, footerSettings] = await Promise.all([
+    getStoreInfo(),
+    getFooterSettings(),
+  ]);
   const tel = telHref(store.phone);
+
+  const paymentMethods = footerSettings.payment_methods ?? ["Visa", "MasterCard", "COD", "MoMo", "VNPay", "Trả góp 0%"];
+  const footerDescription = footerSettings.description ?? "Hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cam kết sản phẩm chính hãng, giá tốt nhất.";
+  const footerColumns = footerSettings.columns ?? [];
 
   return (
     <footer className="border-t bg-muted/30">
@@ -48,8 +29,7 @@ export async function ClientFooter() {
               <span className="text-foreground">Lap</span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cam kết sản phẩm chính
-              hãng, giá tốt nhất.
+              {footerDescription}
             </p>
 
             <StoreContactInfo compact />
@@ -67,15 +47,17 @@ export async function ClientFooter() {
             </p>
           </div>
 
-          {/* Link columns */}
-          {Object.entries(FOOTER_LINKS).map(([title, links]) => (
-            <div key={title} className="space-y-4">
-              <h4 className="text-sm font-semibold">{title}</h4>
+          {/* Link columns - loaded from settings */}
+          {footerColumns.map((column) => (
+            <div key={column.id} className="space-y-4">
+              <h4 className="text-sm font-semibold">{column.title}</h4>
               <ul className="space-y-3">
-                {links.map((link) => (
-                  <li key={link.label}>
+                {column.links.map((link) => (
+                  <li key={link.id}>
                     <Link
                       href={link.href}
+                      target={link.external ? "_blank" : undefined}
+                      rel={link.external ? "noopener noreferrer" : undefined}
                       className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                     >
                       {link.label}
@@ -102,12 +84,12 @@ export async function ClientFooter() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Thanh toán:</span>
-            {["Visa", "Master", "COD", "MoMo", "VNPay", "Trả góp 0%"].map((m) => (
+            {paymentMethods.map((method) => (
               <span
-                key={m}
+                key={method}
                 className="rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground"
               >
-                {m}
+                {method}
               </span>
             ))}
           </div>
