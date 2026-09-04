@@ -5,13 +5,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
-import {
-  HelpTip,
-  InventoryHelpSection,
-} from "@/app/quanly/inventory/_components/inventory-help";
+import { InventoryHelpSection } from "@/app/quanly/inventory/_components/inventory-help";
+import { Package, AlertTriangle, XCircle, CheckCircle2, TrendingDown, Warehouse, ShoppingCart, ArrowRight } from "lucide-react";
 
 type StockLevel = {
   warehouse_id: string;
@@ -22,7 +21,28 @@ type StockLevel = {
 };
 
 type Warehouse = { id: string; name: string; code: string | null };
-type ProductVariant = { id: string; name: string | null; sku: string | null };
+type ProductVariant = { 
+  id: string; 
+  name: string | null; 
+  sku: string | null;
+  product?: { name: string | null; image_url?: string | null };
+};
+
+const LOW_STOCK_THRESHOLD = 5;
+const CRITICAL_STOCK_THRESHOLD = 2;
+
+function StockStatusBadge({ qty }: { qty: number }) {
+  if (qty === 0) {
+    return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Hết hàng</Badge>;
+  }
+  if (qty <= CRITICAL_STOCK_THRESHOLD) {
+    return <Badge variant="destructive" className="gap-1 bg-orange-500"><AlertTriangle className="h-3 w-3" /> Còn {qty}</Badge>;
+  }
+  if (qty <= LOW_STOCK_THRESHOLD) {
+    return <Badge variant="secondary" className="gap-1 bg-yellow-100 text-yellow-800 border-yellow-300"><TrendingDown className="h-3 w-3" /> Còn {qty}</Badge>;
+  }
+  return <Badge variant="outline" className="gap-1 text-green-600 border-green-300 bg-green-50"><CheckCircle2 className="h-3 w-3" /> {qty}</Badge>;
+}
 
 export default function StockLevelsAdminPage() {
   const [search, setSearch] = useState("");
@@ -33,9 +53,8 @@ export default function StockLevelsAdminPage() {
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [quickQty, setQuickQty] = useState("");
 
-  const query = useCrudList<StockLevel>("stock-levels", { search, page: 1, pageSize: 100 });
+  const query = useCrudList<StockLevel>("stock-levels", { search, page: 1, pageSize: 500 });
   const myShopsQuery = useMyShops();
-  // Kho lọc theo cửa hàng đang chọn (giống form sản phẩm & POS). Chưa chọn cửa hàng → hiện tất cả.
   const warehousesQuery = useCrudList<Warehouse>("warehouses", {
     page: 1,
     pageSize: 200,
@@ -51,6 +70,40 @@ export default function StockLevelsAdminPage() {
   const variants = useMemo(() => variantsQuery.data?.items ?? [], [variantsQuery.data]);
   const warehouses = useMemo(() => warehousesQuery.data?.items ?? [], [warehousesQuery.data]);
 
+  // Tính toán thống kê
+  const stats = useMemo(() => {
+    let outOfStock = 0;
+    let critical = 0;
+    let lowStock = 0;
+    let healthy = 0;
+    let totalItems = 0;
+    let totalQty = 0;
+
+    rows.forEach((r) => {
+      const qty = r.available_qty ?? 0;
+      totalItems++;
+      totalQty += qty;
+      if (qty === 0) outOfStock++;
+      else if (qty <= CRITICAL_STOCK_THRESHOLD) critical++;
+      else if (qty <= LOW_STOCK_THRESHOLD) lowStock++;
+      else healthy++;
+    });
+
+    return { outOfStock, critical, lowStock, healthy, totalItems, totalQty };
+  }, [rows]);
+
+  // Nhóm theo kho
+  const groupedByWarehouse = useMemo(() => {
+    const groups: Record<string, typeof rows> = {};
+    rows.forEach((r) => {
+      const w = warehouseMap.get(r.warehouse_id);
+      const key = w?.name ?? r.warehouse_id;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    });
+    return groups;
+  }, [rows, warehouseMap]);
+
   const shopOptions = useMemo<SearchableOption[]>(
     () => myShops.map((s) => ({ value: s.id, label: s.name, keywords: s.code ?? "" })),
     [myShops],
@@ -60,16 +113,18 @@ export default function StockLevelsAdminPage() {
     [warehouses],
   );
   const variantOptions = useMemo<SearchableOption[]>(
-    () => variants.map((v) => ({ value: v.id, label: v.name ?? v.id, keywords: v.sku ?? "" })),
+    () => variants.map((v) => ({ 
+      value: v.id, 
+      label: v.product?.name ? `${v.product.name} - ${v.name}` : (v.name ?? v.id),
+      keywords: v.sku ?? ""
+    })),
     [variants],
   );
 
-  // Tự chọn cửa hàng đầu tiên của tài khoản khi load xong.
   useEffect(() => {
     if (!selectedShopId && myShops.length > 0) setSelectedShopId(myShops[0].id);
   }, [selectedShopId, myShops]);
 
-  // Khi kho load lại theo cửa hàng, đảm bảo kho đang chọn vẫn hợp lệ; nếu không → chọn kho đầu.
   useEffect(() => {
     if (warehouses.length === 0) {
       if (selectedWarehouseId) setSelectedWarehouseId("");
@@ -139,16 +194,93 @@ export default function StockLevelsAdminPage() {
     }
   };
 
+  // Lọc theo kho đang chọn
+  const filteredRows = useMemo(() => {
+    if (!selectedWarehouseId) return rows;
+    return rows.filter(r => r.warehouse_id === selectedWarehouseId);
+  }, [rows, selectedWarehouseId]);
+
+  // Tìm kiếm
+  const searchedRows = useMemo(() => {
+    if (!search.trim()) return filteredRows;
+    const term = search.toLowerCase();
+    return filteredRows.filter(r => {
+      const variant = variantMap.get(r.product_variant_id);
+      return (
+        variant?.name?.toLowerCase().includes(term) ||
+        variant?.sku?.toLowerCase().includes(term) ||
+        variant?.product?.name?.toLowerCase().includes(term)
+      );
+    });
+  }, [filteredRows, search, variantMap]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <InventoryHelpSection variant="stock" />
 
-      {/* Form thêm tồn kho nhanh */}
+      {/* Card thống kê tổng quan */}
+      <div className="grid gap-4 md:grid-cols-5">
+        <Card className={stats.outOfStock > 0 ? "border-red-300 bg-red-50" : ""}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Hết hàng</CardTitle>
+            <XCircle className={`h-4 w-4 ${stats.outOfStock > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${stats.outOfStock > 0 ? "text-red-600" : ""}`}>{stats.outOfStock}</div>
+            <p className="text-xs text-muted-foreground">sản phẩm</p>
+          </CardContent>
+        </Card>
+        <Card className={stats.critical > 0 ? "border-orange-300 bg-orange-50" : ""}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Sắp hết</CardTitle>
+            <AlertTriangle className={`h-4 w-4 ${stats.critical > 0 ? "text-orange-500" : "text-muted-foreground"}`} />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${stats.critical > 0 ? "text-orange-600" : ""}`}>{stats.critical}</div>
+            <p className="text-xs text-muted-foreground">còn ≤{CRITICAL_STOCK_THRESHOLD}</p>
+          </CardContent>
+        </Card>
+        <Card className={stats.lowStock > 0 ? "border-yellow-300 bg-yellow-50" : ""}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Thấp</CardTitle>
+            <TrendingDown className={`h-4 w-4 ${stats.lowStock > 0 ? "text-yellow-600" : "text-muted-foreground"}`} />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${stats.lowStock > 0 ? "text-yellow-700" : ""}`}>{stats.lowStock}</div>
+            <p className="text-xs text-muted-foreground">còn ≤{LOW_STOCK_THRESHOLD}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Còn nhiều</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.healthy}</div>
+            <p className="text-xs text-muted-foreground">sản phẩm</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tổng tồn</CardTitle>
+            <Package className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{stats.totalQty.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">{stats.totalItems} SKU</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Form nhập tồn nhanh */}
       <Card>
         <CardHeader>
-          <CardTitle>Nhập tồn kho / Thêm tồn kho sản phẩm cũ</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Nhập / Cập nhật tồn kho nhanh
+          </CardTitle>
           <CardDescription>
-            Chọn kho, sản phẩm và nhập số lượng tồn. Nếu sản phẩm đã có trong kho, hệ thống sẽ cập nhật đè số lượng mới.
+            Chọn cửa hàng → kho → sản phẩm → nhập số lượng. Nếu sản phẩm đã có trong kho, hệ thống sẽ cập nhật đè số lượng mới.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -160,18 +292,15 @@ export default function StockLevelsAdminPage() {
                 value={selectedShopId}
                 onValueChange={(v) => {
                   setSelectedShopId(v);
-                  setSelectedWarehouseId(""); // reset để effect chọn lại kho của cửa hàng mới
+                  setSelectedWarehouseId("");
                 }}
                 placeholder="Chọn cửa hàng..."
                 searchPlaceholder="Tìm cửa hàng..."
                 disabled={myShops.length === 0}
               />
-              {!myShopsQuery.isLoading && myShops.length === 0 && (
-                <p className="text-xs text-amber-600">Tài khoản chưa được gán cửa hàng nào.</p>
-              )}
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold">Chọn kho hàng</label>
+              <label className="text-xs font-semibold">Kho hàng</label>
               <SearchableSelect
                 options={warehouseOptions}
                 value={selectedWarehouseId}
@@ -180,29 +309,24 @@ export default function StockLevelsAdminPage() {
                 searchPlaceholder="Tìm kho..."
                 disabled={warehouses.length === 0}
               />
-              {warehouses.length === 0 && (
-                <p className="text-xs text-amber-600">
-                  {selectedShopId ? "Cửa hàng này chưa có kho." : "Chưa có kho nào."}
-                </p>
-              )}
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold">Chọn sản phẩm (biến thể)</label>
+              <label className="text-xs font-semibold">Sản phẩm (biến thể)</label>
               <SearchableSelect
                 options={variantOptions}
                 value={selectedVariantId}
                 onValueChange={setSelectedVariantId}
-                placeholder="Chọn sản phẩm..."
+                placeholder="Tìm sản phẩm..."
                 searchPlaceholder="Tìm theo tên / SKU..."
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold">Số lượng khả dụng</label>
+              <label className="text-xs font-semibold">Số lượng tồn</label>
               <Input
                 value={quickQty}
                 inputMode="numeric"
                 onChange={(e) => setQuickQty(e.target.value.replace(/\D/g, ""))}
-                placeholder="Nhập số tồn... ví dụ: 5"
+                placeholder="VD: 10"
               />
             </div>
             <div>
@@ -214,92 +338,186 @@ export default function StockLevelsAdminPage() {
         </CardContent>
       </Card>
 
+      {/* Danh sách tồn kho */}
       <Card>
         <CardHeader className="flex flex-col items-stretch gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Bảng danh sách tồn kho</CardTitle>
-            <CardDescription>Danh sách tồn kho hiện hữu trong hệ thống</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Warehouse className="h-5 w-5" />
+              Tồn kho theo kho
+            </CardTitle>
+            <CardDescription>
+              {searchedRows.length} sản phẩm • Click vào kho để xem chi tiết
+            </CardDescription>
           </div>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo SKU/tên biến thể..."
-            className="w-full sm:w-64"
-          />
+          <div className="flex gap-2">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm tên / SKU..."
+              className="w-48"
+            />
+          </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Kho</TableHead>
-                <TableHead>Sản phẩm</TableHead>
-                <TableHead>
-                  <span className="inline-flex items-center gap-1">
-                    Khả dụng
-                    <HelpTip content="Tồn khả dụng (available_qty) = tổng nhập − tổng xuất/bán. Cập nhật real-time khi bán/nhập/chuyển." />
-                  </span>
-                </TableHead>
-                <TableHead>
-                  <span className="inline-flex items-center gap-1">
-                    Đang giữ
-                    <HelpTip content="Sản phẩm đã có đơn nhưng chưa xuất kho. Hiện schema gộp vào available_qty (chưa tách)." />
-                  </span>
-                </TableHead>
-                <TableHead>
-                  <span className="inline-flex items-center gap-1">
-                    Sắp về
-                    <HelpTip content="Số lượng dự kiến về từ phiếu mua hàng (PO) đang xử lý hoặc chuyển kho đang trên đường đi." />
-                  </span>
-                </TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    {query.isLoading ? "Đang tải..." : "Không có dữ liệu"}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((r, idx) => {
-                  const key = `${r.warehouse_id}:${r.product_variant_id}`;
-                  const warehouse = warehouseMap.get(r.warehouse_id);
-                  const variant = variantMap.get(r.product_variant_id);
-                  const value = draft[key] ?? String(r.available_qty ?? 0);
-                  return (
-                    <TableRow key={`${r.warehouse_id}-${r.product_variant_id}-${idx}`}>
-                      <TableCell>
-                        <div className="font-medium">{warehouse?.name ?? r.warehouse_id}</div>
-                        <div className="text-xs text-muted-foreground">{warehouse?.code ?? r.warehouse_id}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{variant?.name ?? r.product_variant_id}</div>
-                        <div className="text-xs text-muted-foreground">{variant?.sku ?? r.product_variant_id}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={value}
-                          inputMode="numeric"
-                          onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value.replace(/\D/g, "") }))}
-                          className="h-8 w-28"
-                        />
-                      </TableCell>
-                      <TableCell>{r.reserved_qty ?? 0}</TableCell>
-                      <TableCell>{r.incoming_qty ?? 0}</TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" onClick={() => saveQty(r)} disabled={savingKey === key}>
-                          {savingKey === key ? "Đang lưu..." : "Lưu"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+          {query.isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Đang tải dữ liệu...</div>
+          ) : searchedRows.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {rows.length === 0 ? "Chưa có dữ liệu tồn kho" : "Không tìm thấy sản phẩm phù hợp"}
+            </div>
+          ) : (
+            <Tabs defaultValue="all" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="all">Tất cả ({searchedRows.length})</TabsTrigger>
+                <TabsTrigger value="problem" className="text-red-600">
+                  Cần xử lý ({stats.outOfStock + stats.critical})
+                </TabsTrigger>
+                <TabsTrigger value="low">Thấp ({stats.lowStock})</TabsTrigger>
+                <TabsTrigger value="healthy">Tốt ({stats.healthy})</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="all">
+                <StockTable rows={searchedRows} variantMap={variantMap} warehouseMap={warehouseMap} draft={draft} savingKey={savingKey} onDraftChange={setDraft} onSave={saveQty} />
+              </TabsContent>
+              <TabsContent value="problem">
+                <StockTable 
+                  rows={searchedRows.filter(r => (r.available_qty ?? 0) <= CRITICAL_STOCK_THRESHOLD)} 
+                  variantMap={variantMap} 
+                  warehouseMap={warehouseMap} 
+                  draft={draft} 
+                  savingKey={savingKey} 
+                  onDraftChange={setDraft} 
+                  onSave={saveQty} 
+                />
+              </TabsContent>
+              <TabsContent value="low">
+                <StockTable 
+                  rows={searchedRows.filter(r => {
+                    const qty = r.available_qty ?? 0;
+                    return qty > CRITICAL_STOCK_THRESHOLD && qty <= LOW_STOCK_THRESHOLD;
+                  })} 
+                  variantMap={variantMap} 
+                  warehouseMap={warehouseMap} 
+                  draft={draft} 
+                  savingKey={savingKey} 
+                  onDraftChange={setDraft} 
+                  onSave={saveQty} 
+                />
+              </TabsContent>
+              <TabsContent value="healthy">
+                <StockTable 
+                  rows={searchedRows.filter(r => (r.available_qty ?? 0) > LOW_STOCK_THRESHOLD)} 
+                  variantMap={variantMap} 
+                  warehouseMap={warehouseMap} 
+                  draft={draft} 
+                  savingKey={savingKey} 
+                  onDraftChange={setDraft} 
+                  onSave={saveQty} 
+                />
+              </TabsContent>
+            </Tabs>
+          )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// Tách component để tái sử dụng
+function StockTable({
+  rows,
+  variantMap,
+  warehouseMap,
+  draft,
+  savingKey,
+  onDraftChange,
+  onSave,
+}: {
+  rows: StockLevel[];
+  variantMap: Map<string, ProductVariant>;
+  warehouseMap: Map<string, Warehouse>;
+  draft: Record<string, string>;
+  savingKey: string | null;
+  onDraftChange: (d: Record<string, string>) => void;
+  onSave: (r: StockLevel) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {rows.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">Không có sản phẩm</div>
+      ) : (
+        rows.map((r, idx) => {
+          const key = `${r.warehouse_id}:${r.product_variant_id}`;
+          const warehouse = warehouseMap.get(r.warehouse_id);
+          const variant = variantMap.get(r.product_variant_id);
+          const qty = r.available_qty ?? 0;
+          const value = draft[key] ?? String(qty);
+          
+          return (
+            <div 
+              key={`${r.warehouse_id}-${r.product_variant_id}-${idx}`}
+              className={`flex items-center gap-4 p-4 rounded-lg border ${
+                qty === 0 ? "border-red-200 bg-red-50" :
+                qty <= CRITICAL_STOCK_THRESHOLD ? "border-orange-200 bg-orange-50" :
+                qty <= LOW_STOCK_THRESHOLD ? "border-yellow-200 bg-yellow-50" :
+                "border-border bg-card"
+              }`}
+            >
+              {/* Icon & Tên sản phẩm */}
+              <div className="flex-1 min-w-0">
+                <div className="font-medium truncate">
+                  {variant?.product?.name ?? variant?.name ?? "Sản phẩm không xác định"}
+                </div>
+                {variant?.name && variant?.product?.name && (
+                  <div className="text-sm text-muted-foreground truncate">{variant.name}</div>
+                )}
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
+                    SKU: {variant?.sku ?? "—"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    • Kho: {warehouse?.name ?? r.warehouse_id}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Các cột số lượng */}
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-center min-w-[80px]">
+                  <div className="text-xs text-muted-foreground">Khả dụng</div>
+                  <div className="font-bold text-lg">{qty}</div>
+                </div>
+                <div className="text-center min-w-[60px]">
+                  <div className="text-xs text-muted-foreground">Đang giữ</div>
+                  <div>{r.reserved_qty ?? 0}</div>
+                </div>
+                <div className="text-center min-w-[60px]">
+                  <div className="text-xs text-muted-foreground">Sắp về</div>
+                  <div>{r.incoming_qty ?? 0}</div>
+                </div>
+              </div>
+              
+              {/* Trạng thái */}
+              <StockStatusBadge qty={qty} />
+              
+              {/* Nút điều chỉnh */}
+              <div className="flex items-center gap-2">
+                <Input
+                  value={value}
+                  inputMode="numeric"
+                  onChange={(e) => onDraftChange({ ...draft, [key]: e.target.value.replace(/\D/g, "") })}
+                  className="w-20 h-8"
+                  placeholder="Số mới"
+                />
+                <Button size="sm" onClick={() => onSave(r)} disabled={savingKey === key || value === String(qty)}>
+                  {savingKey === key ? "..." : "Lưu"}
+                </Button>
+              </div>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
