@@ -17,9 +17,7 @@ primary_region = 'sin'
   release_command = "node -e \"console.log('Release OK')\""
   strategy = "immediate"
 
-# Env vars NON-SECRET — chỉ những giá trị public/an safe để lộ.
-# Tất cả secret (Supabase keys, AI API keys, Resend, CRON, MINI_TOOL_SHARED_SECRET...)
-# phải đặt bằng `flyctl secrets set` (lưu encrypted trong Fly, không commit git).
+# Env vars NON-SECRET
 [env]
   HOSTNAME = "0.0.0.0"
   NEXT_PUBLIC_APP_NAME = "LapLap"
@@ -34,7 +32,6 @@ primary_region = 'sin'
   force_https = true
   internal_port = 3000
   min_machines_running = 1
-  # Cho phép upload file âm thanh tối đa 30MB (Fly proxy mặc định ~1MB).
   request_body_size_limit = '40mb'
 
   [http_service.concurrency]
