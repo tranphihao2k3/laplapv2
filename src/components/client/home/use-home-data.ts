@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { ProductKind } from "@/lib/product-kind";
 
 export type PublicProduct = {
   id: string;
@@ -21,6 +22,8 @@ export type PublicProduct = {
   soldCount?: number;
   isNew?: boolean;
   isHot?: boolean;
+  /** Phân loại sản phẩm — xem lib/product-kind.ts. Mặc định "laptop". */
+  kind?: ProductKind;
 };
 
 type ProductListResponse = {
@@ -29,9 +32,21 @@ type ProductListResponse = {
   page: number;
   limit: number;
   totalPages: number;
+  /** Echo lại kind đã filter để client debug/kiểm tra. */
+  kind?: ProductKind;
 };
 
-export type FilterOption = { value: string; label: string; count: number };
+export type FilterOption = {
+  value: string;
+  label: string;
+  count: number;
+  /** Chỉ trên `categories`: slug để dựng URL đẹp (vd `/products?category=cpu`). */
+  slug?: string | null;
+  /** Phân loại: laptop | pc_component — dùng để filter & group ở UI. */
+  kind?: ProductKind;
+  parentId?: string | null;
+  parentSlug?: string | null;
+};
 
 export type ProductFilters = {
   brands: FilterOption[];
@@ -47,6 +62,8 @@ export type ProductFilters = {
 type Sort = "newest" | "price_asc" | "price_desc" | "name_asc";
 
 type HomeProductParams = {
+  /** Mặc định "laptop" — trang chủ chỉ showcase laptop. */
+  kind?: ProductKind;
   sort?: Sort;
   brand?: string;
   category?: string;
@@ -55,6 +72,7 @@ type HomeProductParams = {
 
 function buildKey(params: HomeProductParams) {
   const sp = new URLSearchParams();
+  sp.set("kind", params.kind ?? "laptop");
   sp.set("sort", params.sort ?? "newest");
   sp.set("limit", String(params.limit ?? 8));
   if (params.brand) sp.set("brand", params.brand);

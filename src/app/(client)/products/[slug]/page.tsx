@@ -1,3 +1,13 @@
+/**
+ * Trang chi tiết sản phẩm — kết hợp:
+ *   - Gallery + ProductInfo (tự có animation riêng)
+ *   - Tabs mô tả / thông số / chính sách (với underline accent động)
+ *   - Related products
+ *   - ScrollProgressBar (top bar fill theo cuộn trang)
+ *
+ * Mỗi section được Reveal-animate khi user cuộn tới.
+ */
+
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,6 +21,8 @@ import { ProductDescription } from "@/components/client/product/product-descript
 import { WarrantyPolicy } from "@/components/client/product/warranty-policy";
 import { RelatedProducts } from "@/components/client/product/related-products";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Reveal } from "@/components/client/home/reveal";
+import { ScrollProgressBar } from "@/components/client/product/scroll-progress-bar";
 import type { ProductWithVariants } from "@/components/client/product/types";
 
 async function getProductBySlug(slug: string): Promise<ProductWithVariants | null> {
@@ -262,7 +274,7 @@ export default async function ProductDetailPage({
   };
 
   return (
-    <div className="container py-6 pb-24 lg:py-8 lg:pb-8">
+    <div className="container relative py-6 pb-28 lg:py-8 lg:pb-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
@@ -272,79 +284,92 @@ export default async function ProductDetailPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
+      {/* Top scroll progress bar */}
+      <ScrollProgressBar />
+
       {/* Breadcrumb */}
-      <Breadcrumb
-        items={[
-          { label: "Trang chủ", href: "/" },
-          { label: "Sản phẩm", href: "/products" },
-          ...(product.category
-            ? [{ label: product.category.name, href: `/products?category=${product.category.id}` }]
-            : []),
-          { label: product.name },
-        ]}
-      />
+      <Reveal variant="fade-up" duration={500}>
+        <Breadcrumb
+          items={[
+            { label: "Trang chủ", href: "/" },
+            { label: "Sản phẩm", href: "/products" },
+            ...(product.category
+              ? [{ label: product.category.name, href: `/products?category=${product.category.id}` }]
+              : []),
+            { label: product.name },
+          ]}
+        />
+      </Reveal>
 
       {/* Main section */}
       <div className="mt-5 grid gap-6 sm:mt-7 sm:gap-8 lg:grid-cols-2 lg:gap-14">
-        <div>
+        <Reveal variant="fade-left" duration={700}>
           <ProductGallery images={product.images} productName={product.name} />
-        </div>
-        <div className="lg:sticky lg:top-24 lg:self-start">
-          <ProductInfo product={product} consultPhone={shop.phone} />
-        </div>
+        </Reveal>
+        <Reveal variant="fade-right" duration={700} delay={150}>
+          <div className="lg:sticky lg:top-24 lg:self-start">
+            <ProductInfo product={product} consultPhone={shop.phone} />
+          </div>
+        </Reveal>
       </div>
 
       {/* Detail tabs */}
-      <div className="mt-12 sm:mt-20">
-        <Tabs defaultValue="description" className="w-full">
-          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl border border-slate-200/80 bg-slate-50/70 p-1">
-            <TabsTrigger
-              value="description"
-              className="rounded-lg px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm sm:text-sm"
-            >
-              Mô tả chi tiết
-            </TabsTrigger>
-            {hasSpecs && (
-              <TabsTrigger
-                value="specs"
-                className="rounded-lg px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm sm:text-sm"
-              >
-                Thông số kỹ thuật
-              </TabsTrigger>
-            )}
-            <TabsTrigger
-              value="policy"
-              className="rounded-lg px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm sm:text-sm"
-            >
-              Bảo hành &amp; Chính sách
-            </TabsTrigger>
-          </TabsList>
+      <Reveal variant="fade-up" duration={700}>
+        <div className="mt-12 sm:mt-20">
+          <Tabs defaultValue="description" className="w-full">
+            <div className="relative -mx-1 overflow-x-auto px-1 scrollbar-none sm:mx-0 sm:px-0">
+              <TabsList className="inline-flex h-auto w-auto min-w-full gap-1 rounded-2xl border bg-card/80 p-1 shadow-sm backdrop-blur-sm sm:flex">
+                <TabsTrigger
+                  value="description"
+                  className="tab-underline relative whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-fuchsia-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
+                >
+                  Mô tả chi tiết
+                </TabsTrigger>
+                {hasSpecs && (
+                  <TabsTrigger
+                    value="specs"
+                    className="tab-underline relative whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-fuchsia-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
+                  >
+                    Thông số kỹ thuật
+                  </TabsTrigger>
+                )}
+                <TabsTrigger
+                  value="policy"
+                  className="tab-underline relative whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-fuchsia-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
+                >
+                  Bảo hành &amp; Chính sách
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-          <TabsContent value="description" className="mt-6 sm:mt-8">
-            <ProductDescription
-              description={product.description}
-              shortDescription={product.short_description}
-              productName={product.name}
-              specs={product.variants?.[0]?.specs as Record<string, string> | null}
-            />
-          </TabsContent>
-
-          {hasSpecs && (
-            <TabsContent value="specs" className="mt-6 sm:mt-8">
-              <ProductSpecs product={product} />
+            <TabsContent value="description" className="mt-6 animate-fade-in-up sm:mt-8">
+              <ProductDescription
+                description={product.description}
+                shortDescription={product.short_description}
+                productName={product.name}
+                specs={product.variants?.[0]?.specs as Record<string, string> | null}
+              />
             </TabsContent>
-          )}
 
-          <TabsContent value="policy" className="mt-6 sm:mt-8">
-            <WarrantyPolicy />
-          </TabsContent>
-        </Tabs>
-      </div>
+            {hasSpecs && (
+              <TabsContent value="specs" className="mt-6 animate-fade-in-up sm:mt-8">
+                <ProductSpecs product={product} />
+              </TabsContent>
+            )}
+
+            <TabsContent value="policy" className="mt-6 animate-fade-in-up sm:mt-8">
+              <WarrantyPolicy />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </Reveal>
 
       {/* Related products */}
-      <div className="mt-16 sm:mt-24">
-        <RelatedProducts products={related} />
-      </div>
+      <Reveal variant="fade-up" duration={700}>
+        <div className="mt-16 sm:mt-24">
+          <RelatedProducts products={related} />
+        </div>
+      </Reveal>
     </div>
   );
 }

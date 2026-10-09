@@ -60,6 +60,21 @@ export function createCrud<T extends TableName>(cfg: CrudConfig<T>) {
     if (query.filters) {
       for (const [k, v] of Object.entries(query.filters)) {
         if (v === null || v === undefined || v === "") continue;
+        // Hỗ trợ filter `__in`: gửi nhiều id cách nhau bằng dấu phẩy → query `.in(col, ids)`.
+        // Hữu ích cho category tree (chọn cha → lấy cả cây con) hoặc bất kỳ quan hệ cha-con nào.
+        if (k.endsWith("__in")) {
+          const col = k.slice(0, -4);
+          const ids = String(v)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (ids.length === 1) {
+            q = q.eq(col, ids[0]);
+          } else if (ids.length > 1) {
+            q = q.in(col, ids);
+          }
+          continue;
+        }
         q = q.eq(k, v as string | number | boolean);
       }
     }

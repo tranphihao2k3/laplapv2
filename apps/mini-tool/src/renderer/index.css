@@ -57,8 +57,12 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-slate-950 text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    background-image: 
+      radial-gradient(ellipse at top, rgba(34, 211, 238, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(168, 85, 247, 0.05) 0%, transparent 50%);
+    background-attachment: fixed;
   }
   a,
   button,
@@ -83,11 +87,45 @@
 }
 
 @layer utilities {
+  /* Disk list: scroll đẹp cho card Storage. */
+  .disk-list {
+    overflow-y: auto;
+    max-height: min(50vh, 360px);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+  }
+  .disk-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .disk-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .disk-list::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 3px;
+  }
+  .disk-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.7);
+  }
+
   .card-frosted {
     @apply bg-white/60 backdrop-blur-sm border border-slate-200/80 shadow-sm;
   }
+  .card-frosted-dark {
+    @apply bg-slate-900/80 backdrop-blur-md border border-slate-800/80 shadow-xl;
+  }
   .card-hover {
     @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-slate-300;
+  }
+  .card-glow {
+    @apply relative overflow-hidden;
+  }
+  .card-glow::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-purple-500/10 opacity-0 transition-opacity duration-300;
+  }
+  .card-glow:hover::before {
+    @apply opacity-100;
   }
   .hover-lift {
     @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.99];
@@ -104,4 +142,52 @@
   .text-gradient-brand {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-blue-500;
   }
+  .text-gradient-gaming {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400;
+  }
+  .text-gradient-neon {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-blue-300 to-purple-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)];
+  }
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.3), 0 0 40px rgba(34, 211, 238, 0.1);
+  }
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), 0 0 40px rgba(168, 85, 247, 0.1);
+  }
+  .border-glow-cyan {
+    @apply border-cyan-500/50;
+    box-shadow: inset 0 0 20px rgba(34, 211, 238, 0.1), 0 0 10px rgba(34, 211, 238, 0.2);
+  }
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+  @keyframes glow {
+    from { box-shadow: 0 0 10px rgba(34, 211, 238, 0.3); }
+    to { box-shadow: 0 0 20px rgba(34, 211, 238, 0.5), 0 0 30px rgba(34, 211, 238, 0.3); }
+  }
+  /* Shimmer cho disk progress bar — gradient dịch từ -100% → 200% */
+  @keyframes disk-shimmer {
+    0%   { background-position: -100% 0; }
+    100% { background-position: 200% 0; }
+  }
+  /* Pulse nhẹ cho gauge sublabel khi quá tải */
+  @keyframes gauge-warn {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+  }
+  .animate-gauge-warn {
+    animation: gauge-warn 1.2s ease-in-out infinite;
+    transform-origin: center;
+  }}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
 }

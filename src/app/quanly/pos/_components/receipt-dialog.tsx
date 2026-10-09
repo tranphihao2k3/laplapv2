@@ -11,6 +11,7 @@ import {
   Phone,
   Mail,
   ScanLine,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +48,8 @@ type Props = {
   /** Chính sách bảo hành / đổi trả (mỗi dòng 1 mục). */
   policy?: string | null;
   footer?: string | null;
+  /** Thông tin bảo hành sửa chữa gắn với hóa đơn (nếu có). */
+  warrantyInfo?: { months: number; endDate?: string | null } | null;
   onNew: () => void;
 };
 
@@ -89,6 +92,7 @@ export function ReceiptDialog({
   issuedAt,
   policy,
   footer,
+  warrantyInfo,
   onNew,
 }: Props) {
   const [includePolicy, setIncludePolicy] = useState(true);
@@ -293,6 +297,23 @@ export function ReceiptDialog({
                 ))}
               </tbody>
             </table>
+
+            {/* Bảo hành sửa chữa (nếu có) — nổi bật, dễ thấy */}
+            {warrantyInfo && warrantyInfo.months > 0 && (
+              <div className="flex items-start gap-2 rounded border border-emerald-300 bg-emerald-50 p-2 text-[11px] text-emerald-900">
+                <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-emerald-700" />
+                <div className="flex-1">
+                  <div className="font-semibold">
+                    Đã cấp bảo hành {warrantyInfo.months} tháng cho máy sửa
+                  </div>
+                  {warrantyInfo.endDate && (
+                    <div className="text-emerald-800/80">
+                      Hiệu lực đến: {formatDateTime(warrantyInfo.endDate)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Tổng kết */}
             <div className="space-y-1 border-t pt-2">

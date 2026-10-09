@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { httpPost } from "@/lib/api/http";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { httpGet, httpPost } from "@/lib/api/http";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -24,10 +24,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
 import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { createClient } from "@/lib/supabase/client";
-import { Search, Plus, Edit, Trash2, Wrench, Camera, X, ImageIcon } from "lucide-react";
+import {
+  Search, Plus, Edit, Trash2, Wrench, Camera, X, ImageIcon,
+  Printer, ShieldCheck, CheckCircle2, Circle, Clock, Truck, Package, XCircle,
+  AlertTriangle, Eye, MessageCircle, Phone,
+} from "lucide-react";
+import { zaloLink, telLink } from "@/lib/contact";
+import {
+  RepairIntakeReceipt,
+  RepairReceiptStyles,
+  type IntakeReceiptData,
+} from "@/components/admin/repair-tickets/repair-intake-receipt";
+import { RepairTicketDetailDialog } from "@/components/admin/repair-tickets/repair-ticket-detail";
 
 type RepairTicket = {
   id: string;
+  ticket_code: string | null;
   shop_id: string | null;
   customer_id: string | null;
   device_name: string | null;
@@ -39,24 +51,45 @@ type RepairTicket = {
   estimated_cost: number | null;
   actual_cost: number | null;
   assigned_to: string | null;
+  repair_solution: string | null;
+  warranty_months: number | null;
+  completed_at: string | null;
+  delivered_at: string | null;
   created_at: string | null;
 };
 
 type Shop = { id: string; name: string; code: string | null };
 type Customer = { id: string; full_name: string | null; phone: string | null };
 
-const STATUS_ORDER: Record<string, { label: string; cls: string }> = {
-  received: { label: "Đã nhận", cls: "bg-blue-100 text-blue-700" },
-  diagnosing: { label: "Đang chẩn đoán", cls: "bg-indigo-100 text-indigo-700" },
-  quoted: { label: "Đã báo giá", cls: "bg-amber-100 text-amber-700" },
-  approved: { label: "KH đồng ý", cls: "bg-emerald-100 text-emerald-700" },
-  repairing: { label: "Đang sửa", cls: "bg-violet-100 text-violet-700" },
-  done: { label: "Đã sửa xong", cls: "bg-teal-100 text-teal-700" },
-  delivered: { label: "Đã trả máy", cls: "bg-green-100 text-green-700" },
-  cancelled: { label: "Đã huỷ", cls: "bg-red-100 text-red-700" },
+/**
+ * Timeline các trạng thái theo thứ tự.
+ * - received → diagnosing → quoted → approved → repairing → done → delivered
+ * - cancelled là trạng thái đầu cuối (bất kỳ lúc nào)
+ */
+const STATUS_ORDER: Record<string, { label: string; cls: string; step: number }> = {
+  received: { label: "Đã nhận", cls: "bg-blue-100 text-blue-700", step: 1 },
+  diagnosing: { label: "Đang chẩn đoán", cls: "bg-indigo-100 text-indigo-700", step: 2 },
+  quoted: { label: "Đã báo giá", cls: "bg-amber-100 text-amber-700", step: 3 },
+  approved: { label: "KH đồng ý", cls: "bg-emerald-100 text-emerald-700", step: 4 },
+  repairing: { label: "Đang sửa", cls: "bg-violet-100 text-violet-700", step: 5 },
+  done: { label: "Đã sửa xong", cls: "bg-teal-100 text-teal-700", step: 6 },
+  delivered: { label: "Đã trả máy", cls: "bg-green-100 text-green-700", step: 7 },
+  cancelled: { label: "Đã huỷ", cls: "bg-red-100 text-red-700", step: 0 },
 };
 
-const STATUS_OPTIONS = Object.entries(STATUS_ORDER).map(([value, s]) => ({ value, label: s.label }));
+const STATUS_OPTIONS = Object.entries(STATUS_ORDER)
+  .filter(([v]) => v !== "cancelled")
+  .map(([value, s]) => ({ value, label: s.label }));
+
+const TIMELINE_STEPS = [
+  { key: "received", label: "Tiếp nhận", icon: Package },
+  { key: "diagnosing", label: "Chẩn đoán", icon: Search },
+  { key: "quoted", label: "Báo giá", icon: Clock },
+  { key: "approved", label: "KH đồng ý", icon: CheckCircle2 },
+  { key: "repairing", label: "Đang sửa", icon: Wrench },
+  { key: "done", label: "Sửa xong", icon: CheckCircle2 },
+  { key: "delivered", label: "Đã trả", icon: Truck },
+] as const;
 
 function fmtCurrency(v: number | null | undefined) {
   if (v == null) return "—";
@@ -66,12 +99,10 @@ function fmtDateTime(d: string | null | undefined) {
   if (!d) return "—";
   try { return new Date(d).toLocaleString("vi-VN"); } catch { return d; }
 }
-// Hiển thị số tiền có dấu phân cách hàng nghìn khi nhập (VD 3000000 → "3.000.000").
 function groupDigits(v: number | null | undefined) {
   if (v == null || Number.isNaN(v)) return "";
   return new Intl.NumberFormat("vi-VN").format(v);
 }
-// Lấy số nguyên từ chuỗi người dùng gõ (bỏ mọi ký tự không phải số).
 function parseMoney(s: string): number | null {
   const digits = s.replace(/\D/g, "");
   return digits ? Number(digits) : null;
@@ -91,6 +122,16 @@ export default function RepairTicketsPage() {
   const [quickCustomer, setQuickCustomer] = useState(false);
   const [newCustName, setNewCustName] = useState("");
   const [newCustPhone, setNewCustPhone] = useState("");
+
+  // Hoàn tất sửa chữa
+  const [completeOpen, setCompleteOpen] = useState<RepairTicket | null>(null);
+  const [completeSolution, setCompleteSolution] = useState("");
+  const [completeWarrantyMonths, setCompleteWarrantyMonths] = useState<number>(3);
+  // Xem chi tiết phiếu (kèm thông tin BH)
+  const [detailTicket, setDetailTicket] = useState<RepairTicket | null>(null);
+
+  // In phiếu
+  const [printTicket, setPrintTicket] = useState<IntakeReceiptData | null>(null);
 
   const q = useCrudList<RepairTicket>("repair-tickets", { search, page: 1, pageSize: 100 });
   const shopsQ = useCrudList<Shop>("shops", { page: 1, pageSize: 100 });
@@ -147,6 +188,30 @@ export default function RepairTicketsPage() {
     },
   });
 
+  const completeMutation = useMutation({
+    mutationFn: (input: { id: string; repair_solution?: string; warranty_months: number }) =>
+      httpPost(`/v1/repair-tickets/${input.id}/complete`, {
+        repair_solution: input.repair_solution || undefined,
+        warranty_months: input.warranty_months,
+      }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["admin-crud", "repair-tickets"] });
+      qc.invalidateQueries({ queryKey: ["admin-crud", "warranties"] });
+      setCompleteOpen(null);
+      setCompleteSolution("");
+      setCompleteWarrantyMonths(3);
+      if (data?.warranty) {
+        toast.success(`Đã hoàn tất. Tự động tạo bảo hành ${data.warranty.warranty_type} đến ${fmtDateTime(data.warranty.end_date)}.`);
+      } else {
+        toast.success("Đã hoàn tất sửa chữa. Phiếu không cấp bảo hành.");
+      }
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(msg);
+    },
+  });
+
   function resetForm() {
     setForm({ status: "received" });
     setEditing(null);
@@ -168,6 +233,31 @@ export default function RepairTicketsPage() {
     setImages([]);
     setQuickCustomer(false);
     setOpenNew(true);
+  }
+
+  function openPrint(t: RepairTicket) {
+    const c = t.customer_id ? customerMap.get(t.customer_id) : null;
+    const shop = t.shop_id ? shopMap.get(t.shop_id) : null;
+    setPrintTicket({
+      ticketCode: t.ticket_code ?? t.id.slice(0, 8).toUpperCase(),
+      createdAt: t.created_at,
+      statusLabel: STATUS_ORDER[t.status ?? ""]?.label ?? t.status ?? "—",
+      deviceName: t.device_name ?? "—",
+      serialNumber: t.serial_number,
+      issueDescription: t.issue_description,
+      conditionDescription: t.condition_description,
+      estimatedCost: t.estimated_cost,
+      customerName: c?.full_name ?? null,
+      customerPhone: c?.phone ?? null,
+      shopName: shop?.name ?? null,
+      shopAddress: shop?.code ?? null, // hiện chưa có cột address trong Shop, để mở rộng sau
+      shopPhone: null,
+      shopEmail: null,
+      shopWebsite: null,
+      warrantyMonths: t.warranty_months,
+      images: t.images,
+      pickupDeadlineDays: 30,
+    });
   }
 
   async function uploadImages(): Promise<string[]> {
@@ -215,12 +305,17 @@ export default function RepairTicketsPage() {
         if (v !== "" && v !== null && v !== undefined) body[k] = v;
       });
 
+      let saved: RepairTicket | null = null;
       if (editing) {
-        await updateMutation.mutateAsync({ id: editing.id, input: body as any });
+        saved = (await updateMutation.mutateAsync({ id: editing.id, input: body as any })) as RepairTicket;
         toast.success("Đã cập nhật phiếu sửa chữa");
       } else {
-        await createMutation.mutateAsync(body as any);
-        toast.success("Đã tạo phiếu sửa chữa");
+        saved = (await createMutation.mutateAsync(body as any)) as RepairTicket;
+        toast.success(`Đã tiếp nhận máy sửa. Mã phiếu: ${(saved as any)?.ticket_code ?? "—"}`);
+        // Tự động mở hộp thoại in phiếu cho khách
+        if (saved) {
+          openPrint(saved);
+        }
       }
       resetForm();
       setOpenNew(false);
@@ -267,16 +362,21 @@ export default function RepairTicketsPage() {
 
   return (
     <div className="space-y-4">
+      <RepairReceiptStyles />
+      <RepairIntakeReceipt data={printTicket} variant="hidden" />
+
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2"><Wrench className="h-5 w-5" /> Phiếu sửa chữa</CardTitle>
-            <CardDescription>Tiếp nhận, chẩn đoán, sửa chữa và trả máy</CardDescription>
+            <CardDescription>
+              Tiếp nhận → chẩn đoán → báo giá → sửa chữa → hoàn tất (tự tạo bảo hành) → trả máy
+            </CardDescription>
           </div>
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <div className="relative w-full sm:w-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm thiết bị / serial..." className="w-full sm:w-56 pl-8" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm theo mã / thiết bị / serial..." className="w-full sm:w-56 pl-8" />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
@@ -291,91 +391,164 @@ export default function RepairTicketsPage() {
           </div>
         </CardHeader>
         <CardContent>
-<BulkActionsToolbar
-              count={selection.count}
-              entityLabel="phiếu sửa"
-              onClear={selection.clear}
-              onRequestDelete={() => {
-                if (window.confirm(`Xoá ${selection.count} phiếu sửa đã chọn? Hành động không thể hoàn tác.`)) {
-                  void handleBulkDelete();
-                }
-              }}
-              isPending={bulkDeleteMutation.isPending}
-            />
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">
-                    <Checkbox
-                      checked={allOnPageSelected}
-                      onCheckedChange={() => selection.toggleAll(pageIds)}
-                      aria-label="Chọn tất cả"
-                      ref={(el) => {
-                        if (el && "indeterminate" in el) {
-                          (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
-                        }
-                      }}
-                    />
-                  </TableHead>
-                  <TableHead>Thiết bị</TableHead>
-                  <TableHead>Serial</TableHead>
-                  <TableHead>Cửa hàng</TableHead>
-                  <TableHead>Khách hàng</TableHead>
-                  <TableHead className="text-right">CP dự kiến</TableHead>
-                  <TableHead className="text-right">CP thực tế</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Ngày tạo</TableHead>
-                  <TableHead className="text-right">Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {q.isLoading ? (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
-                ) : items.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">Chưa có phiếu sửa chữa</TableCell></TableRow>
-                ) : (
-                  items.map((t) => {
-                    const st = STATUS_ORDER[t.status ?? ""] ?? { label: t.status ?? "-", cls: "bg-muted" };
-                    const c = t.customer_id ? customerMap.get(t.customer_id) : null;
-                    const shop = t.shop_id ? shopMap.get(t.shop_id) : null;
-                    const checked = selection.isSelected(t.id);
-                    return (
-                      <TableRow key={t.id} data-state={checked ? "selected" : undefined}>
-                        <TableCell>
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={() => selection.toggle(t.id)}
-                            aria-label={`Chọn phiếu ${t.device_name ?? t.id}`}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {t.images && t.images.length > 0 && <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                            {t.device_name ?? "—"}
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="phiếu sửa"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (window.confirm(`Xoá ${selection.count} phiếu sửa đã chọn? Hành động không thể hoàn tác.`)) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead>Mã phiếu</TableHead>
+                <TableHead>Thiết bị</TableHead>
+                <TableHead>Serial</TableHead>
+                <TableHead>Khách hàng</TableHead>
+                <TableHead className="text-right">CP dự kiến</TableHead>
+                <TableHead className="text-right">CP thực tế</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead>Ngày tạo</TableHead>
+                <TableHead className="text-right">Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {q.isLoading ? (
+                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
+              ) : items.length === 0 ? (
+                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">Chưa có phiếu sửa chữa</TableCell></TableRow>
+              ) : (
+                items.map((t) => {
+                  const st = STATUS_ORDER[t.status ?? ""] ?? { label: t.status ?? "-", cls: "bg-muted", step: 0 };
+                  const c = t.customer_id ? customerMap.get(t.customer_id) : null;
+                  const checked = selection.isSelected(t.id);
+                  return (
+                    <TableRow key={t.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(t.id)}
+                          aria-label={`Chọn phiếu ${t.device_name ?? t.id}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-[11px] font-mono text-muted-foreground">{t.ticket_code ?? "—"}</code>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {t.images && t.images.length > 0 && <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                          {t.device_name ?? "—"}
+                        </div>
+                        {t.warranty_months ? (
+                          <div className="text-[11px] text-emerald-600 flex items-center gap-1 mt-0.5">
+                            <ShieldCheck className="h-3 w-3" /> BH {t.warranty_months} tháng
                           </div>
-                        </TableCell>
+                        ) : null}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{t.serial_number ?? "—"}</TableCell>
-                      <TableCell className="text-xs">{shop?.name ?? "—"}</TableCell>
-                      <TableCell className="text-xs">{c?.full_name ?? "—"}{c?.phone ? ` (${c.phone})` : ""}</TableCell>
+                      <TableCell className="text-xs">
+                        {c?.full_name ?? "—"}
+                        {c?.phone ? <div className="text-muted-foreground">{c.phone}</div> : null}
+                      </TableCell>
                       <TableCell className="text-right">{fmtCurrency(t.estimated_cost)}</TableCell>
                       <TableCell className="text-right">{fmtCurrency(t.actual_cost)}</TableCell>
-                      <TableCell><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${st.cls}`}>{st.label}</span></TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${st.cls}`}>{st.label}</span>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{fmtDateTime(t.created_at)}</TableCell>
-<TableCell className="text-right">
-                         <div className="flex justify-end gap-2">
-                           {t.status === "done" && (
-                             <Button
-                               size="sm"
-                               variant="default"
-                               onClick={() => checkoutMutation.mutate(t.id)}
-                               disabled={checkoutMutation.isPending}
-                             >
-                               Tính tiền
-                             </Button>
-                           )}
-                           <Button size="sm" variant="outline" onClick={() => openEdit(t)}><Edit className="h-4 w-4" /></Button>
-                           <Button size="sm" variant="destructive" onClick={() => handleDelete(t)}><Trash2 className="h-4 w-4" /></Button>
-                         </div>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1 flex-wrap">
+                          {/* Liên hệ nhanh: chỉ hiện khi có SĐT — dùng để báo giá / xin ý kiến KH */}
+                          {(() => {
+                            const phone = c?.phone ?? null;
+                            const zalo = zaloLink(phone);
+                            const tel = telLink(phone);
+                            if (!zalo && !tel) return null;
+                            return (
+                              <>
+                                {zalo && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 w-8 p-0 border-sky-200 bg-sky-50 hover:bg-sky-100"
+                                    onClick={() => window.open(zalo, "_blank", "noopener,noreferrer")}
+                                    title={`Chat Zalo với ${c?.full_name ?? phone}`}
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5 text-sky-600" />
+                                  </Button>
+                                )}
+                                {tel && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 w-8 p-0 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                                    asChild
+                                  >
+                                    <a
+                                      href={tel}
+                                      title={`Gọi ${c?.full_name ?? phone}`}
+                                      className="flex items-center justify-center"
+                                    >
+                                      <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                                    </a>
+                                  </Button>
+                                )}
+                              </>
+                            );
+                          })()}
+                          {t.status === "done" && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => checkoutMutation.mutate(t.id)}
+                              disabled={checkoutMutation.isPending}
+                            >
+                              Tính tiền
+                            </Button>
+                          )}
+                          {t.status !== "done" && t.status !== "delivered" && t.status !== "cancelled" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setCompleteOpen(t);
+                                setCompleteSolution(t.repair_solution ?? "");
+                                setCompleteWarrantyMonths(t.warranty_months ?? 3);
+                              }}
+                              className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-1" /> Hoàn tất
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => setDetailTicket(t)} title="Xem chi tiết & bảo hành">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openPrint(t)} title="In phiếu biên nhận">
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openEdit(t)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleDelete(t)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -386,11 +559,14 @@ export default function RepairTicketsPage() {
         </CardContent>
       </Card>
 
+      {/* === INTAKE DIALOG === */}
       <Dialog open={openNew} onOpenChange={(o) => { if (!o) { resetForm(); } setOpenNew(o); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Sửa phiếu sửa chữa" : "Tiếp nhận máy sửa chữa"}</DialogTitle>
-            <DialogDescription>Nhập thông tin thiết bị, tình trạng và ảnh chụp máy.</DialogDescription>
+            <DialogDescription>
+              Nhập thông tin thiết bị, tình trạng và ảnh chụp. Hệ thống sẽ tự sinh mã phiếu (VD: SC-2026-000123) và mở hộp thoại in biên nhận cho khách.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
@@ -463,12 +639,12 @@ export default function RepairTicketsPage() {
               <Textarea value={form.condition_description ?? ""} onChange={(e) => setForm((p: any) => ({ ...p, condition_description: e.target.value }))} placeholder="Mô tả hiện trạng máy khi nhận (trầy, móp, màn...)" rows={2} />
             </div>
 
-            {/* Image upload */}
             <div className="space-y-2 sm:col-span-2">
               <Label>Ảnh chụp máy</Label>
               <div className="flex flex-wrap gap-3">
                 {allPreviewImages.map((url, i) => (
                   <div key={url} className="group relative h-20 w-20 overflow-hidden rounded-lg border bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={url} alt="" className="h-full w-full object-cover" />
                     <button
                       type="button"
@@ -527,14 +703,119 @@ export default function RepairTicketsPage() {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => { resetForm(); setOpenNew(false); }}>Huỷ</Button>
             <Button disabled={!form.device_name || !form.issue_description || uploading || createMutation.isPending || updateMutation.isPending} onClick={handleSubmit}>
-              {uploading ? "Đang tải ảnh..." : editing ? "Cập nhật" : "Tiếp nhận"}
+              {uploading ? "Đang tải ảnh..." : editing ? "Cập nhật" : "Tiếp nhận & in phiếu"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* === HOÀN TẤT SỬA CHỮA === */}
+      <Dialog open={!!completeOpen} onOpenChange={(o) => !o && setCompleteOpen(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Hoàn tất sửa chữa
+            </DialogTitle>
+            <DialogDescription>
+              Mã phiếu: <strong>{completeOpen?.ticket_code}</strong> — {completeOpen?.device_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Cách xử lý / linh kiện thay thế</Label>
+              <Textarea
+                value={completeSolution}
+                onChange={(e) => setCompleteSolution(e.target.value)}
+                placeholder="VD: Thay màn hình iPhone 14 Pro Max, ép kính..."
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-emerald-600" /> Cấp bảo hành sau sửa
+              </Label>
+              <Select
+                value={String(completeWarrantyMonths)}
+                onValueChange={(v) => setCompleteWarrantyMonths(Number(v))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Không cấp bảo hành</SelectItem>
+                  <SelectItem value="1">1 tháng</SelectItem>
+                  <SelectItem value="3">3 tháng</SelectItem>
+                  <SelectItem value="6">6 tháng</SelectItem>
+                  <SelectItem value="12">12 tháng</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {completeWarrantyMonths > 0
+                  ? `Sau khi lưu, hệ thống sẽ tự động tạo 1 bảo hành "${completeWarrantyMonths} tháng" gắn với phiếu này, hiển thị trong mục Bảo hành > Bảo hành sửa chữa.`
+                  : "Phiếu này sẽ không có bảo hành. Khách chỉ nhận máy."}
+              </p>
+              {completeWarrantyMonths === 0 ? (
+                <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                  <div>
+                    <div className="font-medium">Chưa cấp bảo hành</div>
+                    <div className="text-amber-800/90">
+                      Khách sẽ không có căn cứ bảo hành sau sửa. Bạn có chắc muốn tiếp tục?
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompleteOpen(null)}>Huỷ</Button>
+            <Button
+              onClick={() => {
+                if (!completeOpen) return;
+                if (completeWarrantyMonths === 0) {
+                  const ok = window.confirm(
+                    "Xác nhận KHÔNG cấp bảo hành cho phiếu này?\n\nPhiếu sẽ được hoàn tất nhưng khách không có bảo hành sau sửa.",
+                  );
+                  if (!ok) return;
+                }
+                completeMutation.mutate({
+                  id: completeOpen.id,
+                  repair_solution: completeSolution,
+                  warranty_months: completeWarrantyMonths,
+                });
+              }}
+              disabled={completeMutation.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {completeMutation.isPending ? "Đang lưu..." : "Xác nhận hoàn tất"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* === XEM CHI TIẾT PHIẾU (kèm thông tin bảo hành) === */}
+      <RepairTicketDetailDialog
+        open={!!detailTicket}
+        onOpenChange={(o) => !o && setDetailTicket(null)}
+        ticket={detailTicket}
+        customerName={
+          detailTicket?.customer_id
+            ? customerMap.get(detailTicket.customer_id)?.full_name ?? null
+            : null
+        }
+        customerPhone={
+          detailTicket?.customer_id
+            ? customerMap.get(detailTicket.customer_id)?.phone ?? null
+            : null
+        }
+        onPrint={() => {
+          if (detailTicket) {
+            setDetailTicket(null);
+            openPrint(detailTicket);
+          }
+        }}
+      />
     </div>
   );
 }

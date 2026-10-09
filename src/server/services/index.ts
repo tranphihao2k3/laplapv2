@@ -318,6 +318,92 @@ export const repairTicketsService = createCrud({
   defaultOrder: { column: "created_at", ascending: false },
 });
 
+/**
+ * Override `list` để join khách hàng + bảo hành sửa chữa.
+ * Trả về các trường bổ sung:
+ *  - `customer_full_name`, `customer_phone`           (từ bảng customers)
+ *  - `warranty_end_date`, `warranty_start_date`        (từ bảng warranties loại "repair")
+ *  - `issue_description`, `repair_solution`            (đã có sẵn nhưng được expose rõ)
+ *
+ * Dùng để hiển thị danh sách phiếu ở POS (chọn phiếu để tính tiền) mà không cần
+ * gọi thêm 2-3 request phụ.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const baseRepairList = repairTicketsService.list;
+(repairTicketsService as any).list = async function listWithJoins(
+  db: any,
+  query: ListQuery = {},
+) {
+  const page = Math.max(1, Number(query.page ?? 1));
+  const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 20)));
+  const { from, to } = rangeOf(page, pageSize);
+
+  let q = db
+    .from("repair_tickets")
+    .select(
+      `*,
+       customer:customers!repair_tickets_customer_id_fkey ( id, full_name, phone ),
+       warranty:warranties!warranties_repair_ticket_id_fkey ( id, end_date, start_date, status )`,
+      { count: "exact" },
+    )
+    .range(from, to);
+
+  if (query.search) {
+    const term = query.search.replace(/[%_]/g, "");
+    q = q.or(
+      `device_name.ilike.%${term}%,serial_number.ilike.%${term}%,issue_description.ilike.%${term}%`,
+    );
+  }
+
+  if (query.filters) {
+    for (const [k, v] of Object.entries(query.filters)) {
+      if (v === null || v === undefined || v === "") continue;
+      if (k.endsWith("__in")) {
+        const col = k.slice(0, -4);
+        const ids = String(v)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (ids.length === 1) q = q.eq(col, ids[0]);
+        else if (ids.length > 1) q = q.in(col, ids);
+        continue;
+      }
+      q = q.eq(k, v as string | number | boolean);
+    }
+  }
+
+  let sortCol = "created_at";
+  let asc = false;
+  if (query.sort) {
+    const [col, dir] = String(query.sort).split(":");
+    if (["created_at", "completed_at", "delivered_at"].includes(col)) {
+      sortCol = col;
+      asc = dir !== "desc";
+    }
+  }
+
+  const { data, error, count } = await q.order(sortCol, { ascending: asc });
+  if (error) throw error;
+
+  // Flatten cho gọn FE
+  const items = (data ?? []).map((r: any) => {
+    const w = Array.isArray(r.warranty) ? r.warranty[0] : r.warranty;
+    return {
+      ...r,
+      customer_full_name: r.customer?.full_name ?? null,
+      customer_phone: r.customer?.phone ?? null,
+      warranty_end_date: w?.end_date ?? null,
+      warranty_start_date: w?.start_date ?? null,
+      warranty_status: w?.status ?? null,
+    };
+  });
+
+  return paginated(items as any, count ?? 0, page, pageSize);
+};
+/* eslint-enable @typescript-eslint/no-explicit-any */
+// Giữ tham chiếu để tránh lỗi "unused" nếu eslint phàn nàn
+void baseRepairList;
+
 export const tradeInService = createCrud({
   table: "trade_in_requests",
   searchColumns: ["device_name", "serial_number"],

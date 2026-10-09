@@ -126,3 +126,31 @@ export function indentedName(name: string, depth: number) {
   if (depth <= 0) return name;
   return `${"  ".repeat(depth - 1)}↳ ${name}`;
 }
+
+/** Bỏ dấu tiếng Việt + lowercase + trim, dùng để so khớp tên danh mục. */
+function normalizeCategoryName(input: string) {
+  return input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+/**
+ * Tìm danh mục "Laptop" mặc định trong cây danh mục.
+ *
+ * Ưu tiên:
+ * 1. Top-level category (parent_id = null) có tên chính xác "Laptop".
+ * 2. Bất kỳ category nào có tên chứa "laptop" (case + dấu insensitive).
+ *
+ * Dùng cho: filter mặc định trang admin, prefill category khi tạo sản phẩm mới.
+ */
+export function findLaptopCategory<T extends MinimalCategory>(
+  categories: T[],
+): T | undefined {
+  const topLevelLaptop = categories.find(
+    (c) => c.parent_id == null && normalizeCategoryName(c.name) === "laptop",
+  );
+  if (topLevelLaptop) return topLevelLaptop;
+  return categories.find((c) => normalizeCategoryName(c.name).includes("laptop"));
+}

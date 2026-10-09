@@ -1,6 +1,7 @@
 import { Errors, paginated, rangeOf, type Paginated } from "@/lib/api/response";
 import { requireOrg } from "@/lib/api/guard";
 import type { DB } from "@/lib/api/guard";
+import { applyFilters } from "@/lib/api/query-filter";
 import type { Database } from "@/types/database";
 import type { ListQuery } from "./_crud-factory";
 
@@ -121,12 +122,8 @@ export const productsService = {
       q = q.or(`name.ilike.%${term}%,slug.ilike.%${term}%,short_description.ilike.%${term}%`);
     }
 
-    if (query.filters) {
-      for (const [k, v] of Object.entries(query.filters)) {
-        if (v === null || v === undefined || v === "") continue;
-        q = q.eq(k, v as string | number | boolean);
-      }
-    }
+    // Filter chung: hỗ trợ `__in` (CSV) để lấy cả cây category, `__neq`, `__gt/lt/...`
+    q = applyFilters(q, query.filters);
 
     let sortCol = "created_at";
     let asc = false;

@@ -19,9 +19,11 @@ type Props = {
   total: number;
   onOpenFilters: () => void;
   activeCount: number;
+  /** Nhãn cho nhóm đang xem (vd "Laptop" / "Linh kiện PC") — chỉ để hiển thị tổng. */
+  kindLabel: string;
 };
 
-export function ProductToolbar({ query, setQuery, total, onOpenFilters, activeCount }: Props) {
+export function ProductToolbar({ query, setQuery, total, onOpenFilters, activeCount, kindLabel }: Props) {
   const [term, setTerm] = useState(query.q);
 
   // Sync khi URL đổi từ ngoài (vd: nút back).
@@ -72,7 +74,9 @@ export function ProductToolbar({ query, setQuery, total, onOpenFilters, activeCo
         </Select>
       </div>
 
-      <p className="hidden shrink-0 text-sm text-muted-foreground sm:block">{total} sản phẩm</p>
+      <p className="hidden shrink-0 text-sm text-muted-foreground sm:block">
+        {total} {kindLabel.toLowerCase()}
+      </p>
     </div>
   );
 }

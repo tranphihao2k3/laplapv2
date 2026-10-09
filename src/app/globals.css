@@ -4,64 +4,63 @@
 
 @layer base {
   :root {
+    /* Clean Light Theme - White background, dark text */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 222 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 100% 50%;
+    --radius: 0.75rem;
+    
+    /* Chart colors */
+    --chart-1: 222 100% 50%;
+    --chart-2: 210 100% 45%;
+    --chart-3: 280 65% 55%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 160 60% 45%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Dark Theme */
+    --background: 222 47% 7%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 222 47% 10%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 47% 10%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    --primary: 222 100% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 222 100% 60%;
+    
+    --chart-1: 222 100% 60%;
+    --chart-2: 210 100% 55%;
+    --chart-3: 280 65% 65%;
+    --chart-4: 0 62% 55%;
+    --chart-5: 160 60% 55%;
   }
 }
 
@@ -69,14 +68,17 @@
   * {
     @apply border-border;
   }
+  
   html {
     scroll-behavior: smooth;
   }
+  
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  /* Chuyển màu mượt cho nút, link, ô nhập — tránh cảm giác "nhảy" cứng khi hover/focus */
+
+  /* Smooth transitions */
   a,
   button,
   [role="button"],
@@ -85,7 +87,8 @@
   select {
     @apply transition-colors duration-200;
   }
-  /* Tôn trọng người dùng tắt hiệu ứng (accessibility) */
+
+  /* Respect reduced motion */
   @media (prefers-reduced-motion: reduce) {
     html {
       scroll-behavior: auto;
@@ -93,39 +96,299 @@
     *,
     *::before,
     *::after {
-      animation-duration: 0.001ms !important;
+      animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
-      transition-duration: 0.001ms !important;
+      transition-duration: 0.01ms !important;
     }
   }
 }
 
 @layer utilities {
-  /* POS receipt — đảm bảo khi in ra luôn đúng khổ giấy */
-  .receipt[data-paper="thermal80"] {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* Animations */
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-  .receipt[data-paper="thermal58"] {
-    font-size: 11px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
-  .receipt[data-paper="a4"] {
-    max-width: 210mm;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-  /* Khi in: chỉ in vùng #receipt-print */
-  @media print {
-    @page {
-      margin: 4mm;
-    }
-    .receipt[data-paper="thermal80"],
-    .receipt[data-paper="thermal58"] {
-      width: 100%;
-      max-width: none;
-    }
+  
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
   }
 
-  /* Cart bounce animation when item is added */
+  @keyframes slide-in-bottom {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes shine-sweep {
+    0% { transform: translateX(-120%) skewX(-20deg); }
+    100% { transform: translateX(220%) skewX(-20deg); }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.45), 0 10px 30px -10px hsl(var(--primary) / 0.4); }
+    50% { box-shadow: 0 0 0 6px hsl(var(--primary) / 0), 0 14px 40px -8px hsl(var(--primary) / 0.55); }
+  }
+
+  @keyframes pulse-soft {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.06); opacity: 0.9; }
+  }
+
+  @keyframes float-y {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  @keyframes badge-flip-in {
+    0% { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+    60% { opacity: 1; transform: scale(1.08) rotate(4deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+  }
+
+  @keyframes shine-once {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
+  @keyframes gradient-pan {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  @keyframes progress-fill {
+    from { width: 0%; }
+  }
+
+  @keyframes number-pop {
+    0% { transform: translateY(8px) scale(0.96); opacity: 0; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  @keyframes chevron-slide {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(2px); }
+  }
+
+  @keyframes ripple {
+    0% { transform: scale(0.8); opacity: 0.6; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.4s ease-out forwards;
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+  
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out forwards;
+  }
+
+  .animate-slide-in-bottom {
+    animation: slide-in-bottom 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2.4s ease-in-out infinite;
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 2s ease-in-out infinite;
+  }
+
+  .animate-float-y {
+    animation: float-y 3s ease-in-out infinite;
+  }
+
+  .animate-badge-flip {
+    animation: badge-flip-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .animate-gradient-pan {
+    background-size: 200% 200%;
+    animation: gradient-pan 8s ease infinite;
+  }
+
+  .animate-progress-fill {
+    animation: progress-fill 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .animate-number-pop {
+    animation: number-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .animate-chevron-slide {
+    animation: chevron-slide 1.6s ease-in-out infinite;
+  }
+
+  .animate-ripple {
+    animation: ripple 1.6s ease-out infinite;
+  }
+
+  /* Shine sweep across price (subtle continuous) */
+  .price-shine {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .price-shine::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      hsl(var(--primary) / 0.18) 50%,
+      transparent 70%
+    );
+    transform: translateX(-120%) skewX(-20deg);
+    animation: shine-sweep 4.5s ease-in-out infinite;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+
+  /* Shimmer for skeleton/loading state */
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted) / 0.4) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  /* Hero gradient text */
+  .text-gradient-primary {
+    background-image: linear-gradient(120deg, hsl(var(--primary)), hsl(280 70% 55%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Custom scrollbar in horizontal strips */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Smooth underline grow on hover (for breadcrumb, links) */
+  .hover-underline-grow {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    transition: background-size 0.3s ease;
+  }
+  .hover-underline-grow:hover {
+    background-size: 100% 1px;
+  }
+
+  /* Card lift on hover (for variant tiles / cards) */
+  .hover-lift {
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.3s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
+
+  /* Tab underline accent — animated via transform */
+  .tab-underline {
+    position: relative;
+  }
+  .tab-underline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(280 70% 55%));
+    border-radius: 2px;
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .tab-underline[data-state="active"]::after {
+    transform: scaleX(1);
+  }
+
+  /* Gradient border ring (for featured card) */
+  .ring-gradient {
+    position: relative;
+  }
+  .ring-gradient::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(280 70% 55%), hsl(330 80% 60%));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .ring-gradient:hover::before,
+  .ring-gradient.is-active::before {
+    opacity: 1;
+  }
+
+  /* Subtle radial spotlight that follows the mouse (used in gallery) */
+  .spotlight {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      420px circle at var(--mx, 50%) var(--my, 50%),
+      hsl(var(--primary) / 0.14),
+      transparent 60%
+    );
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    z-index: 0;
+  }
+  .spotlight:hover::before {
+    opacity: 1;
+  }
+
+  /* Cart bounce */
   @keyframes cart-bounce {
     0% { transform: scale(1); }
     15% { transform: scale(1.25); }
@@ -139,53 +402,18 @@
     animation: cart-bounce 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97);
   }
 
-  /* Clip path reveal from bottom */
-  .clip-reveal {
-    clip-path: inset(0 0 100% 0);
+  /* Dot pulse for stock status */
+  @keyframes dot-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.4; }
   }
-  .clip-visible {
-    clip-path: inset(0 0 0% 0);
-  }
-  /* Frosted card */
-  .card-frosted {
-    @apply bg-white/60 backdrop-blur-sm border border-slate-200/80 shadow-sm;
-  }
-  /* Subtle card hover */
-  .card-hover {
-    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-slate-300;
-  }
-  /* Nhấc nhẹ + đổ bóng khi hover — dùng cho card/nút tương tác */
-  .hover-lift {
-    @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.99];
-  }
-  /* Phóng nhẹ ảnh bên trong khi hover thẻ (kèm overflow-hidden ở cha) */
-  .img-zoom {
-    @apply transition-transform duration-500 ease-out group-hover:scale-105;
-  }
-  /* Nhấn phản hồi cho nút bấm */
-  .press {
-    @apply transition-transform duration-100 active:scale-95;
-  }
-  /* Ẩn thanh cuộn nhưng vẫn cuộn được (dùng cho hàng tab/carousel) */
-  .no-scrollbar {
-    scrollbar-width: none;
-  }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  /* Gradient text */
-  .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900;
-  }
-  .text-gradient-brand {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-blue-500;
+  .dot-pulse {
+    animation: dot-pulse 1.8s ease-in-out infinite;
   }
 }
 
 /* ============================================================
-   Ghost loader — con ma pixel nhấp nháy (Uiverse by BlackisPlay)
-   Dùng cho <GhostLoader />. Scope dưới .ghost-loader để tránh
-   trùng id và không rò rỉ style ra ngoài.
+   Ghost Loader
    ============================================================ */
 .ghost-loader {
   position: relative;
@@ -200,11 +428,9 @@
   display: grid;
   grid-template-columns: repeat(14, 1fr);
   grid-template-rows: repeat(14, 1fr);
-  grid-column-gap: 0px;
-  grid-row-gap: 0px;
   grid-template-areas:
-    "a1  a2  a3  a4  a5  top0  top0  top0  top0  a10 a11 a12 a13 a14"
-    "b1  b2  b3  top1 top1 top1 top1 top1 top1 top1 top1 b12 b13 b14"
+    "a1 a2 a3 a4 a5 top0 top0 top0 top0 a10 a11 a12 a13 a14"
+    "b1 b2 b3 top1 top1 top1 top1 top1 top1 top1 top1 b12 b13 b14"
     "c1 c2 top2 top2 top2 top2 top2 top2 top2 top2 top2 top2 c13 c14"
     "d1 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 d14"
     "e1 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 top3 e14"
@@ -220,28 +446,15 @@
 }
 
 @keyframes ghost-upNDown {
-  0%,
-  49% {
-    transform: translateY(0px);
-  }
-  50%,
-  100% {
-    transform: translateY(-10px);
-  }
+  0%, 49% { transform: translateY(0); }
+  50%, 100% { transform: translateY(-10px); }
 }
 
-.ghost-loader .g-top0,
-.ghost-loader .g-top1,
-.ghost-loader .g-top2,
-.ghost-loader .g-top3,
-.ghost-loader .g-top4,
-.ghost-loader .g-st0,
-.ghost-loader .g-st1,
-.ghost-loader .g-st2,
-.ghost-loader .g-st3,
-.ghost-loader .g-st4,
-.ghost-loader .g-st5 {
-  background-color: #ef4444;
+.ghost-loader .g-top0, .ghost-loader .g-top1, .ghost-loader .g-top2,
+.ghost-loader .g-top3, .ghost-loader .g-top4, .ghost-loader .g-st0,
+.ghost-loader .g-st1, .ghost-loader .g-st2, .ghost-loader .g-st3,
+.ghost-loader .g-st4, .ghost-loader .g-st5 {
+  background-color: hsl(var(--primary));
 }
 
 .ghost-loader .g-top0 { grid-area: top0; }
@@ -276,330 +489,168 @@
 .ghost-loader .g-an11 { grid-area: an11; animation: ghost-flicker0 infinite 0.5s; }
 
 @keyframes ghost-flicker0 {
-  0%,
-  49% {
-    background-color: #ef4444;
-  }
-  50%,
-  100% {
-    background-color: transparent;
-  }
+  0%, 49% { background-color: hsl(var(--primary)); }
+  50%, 100% { background-color: transparent; }
 }
 
 @keyframes ghost-flicker1 {
-  0%,
-  49% {
-    background-color: transparent;
-  }
-  50%,
-  100% {
-    background-color: #ef4444;
-  }
+  0%, 49% { background-color: transparent; }
+  50%, 100% { background-color: hsl(var(--primary)); }
 }
 
 .ghost-loader .g-eye {
-  width: 40px;
-  height: 50px;
-  position: absolute;
-  top: 30px;
-  left: 10px;
+  width: 40px; height: 50px;
+  position: absolute; top: 30px; left: 10px;
 }
-
 .ghost-loader .g-eye::before {
-  content: "";
-  background-color: white;
-  width: 20px;
-  height: 50px;
-  transform: translateX(10px);
-  display: block;
-  position: absolute;
+  content: ""; background-color: white; width: 20px; height: 50px;
+  transform: translateX(10px); display: block; position: absolute;
 }
-
 .ghost-loader .g-eye::after {
-  content: "";
-  background-color: white;
-  width: 40px;
-  height: 30px;
-  transform: translateY(10px);
-  display: block;
-  position: absolute;
+  content: ""; background-color: white; width: 40px; height: 30px;
+  transform: translateY(10px); display: block; position: absolute;
 }
-
 .ghost-loader .g-eye1 {
-  width: 40px;
-  height: 50px;
-  position: absolute;
-  top: 30px;
-  right: 30px;
+  width: 40px; height: 50px;
+  position: absolute; top: 30px; right: 30px;
 }
-
 .ghost-loader .g-eye1::before {
-  content: "";
-  background-color: white;
-  width: 20px;
-  height: 50px;
-  transform: translateX(10px);
-  display: block;
-  position: absolute;
+  content: ""; background-color: white; width: 20px; height: 50px;
+  transform: translateX(10px); display: block; position: absolute;
 }
-
 .ghost-loader .g-eye1::after {
-  content: "";
-  background-color: white;
-  width: 40px;
-  height: 30px;
-  transform: translateY(10px);
-  display: block;
-  position: absolute;
+  content: ""; background-color: white; width: 40px; height: 30px;
+  transform: translateY(10px); display: block; position: absolute;
 }
-
 .ghost-loader .g-pupil {
-  width: 20px;
-  height: 20px;
-  background-color: #2563eb;
-  position: absolute;
-  top: 50px;
-  left: 10px;
-  z-index: 1;
+  width: 20px; height: 20px; background-color: hsl(var(--primary));
+  position: absolute; top: 50px; left: 10px; z-index: 1;
   animation: ghost-eyesMovement infinite 3s;
 }
-
 .ghost-loader .g-pupil1 {
-  width: 20px;
-  height: 20px;
-  background-color: #2563eb;
-  position: absolute;
-  top: 50px;
-  right: 50px;
-  z-index: 1;
+  width: 20px; height: 20px; background-color: hsl(var(--primary));
+  position: absolute; top: 50px; right: 50px; z-index: 1;
   animation: ghost-eyesMovement infinite 3s;
 }
 
 @keyframes ghost-eyesMovement {
-  0%,
-  49% {
-    transform: translateX(0px);
-  }
-  50%,
-  99% {
-    transform: translateX(10px);
-  }
-  100% {
-    transform: translateX(0px);
-  }
+  0%, 49% { transform: translateX(0); }
+  50%, 99% { transform: translateX(10px); }
+  100% { transform: translateX(0); }
 }
 
 .ghost-loader .ghost-shadow {
-  background-color: black;
-  width: 140px;
-  height: 140px;
-  position: absolute;
-  border-radius: 50%;
-  transform: rotateX(80deg);
-  filter: blur(20px);
-  top: 80%;
+  background-color: black; width: 140px; height: 140px;
+  position: absolute; border-radius: 50%; transform: rotateX(80deg);
+  filter: blur(20px); top: 80%;
   animation: ghost-shadowMovement infinite 0.5s;
 }
 
 @keyframes ghost-shadowMovement {
-  0%,
-  49% {
-    opacity: 0.5;
-  }
-  50%,
-  100% {
-    opacity: 0.2;
-  }
+  0%, 49% { opacity: 0.5; }
+  50%, 100% { opacity: 0.2; }
 }
 
 /* ============================================================
-   Styling cho phần Mô tả sản phẩm hiển thị HTML
-   Dùng class .product-description-preview ở admin preview
-   và .product-description-html ở trang khách hàng (sau này)
+   Product Description Styles
    ============================================================ */
 .product-description-preview,
 .product-description-html {
-  @apply space-y-5 leading-relaxed text-foreground;
+  @apply space-y-5 leading-relaxed;
 }
-
 .product-description-preview section,
 .product-description-html section {
-  @apply rounded-lg border bg-card/60 p-4 shadow-sm;
+  @apply rounded-lg border bg-card p-4;
 }
-
 .product-description-preview h3,
 .product-description-html h3 {
   @apply mb-3 text-base font-bold tracking-tight flex items-center gap-2 border-b pb-2;
 }
-
 .product-description-preview p,
 .product-description-html p {
-  @apply text-sm text-foreground/90;
+  @apply text-sm;
 }
-
 .product-description-preview ul,
 .product-description-html ul {
   @apply list-disc pl-5 space-y-1 text-sm;
 }
-
-.product-description-preview li,
-.product-description-html li {
-  @apply text-foreground/90;
-}
-
-.product-description-preview strong,
-.product-description-html strong {
-  @apply text-foreground font-semibold;
-}
-
 .product-description-preview table,
 .product-description-html table {
   @apply w-full text-sm border-collapse;
 }
-
 .product-description-preview thead,
 .product-description-html thead {
-  @apply bg-muted/60;
+  @apply bg-muted;
 }
-
 .product-description-preview th,
 .product-description-html th {
-  @apply px-3 py-2 text-left font-semibold border align-top;
+  @apply px-3 py-2 text-left font-semibold border;
 }
-
 .product-description-preview td,
 .product-description-html td {
-  @apply px-3 py-2 border align-top text-foreground/90;
+  @apply px-3 py-2 border;
 }
-
 .product-description-preview tbody tr:nth-child(even),
 .product-description-html tbody tr:nth-child(even) {
-  @apply bg-muted/20;
+  @apply bg-muted/50;
 }
 
 /* ============================================================
-   Policy prose — style cho nội dung các trang chính sách pháp lý.
-   Dùng className="policy-prose" trên wrapper của content.
-   Màu sắc dùng currentColor + CSS vars để tương thích dark mode.
+   Policy Prose Styles
    ============================================================ */
-.policy-prose {
-  color: hsl(var(--foreground));
-}
-.policy-prose h3 {
-  @apply mt-6 mb-3 text-base font-bold text-foreground;
-}
-.policy-prose h4 {
-  @apply mt-5 mb-2 text-sm font-semibold text-foreground/90;
-}
-.policy-prose p {
-  @apply mb-3 leading-relaxed;
-  color: hsl(var(--muted-foreground));
-}
-.policy-prose ul {
-  @apply mb-4 ml-5 list-disc space-y-1.5;
-  color: hsl(var(--muted-foreground));
-}
-.policy-prose ol {
-  @apply mb-4 ml-5 list-decimal space-y-1.5;
-  color: hsl(var(--muted-foreground));
-}
-.policy-prose li::marker {
-  color: hsl(var(--muted-foreground));
-}
-.policy-prose strong {
-  @apply font-semibold text-foreground;
-}
-.policy-prose em {
-  @apply text-foreground/90;
-}
-.policy-prose a {
-  @apply font-medium underline-offset-4 hover:underline;
-  color: hsl(217 91% 60%);
-}
-.dark .policy-prose a {
-  color: hsl(217 91% 70%);
-}
-.policy-prose blockquote {
-  @apply my-4 border-l-4 border-amber-300 px-4 py-3 italic;
-  background-color: hsl(48 96% 89% / 0.3);
-  color: hsl(var(--muted-foreground));
-}
-.dark .policy-prose blockquote {
-  background-color: hsl(48 96% 15% / 0.3);
-}
-.policy-prose table {
-  @apply my-4 w-full overflow-hidden rounded-lg border text-sm;
-  border-color: hsl(var(--border));
-}
-.policy-prose thead {
-  background-color: hsl(var(--muted));
-}
-.policy-prose th {
-  @apply px-3 py-2 text-left font-semibold text-foreground;
-}
-.policy-prose td {
-  @apply border-t px-3 py-2;
-  border-color: hsl(var(--border));
-  color: hsl(var(--muted-foreground));
-}
-.policy-prose code {
-  @apply rounded px-1.5 py-0.5 font-mono text-[12px];
-  background-color: hsl(var(--muted));
-  color: hsl(var(--foreground));
-}
+.policy-prose { @apply text-foreground; }
+.policy-prose h3 { @apply mt-6 mb-3 text-base font-bold; }
+.policy-prose h4 { @apply mt-5 mb-2 text-sm font-semibold; }
+.policy-prose p { @apply mb-3 leading-relaxed; }
+.policy-prose ul { @apply mb-4 ml-5 list-disc space-y-1.5; }
+.policy-prose ol { @apply mb-4 ml-5 list-decimal space-y-1.5; }
+.policy-prose strong { @apply font-semibold; }
+.policy-prose a { @apply font-medium underline hover:no-underline; }
+.policy-prose table { @apply my-4 w-full overflow-hidden rounded-lg border text-sm; }
+.policy-prose thead { @apply bg-muted; }
+.policy-prose th { @apply px-3 py-2 text-left font-semibold; }
+.policy-prose td { @apply border-t px-3 py-2; }
+.policy-prose code { @apply rounded px-1.5 py-0.5 font-mono text-xs bg-muted; }
 
-/* ====== In hoá đơn: chỉ in vùng #receipt-print, ẩn phần còn lại ====== */
+/* ============================================================
+   Print Styles
+   ============================================================ */
 @media print {
-  /* Ẩn toàn bộ trang, chỉ chừa nhánh chứa hoá đơn */
-  body * {
-    visibility: hidden;
-  }
-  #receipt-print,
-  #receipt-print * {
-    visibility: visible;
-  }
-  /* Trung hoà việc canh giữa của Dialog (fixed + translate) để hoá đơn nằm sát mép trên.
-     Nếu không, #receipt-print bị đẩy xuống giữa trang tạo khoảng trắng lớn ở đầu. */
-  [role="dialog"]:has(#receipt-print) {
-    position: static !important;
-    left: auto !important;
-    top: auto !important;
-    transform: none !important;
-    width: 100% !important;
-    max-width: none !important;
-    max-height: none !important;
-    overflow: visible !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
+  [data-pc-builder-no-print] { display: none !important; }
+  body { background: white !important; }
+  
+  body * { visibility: hidden; }
+  #receipt-print, #receipt-print * { visibility: visible; }
   #receipt-print {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
+    position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0;
     color: #000 !important;
   }
-  /* Khổ hoá đơn nhỏ gọn, lề tối thiểu */
-  @page {
-    size: 80mm auto;
-    margin: 4mm;
-  }
+  @page { size: 80mm auto; margin: 4mm; }
 }
 
-/* Test màn hình (toàn màn hình): khoá cuộn để không còn thanh scroll bên phải
-   đè lên vùng màu — overlay đã là fixed inset-0 nên không cần trang cuộn nữa.
-   Class này được toggle trong src/app/(client)/test-laptop/display/page.tsx. */
 body.display-fullscreen {
-  /* Khoá cả chiều dọc lẫn chiều ngang ở cả <html> và <body> — một số trình duyệt
-     (vd Chromium) hiển scrollbar ở <html> thay vì <body>, nên chỉ set overflow
-     cho body là chưa đủ. Khi portal render <div> fullscreen ở document.body,
-     mọi ancestor đều bị khoá để không còn thanh scroll nào có thể xuất hiện. */
   overflow: hidden !important;
 }
 html:has(body.display-fullscreen) {
   overflow: hidden !important;
+}
+
+/* POS Receipt */
+.receipt[data-paper="thermal80"] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.receipt[data-paper="thermal58"] {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.receipt[data-paper="a4"] {
+  max-width: 210mm;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+@media print {
+  .receipt[data-paper="thermal80"],
+  .receipt[data-paper="thermal58"] {
+    width: 100%; max-width: none;
+  }
 }

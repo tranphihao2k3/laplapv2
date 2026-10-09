@@ -9,7 +9,7 @@ import {
   normalizeFinancing,
   type FinancingSetting,
 } from "@/lib/financing";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 function useFinancing() {
   return useQuery<FinancingSetting>({
@@ -23,17 +23,12 @@ function useFinancing() {
   });
 }
 
-/**
- * Installment calculator button that links to the standalone /tra-gop page.
- * Usage: <InstallmentCalculator price={25000000} />
- */
 export function InstallmentCalculator({ price }: { price: number }) {
   const { data } = useFinancing();
   const config = data ?? DEFAULT_FINANCING;
 
   if (!config.enabled || price < (config.minPrice ?? 0)) return null;
 
-  // Calculate teaser: lowest monthly payment from first provider, longest term
   const teaser = (() => {
     const p = config.providers[0];
     const longest = p?.terms[p.terms.length - 1];
@@ -49,18 +44,18 @@ export function InstallmentCalculator({ price }: { price: number }) {
   return (
     <Link
       href={`/tra-gop?price=${price}`}
-      className="group flex w-full items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-900 hover:shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] sm:p-5"
+      className="group flex w-full items-center gap-4 rounded-xl border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-md sm:p-5"
     >
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-700 transition-colors group-hover:border-slate-900 group-hover:bg-slate-900 group-hover:text-white sm:h-12 sm:w-12">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground transition-colors group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground sm:h-12 sm:w-12">
         <CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-semibold text-slate-900 sm:text-base">Mua trả góp</p>
-        <p className="mt-0.5 text-sm text-slate-500">
+        <p className="text-base font-semibold sm:text-base">Mua trả góp</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           {teaser ? (
             <>
               Chỉ từ{" "}
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold text-foreground">
                 {formatCurrency(teaser.monthlyPayment)}
               </span>
               /tháng · {teaser.months} tháng
@@ -70,7 +65,7 @@ export function InstallmentCalculator({ price }: { price: number }) {
           )}
         </p>
       </div>
-      <span className="shrink-0 text-sm font-medium text-slate-400 transition-colors group-hover:text-slate-900">
+      <span className="shrink-0 text-sm font-medium text-muted-foreground transition-colors group-hover:text-primary">
         Tính thử
       </span>
     </Link>

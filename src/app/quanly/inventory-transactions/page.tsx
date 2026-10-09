@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Eye } from "lucide-react";
+import { Search, Eye, Package, ClipboardList, Hash } from "lucide-react";
 
 type Transaction = {
   id: string;
@@ -51,23 +51,23 @@ type Transaction = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  purchase: "Nhập",
-  sale: "Bán",
-  return: "Trả",
+  purchase: "Nhập kho",
+  sale: "Bán hàng",
+  return: "Trả hàng",
   transfer_in: "Chuyển đến",
   transfer_out: "Chuyển đi",
   adjustment: "Điều chỉnh",
-  damage: "Hỏng",
+  damage: "Hàng hỏng",
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  purchase: "bg-blue-100 text-blue-800",
-  sale: "bg-green-100 text-green-800",
-  return: "bg-yellow-100 text-yellow-800",
-  transfer_in: "bg-purple-100 text-purple-800",
-  transfer_out: "bg-orange-100 text-orange-800",
-  adjustment: "bg-gray-100 text-gray-800",
-  damage: "bg-red-100 text-red-800",
+  purchase: "bg-blue-100 text-blue-800 border-blue-200",
+  sale: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  return: "bg-amber-100 text-amber-800 border-amber-200",
+  transfer_in: "bg-purple-100 text-purple-800 border-purple-200",
+  transfer_out: "bg-orange-100 text-orange-800 border-orange-200",
+  adjustment: "bg-slate-100 text-slate-800 border-slate-200",
+  damage: "bg-red-100 text-red-800 border-red-200",
 };
 
 export default function InventoryTransactionsPage() {
@@ -84,6 +84,7 @@ export default function InventoryTransactionsPage() {
 
   const transactions = data?.items ?? [];
   const totalPages = data?.totalPages ?? 1;
+  const totalItems = data?.total ?? 0;
 
   const filtered = typeFilter === "all"
     ? transactions
@@ -105,20 +106,43 @@ export default function InventoryTransactionsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <ClipboardList className="h-6 w-6" />
+          Giao dịch kho
+        </h1>
+        <p className="text-muted-foreground">
+          Theo dõi nhật ký giao dịch tồn kho của cửa hàng
+        </p>
+      </div>
+
       <Card>
-        <CardHeader>
-          <CardTitle>Giao dịch kho</CardTitle>
-          <CardDescription>
-            Nhật ký giao dịch tồn kho (chỉ xem, chỉnh sửa tại trang tồn kho)
-          </CardDescription>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-muted-foreground" />
+                Lịch sử giao dịch
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {isLoading ? (
+                  "Đang tải..."
+                ) : (
+                  <>Hiển thị {filtered.length} giao dịch{totalItems > 0 && ` trong tổng số ${totalItems}`}</>
+                )}
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 mb-4">
-            <div className="flex-1 min-w-[200px] relative">
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Tìm kiếm ghi chú hoặc loại tham chiếu..."
+                placeholder="Tìm kiếm ghi chú, loại tham chiếu..."
                 className="pl-9"
                 value={search}
                 onChange={(e) => {
@@ -127,7 +151,7 @@ export default function InventoryTransactionsPage() {
                 }}
               />
             </div>
-            <div className="w-full sm:w-[200px]">
+            <div className="w-full sm:w-[180px]">
               <Select
                 value={typeFilter}
                 onValueChange={(v) => {
@@ -150,68 +174,109 @@ export default function InventoryTransactionsPage() {
             </div>
           </div>
 
-          <div className="rounded-md border">
+          {/* Table */}
+          <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Kho</TableHead>
-                  <TableHead>Phiên bản SP</TableHead>
-                  <TableHead>Loại</TableHead>
-                  <TableHead className="text-right">Số lượng</TableHead>
-                  <TableHead className="text-right">Đơn giá</TableHead>
-                  <TableHead>Ghi chú</TableHead>
-                  <TableHead>Tham chiếu</TableHead>
-                  <TableHead>Ngày tạo</TableHead>
-                  <TableHead className="text-right">Thao tác</TableHead>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="w-12 text-center font-semibold">STT</TableHead>
+                  <TableHead className="font-semibold">Kho</TableHead>
+                  <TableHead className="font-semibold">Sản phẩm</TableHead>
+                  <TableHead className="font-semibold">Loại giao dịch</TableHead>
+                  <TableHead className="text-right font-semibold">Số lượng</TableHead>
+                  <TableHead className="text-right font-semibold">Đơn giá</TableHead>
+                  <TableHead className="font-semibold">Ghi chú</TableHead>
+                  <TableHead className="font-semibold">Tham chiếu</TableHead>
+                  <TableHead className="font-semibold">Ngày tạo</TableHead>
+                  <TableHead className="w-12 text-center font-semibold">Chi tiết</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Đang tải...
+                    <TableCell colSpan={10} className="text-center py-12">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <span className="text-muted-foreground">Đang tải dữ liệu...</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Không có giao dịch nào
+                    <TableCell colSpan={10} className="text-center py-12">
+                      <div className="flex flex-col items-center gap-3">
+                        <Package className="h-12 w-12 text-muted-foreground/50" />
+                        <div>
+                          <p className="font-medium text-muted-foreground">
+                            {search || typeFilter !== "all"
+                              ? "Không tìm thấy giao dịch nào"
+                              : "Chưa có giao dịch nào"}
+                          </p>
+                          <p className="text-sm text-muted-foreground/70 mt-1">
+                            {search || typeFilter !== "all"
+                              ? "Thử thay đổi điều kiện tìm kiếm"
+                              : "Các giao dịch tồn kho sẽ xuất hiện tại đây khi có thay đổi"}
+                          </p>
+                        </div>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((tx) => (
-                    <TableRow key={tx.id}>
-                      <TableCell className="font-mono text-xs">
-                        {tx.warehouse_id.slice(0, 8)}...
+                  filtered.map((tx, index) => (
+                    <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted font-semibold text-xs text-muted-foreground mx-auto">
+                          {(page - 1) * 20 + index + 1}
+                        </div>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {tx.product_variant_id.slice(0, 8)}...
+                      <TableCell>
+                        <div className="font-mono text-xs bg-muted px-2 py-1 rounded inline-block">
+                          {tx.warehouse_id.slice(0, 8)}...
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                          {tx.product_variant_id.slice(0, 8)}...
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge
-                          className={TYPE_COLORS[tx.type] ?? "bg-gray-100 text-gray-800"}
+                          className={TYPE_COLORS[tx.type] ?? "bg-gray-100 text-gray-800 border-gray-200"}
                           variant="outline"
                         >
                           {TYPE_LABELS[tx.type] ?? tx.type}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-mono">{tx.quantity}</TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(tx.unit_cost)}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {tx.note ?? "-"}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{tx.reference_type ?? "-"}</TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">
-                        {formatDate(tx.created_at)}
+                      <TableCell className="text-right">
+                        <span className="font-mono font-medium">
+                          {tx.quantity > 0 ? `+${tx.quantity}` : tx.quantity}
+                        </span>
                       </TableCell>
                       <TableCell className="text-right">
+                        <span className="font-mono text-sm">
+                          {formatCurrency(tx.unit_cost)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-[180px]">
+                        <span className="truncate block" title={tx.note ?? undefined}>
+                          {tx.note ?? <span className="text-muted-foreground">—</span>}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          {tx.reference_type ?? <span className="text-muted-foreground">—</span>}
+                        </span>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {formatDate(tx.created_at)}
+                      </TableCell>
+                      <TableCell className="text-center">
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleView(tx)}
                           title="Xem chi tiết"
+                          className="hover:bg-primary/10"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -223,10 +288,11 @@ export default function InventoryTransactionsPage() {
             </Table>
           </div>
 
+          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
               <p className="text-sm text-muted-foreground">
-                Trang {page} / {totalPages}
+                Trang <span className="font-medium">{page}</span> / <span className="font-medium">{totalPages}</span>
               </p>
               <div className="flex gap-2">
                 <Button
@@ -251,25 +317,31 @@ export default function InventoryTransactionsPage() {
         </CardContent>
       </Card>
 
+      {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Chi tiết giao dịch</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Hash className="h-5 w-5" />
+              Chi tiết giao dịch
+            </DialogTitle>
             <DialogDescription>
-              Thông tin giao dịch tồn kho (chỉ xem)
+              Thông tin chi tiết giao dịch tồn kho
             </DialogDescription>
           </DialogHeader>
           {selectedTx && (
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <Label className="text-muted-foreground">ID</Label>
-                <p className="font-mono text-xs mt-1">{selectedTx.id}</p>
+              <div className="col-span-2">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">ID Giao dịch</Label>
+                <p className="font-mono text-xs mt-1 break-all bg-muted p-2 rounded">
+                  {selectedTx.id}
+                </p>
               </div>
               <div>
-                <Label className="text-muted-foreground">Loại</Label>
-                <div className="mt-1">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Loại giao dịch</Label>
+                <div className="mt-2">
                   <Badge
-                    className={TYPE_COLORS[selectedTx.type] ?? "bg-gray-100 text-gray-800"}
+                    className={TYPE_COLORS[selectedTx.type] ?? "bg-gray-100 text-gray-800 border-gray-200"}
                     variant="outline"
                   >
                     {TYPE_LABELS[selectedTx.type] ?? selectedTx.type}
@@ -277,32 +349,44 @@ export default function InventoryTransactionsPage() {
                 </div>
               </div>
               <div>
-                <Label className="text-muted-foreground">Kho</Label>
-                <p className="font-mono text-xs mt-1">{selectedTx.warehouse_id}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Phiên bản sản phẩm</Label>
-                <p className="font-mono text-xs mt-1">{selectedTx.product_variant_id}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Số lượng</Label>
-                <p className="font-mono mt-1">{selectedTx.quantity}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Đơn giá</Label>
-                <p className="font-mono mt-1">{formatCurrency(selectedTx.unit_cost)}</p>
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Ngày tạo</Label>
+                <p className="mt-2 font-medium">{formatDate(selectedTx.created_at)}</p>
               </div>
               <div className="col-span-2">
-                <Label className="text-muted-foreground">Ghi chú</Label>
-                <p className="mt-1 whitespace-pre-wrap">{selectedTx.note ?? "-"}</p>
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Mã kho</Label>
+                <p className="font-mono text-xs mt-1 break-all bg-muted p-2 rounded">
+                  {selectedTx.warehouse_id}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Mã biến thể sản phẩm</Label>
+                <p className="font-mono text-xs mt-1 break-all bg-muted p-2 rounded">
+                  {selectedTx.product_variant_id}
+                </p>
               </div>
               <div>
-                <Label className="text-muted-foreground">Loại tham chiếu</Label>
-                <p className="font-mono text-xs mt-1">{selectedTx.reference_type ?? "-"}</p>
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Số lượng</Label>
+                <p className="mt-1 font-mono font-semibold text-lg">
+                  {selectedTx.quantity > 0 ? `+${selectedTx.quantity}` : selectedTx.quantity}
+                </p>
               </div>
               <div>
-                <Label className="text-muted-foreground">Ngày tạo</Label>
-                <p className="text-xs mt-1">{formatDate(selectedTx.created_at)}</p>
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Đơn giá</Label>
+                <p className="mt-1 font-mono font-semibold text-lg">
+                  {formatCurrency(selectedTx.unit_cost)}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Loại tham chiếu</Label>
+                <p className="mt-1">
+                  {selectedTx.reference_type ?? <span className="text-muted-foreground">Không có</span>}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Ghi chú</Label>
+                <p className="mt-1 whitespace-pre-wrap bg-muted/50 p-3 rounded">
+                  {selectedTx.note ?? "Không có ghi chú"}
+                </p>
               </div>
             </div>
           )}

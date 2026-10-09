@@ -15,11 +15,9 @@ export function Newsletter() {
   const [showBrands, setShowBrands] = useState(false);
   const [loading, setLoading] = useState(false);
   const [brands, setBrands] = useState<Brand[]>([]);
-  // State cho "vừa gửi xong" -> hien nut "Gui lai email xac nhan".
   const [lastSubmittedEmail, setLastSubmittedEmail] = useState<string | null>(null);
   const [resendLoading, setResendLoading] = useState(false);
 
-  // Lazy-load brands khi user chuyen sang mode "selected".
   useEffect(() => {
     if (mode !== "selected" || brands.length > 0) return;
     let cancelled = false;
@@ -30,9 +28,7 @@ export function Newsletter() {
         setBrands((j?.items ?? []) as Brand[]);
       })
       .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [mode, brands.length]);
 
   function toggleBrand(id: string) {
@@ -78,46 +74,32 @@ export function Newsletter() {
   }
 
   return (
-    <section className="container py-16 sm:py-28">
+    <section className="container py-12 sm:py-16">
       <Reveal variant="fade-up" threshold={0.1}>
-        <div className="relative overflow-hidden rounded-3xl bg-slate-950 px-5 py-12 sm:px-8 sm:py-16 md:px-16 md:py-20">
-          {/* Grid overlay */}
-          <div
-            className="pointer-events-none absolute inset-0 opacity-[0.04]"
-            style={{
-              backgroundImage:
-                "linear-gradient(to right,#fff 1px,transparent 1px),linear-gradient(to bottom,#fff 1px,transparent 1px)",
-              backgroundSize: "48px 48px",
-            }}
-          />
+        <div className="relative overflow-hidden rounded-2xl border bg-primary p-8 sm:p-12 md:p-16">
+          <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-[90px]" />
+          <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-white/5 blur-[90px]" />
 
-          {/* Soft ambient glows */}
-          <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/[0.05] blur-[90px]" />
-          <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-white/[0.04] blur-[90px]" />
-
-          <div className="relative z-10 mx-auto max-w-xl text-center">
-            <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
-              <Mail className="h-6 w-6 text-white/70" />
+          <div className="relative z-10 mx-auto max-w-xl text-center text-primary-foreground">
+            <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-xl border border-white/20 bg-white/10">
+              <Mail className="h-6 w-6" />
             </div>
 
-            <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
               Nhận thông báo sản phẩm mới
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-white/50 md:text-base">
-              Đăng ký email để nhận thông báo khi có laptop mới về — hoặc chọn đúng
-              hãng bạn quan tâm để khỏi bỏ lỡ.
+            <p className="mt-3 text-sm leading-relaxed opacity-90 md:text-base">
+              Đăng ký email để nhận thông báo khi có laptop mới về — hoặc chọn đúng hãng bạn quan tâm.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-3">
               {/* Toggle mode */}
-              <div className="flex gap-1 rounded-xl bg-white/5 p-1 backdrop-blur-sm">
+              <div className="flex gap-1 rounded-lg border border-white/20 bg-white/10 p-1 backdrop-blur-sm">
                 <button
                   type="button"
                   onClick={() => setMode("all")}
-                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    mode === "all"
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-white/60 hover:text-white"
+                  className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    mode === "all" ? "bg-background text-foreground" : "text-primary-foreground/80 hover:text-primary-foreground"
                   }`}
                 >
                   Tất cả sản phẩm
@@ -125,37 +107,33 @@ export function Newsletter() {
                 <button
                   type="button"
                   onClick={() => setMode("selected")}
-                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    mode === "selected"
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-white/60 hover:text-white"
+                  className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    mode === "selected" ? "bg-background text-foreground" : "text-primary-foreground/80 hover:text-primary-foreground"
                   }`}
                 >
                   Chỉ chọn hãng
                 </button>
               </div>
 
-              {/* Brand picker - chi hien khi mode=selected */}
+              {/* Brand picker */}
               {mode === "selected" && (
-                <div className="rounded-xl border border-white/10 bg-white/5 text-left">
+                <div className="rounded-lg border border-white/20 bg-white/10 text-left backdrop-blur-sm">
                   <button
                     type="button"
                     onClick={() => setShowBrands((v) => !v)}
-                    className="flex w-full items-center justify-between gap-2 px-4 py-3 text-sm text-white/80 hover:text-white"
+                    className="flex w-full items-center justify-between gap-2 px-4 py-3 text-sm text-primary-foreground"
                   >
                     <span>
                       {selectedBrands.size === 0
                         ? "Chọn hãng bạn quan tâm…"
                         : `Đã chọn ${selectedBrands.size} hãng`}
                     </span>
-                    <ChevronDown
-                      className={`h-4 w-4 transition-transform ${showBrands ? "rotate-180" : ""}`}
-                    />
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showBrands ? "rotate-180" : ""}`} />
                   </button>
                   {showBrands && (
-                    <div className="max-h-60 overflow-y-auto border-t border-white/10 p-2">
+                    <div className="max-h-60 overflow-y-auto border-t border-white/20 p-2">
                       {brands.length === 0 ? (
-                        <p className="px-3 py-4 text-xs text-white/40">Đang tải danh sách hãng…</p>
+                        <p className="px-3 py-4 text-xs text-primary-foreground/60">Đang tải danh sách hãng…</p>
                       ) : (
                         <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
                           {brands.map((b) => {
@@ -165,19 +143,11 @@ export function Newsletter() {
                                 key={b.id}
                                 type="button"
                                 onClick={() => toggleBrand(b.id)}
-                                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                                  checked
-                                    ? "bg-white text-slate-900"
-                                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                                className={`flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                                  checked ? "bg-background text-foreground" : "text-primary-foreground/80 hover:bg-white/10"
                                 }`}
                               >
-                                <span
-                                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                                    checked
-                                      ? "border-slate-900 bg-slate-900 text-white"
-                                      : "border-white/30"
-                                  }`}
-                                >
+                                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-foreground bg-foreground text-background" : "border-white/30"}`}>
                                   {checked && <Check className="h-3 w-3" />}
                                 </span>
                                 <span className="truncate">{b.name}</span>
@@ -199,15 +169,15 @@ export function Newsletter() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="h-11 flex-1 rounded-xl border-white/10 bg-white/8 text-white placeholder:text-white/30 focus-visible:ring-white/20 focus-visible:border-white/30"
+                  className="h-11 flex-1 border-white/20 bg-white/10 text-primary-foreground placeholder:text-primary-foreground/60"
                 />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:bg-slate-100 disabled:opacity-60 active:scale-[0.98]"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-background px-6 text-sm font-semibold text-foreground transition-colors hover:bg-background/90 disabled:opacity-60"
                 >
                   {loading ? (
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-slate-900" />
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
                   ) : (
                     <>
                       Đăng ký
@@ -218,11 +188,10 @@ export function Newsletter() {
               </div>
             </form>
 
-            {/* Resend confirm link - chi hien sau khi submit thanh cong */}
             {lastSubmittedEmail && (
-              <div className="mt-4 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-left">
-                <p className="text-xs text-white/60">
-                  Không nhận được email xác nhận cho <strong className="text-white/80">{lastSubmittedEmail}</strong>?
+              <div className="mt-4 rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-left">
+                <p className="text-xs text-primary-foreground/80">
+                  Không nhận được email xác nhận cho <strong>{lastSubmittedEmail}</strong>?
                 </p>
                 <button
                   type="button"
@@ -248,14 +217,14 @@ export function Newsletter() {
                     }
                   }}
                   disabled={resendLoading}
-                  className="mt-2 text-xs font-medium text-white/80 underline underline-offset-2 hover:text-white disabled:opacity-60"
+                  className="mt-2 text-xs font-medium text-primary-foreground underline underline-offset-2 hover:text-background disabled:opacity-60"
                 >
                   {resendLoading ? "Đang gửi..." : "Gửi lại email xác nhận"}
                 </button>
               </div>
             )}
 
-            <p className="mt-4 text-xs text-white/30">
+            <p className="mt-4 text-xs text-primary-foreground/60">
               Không spam. Hủy đăng ký bất kỳ lúc nào qua link trong email.
             </p>
           </div>

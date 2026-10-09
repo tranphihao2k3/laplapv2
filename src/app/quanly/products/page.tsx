@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Edit, Save, X, FileText, Cpu, Gift, Layers3, Eye, Pencil, ClipboardCopy, LayoutGrid, List, Package } from "lucide-react";
+import { Plus, Trash2, Edit, Save, X, FileText, Cpu, Gift, Layers3, Eye, Pencil, ClipboardCopy, LayoutGrid, List, Package, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,7 +16,7 @@ import { SearchableSelect, type SearchableOption } from "@/components/ui/searcha
 import { useCrudBulkDelete, useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate, useMyShops } from "@/lib/api/admin-crud";
 import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { createClient } from "@/lib/supabase/client";
-import { buildCategoryTree, findTemplateForCategory, getAncestors } from "@/lib/category-tree";
+import { buildCategoryTree, findLaptopCategory, findTemplateForCategory, getAncestors, getDescendantIds } from "@/lib/category-tree";
 import { GiftProductPicker, type GiftProductLite } from "@/components/admin/gift-product-picker";
 import { AIPasteBox, type ParseSuggestions, type ParseResult } from "@/components/admin/ai-paste-box";
 import { Section } from "@/components/ui/section";
@@ -28,6 +28,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ProductCard, ProductCardSkeleton, type ProductCardData } from "./_components/product-card";
+import { ProductFilters, EMPTY_FILTER, type ProductFilterValue } from "./_components/products-filters";
+import { ProductFilterChips } from "./_components/product-filter-chips";
+import { ProductStatsCards } from "./_components/product-stats-cards";
+import { useUrlFilters } from "./_components/use-url-filters";
+import { PaginationBar } from "./_components/pagination-bar";
+import { cn, formatCurrency } from "@/lib/utils";
 
 type Product = {
   id: string;
@@ -121,11 +127,17 @@ function getErrorMessage(error: unknown) {
 }
 
 export default function ProductsAdminPage() {
-  const [search, setSearch] = useState("");
+  // URL-synced filter state (shareable, bookmarkable)
+  const { filters, setFilters, ready: filtersReady } = useUrlFilters();
+  const search = filters.search;
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [open, setOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  // Tăng mỗi lần mở dialog — dùng làm `key` cho các Section bên trong
+  // để buộc re-mount, đảm bảo `defaultOpen` được áp dụng lại từ đầu
+  // (tránh việc user thu gọn Section ở lần mở trước thì lần sau vẫn đóng).
+  const [dialogOpenNonce, setDialogOpenNonce] = useState(0);
   // ID sản phẩm đang chờ xác nhận xoá (cho grid view — không có trigger riêng).
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
@@ -220,9 +232,62 @@ export default function ProductsAdminPage() {
   const [newInitialStock, setNewInitialStock] = useState(0);
 
   // Queries & Mutations
-  const productsQuery = useCrudList<Product>("products", { search, page, pageSize: 20 });
-  const brandsQuery = useCrudList<{ id: string; name: string }>("brands", { pageSize: 100 });
+  // Categories + Brands cần có sẵn TRƯỚC khi build filterParams, vì filter có thể
+  // mở rộng category cha → tất cả hậu duệ (xem `getDescendantIds` bên dưới).
   const categoriesQuery = useCrudList<{ id: string; name: string; parent_id: string | null; position?: number | null }>("categories", { pageSize: 100 });
+  const brandsQuery = useCrudList<{ id: string; name: string }>("brands", { pageSize: 100 });
+  const categories = categoriesQuery.data?.items ?? [];
+  const brands = brandsQuery.data?.items ?? [];
+
+  // Lọc tự động được serialize thành query param qua useCrudList (filters: { status, brand_id, category_id })
+  // Khi chọn 1 category (cha hoặc con), tự động mở rộng thành tất cả hậu duệ (kể cả chính nó)
+  // để chọn "Laptop" ra cả "Laptop Gaming / Văn phòng / Cũ..." thay vì chỉ 1 mục trùng tên.
+  const filterParams = useMemo(
+    () => {
+      // Expand category cha → tất cả descendants (bao gồm cả chính nó)
+      let categoryIdInFilter: string | undefined;
+      if (filters.categoryId && categories.length > 0) {
+        const allIds = getDescendantIds(filters.categoryId, categories);
+        if (allIds.size > 1) {
+          categoryIdInFilter = [...allIds].join(",");
+        } else {
+          // 1 id duy nhất → fallback sang eq (1 phần tử)
+          categoryIdInFilter = undefined;
+        }
+      }
+      return {
+        search: filters.search || undefined,
+        page,
+        pageSize: 20,
+        sort: filters.sort || "created_at:desc",
+        filters: {
+          status: filters.status || undefined,
+          brand_id: filters.brandId || undefined,
+          // Ưu tiên __in (mở rộng cây con). Nếu chỉ 1 id thì factory sẽ tự fallback về eq.
+          ...(filters.categoryId
+            ? categoryIdInFilter
+              ? { category_id__in: categoryIdInFilter }
+              : { category_id: filters.categoryId }
+            : {}),
+        },
+      };
+    },
+    [filters, page, categories],
+  );
+  const productsQuery = useCrudList<Product>("products", filterParams);
+  // 3 query phụ chỉ để lấy count theo status — pageSize: 1, nặng không đáng kể do React Query cache 5 phút
+  const activeCountQuery = useCrudList<{ id: string }>("products", {
+    pageSize: 1,
+    filters: { status: "active" },
+  });
+  const draftCountQuery = useCrudList<{ id: string }>("products", {
+    pageSize: 1,
+    filters: { status: "draft" },
+  });
+  const archivedCountQuery = useCrudList<{ id: string }>("products", {
+    pageSize: 1,
+    filters: { status: "archived" },
+  });
   const specTemplatesQuery = useCrudList<SpecTemplate>("spec-templates", { pageSize: 100 });
   const myShopsQuery = useMyShops();
   // Kho lọc theo cửa hàng đang chọn. Chưa chọn shop → không truyền filter (hiển thị tất cả).
@@ -247,6 +312,11 @@ export default function ProductsAdminPage() {
   const pageIds = useMemo(() => activeProducts.map((p) => p.id), [activeProducts]);
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
   const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
+
+  // Khi filter thay đổi (ngoài page), reset về trang 1
+  useEffect(() => {
+    setPage(1);
+  }, [filters.status, filters.brandId, filters.categoryId, filters.sort, filters.search]);
 
   async function handleBulkDeleteProducts() {
     const ids = selection.array;
@@ -273,8 +343,29 @@ export default function ProductsAdminPage() {
       toast.error(msg || "Có lỗi xảy ra");
     }
   }
-  const brands = brandsQuery.data?.items ?? [];
-  const categories = categoriesQuery.data?.items ?? [];
+  // brands + categories đã được khai báo ở trên (cần sớm cho filterParams).
+
+  // ── Default filter: mở trang lần đầu (URL không có category) → tự chọn "Laptop" ──
+  // Chỉ chạy MỘT LẦN: nếu user xoá chip category, không tự apply lại.
+  const defaultCategoryAppliedRef = useRef(false);
+  useEffect(() => {
+    if (defaultCategoryAppliedRef.current) return;
+    if (!filtersReady) return;
+    if (filters.categoryId) {
+      // URL đã có category từ share link / bookmark → không override
+      defaultCategoryAppliedRef.current = true;
+      return;
+    }
+    if (categories.length === 0) return;
+
+    defaultCategoryAppliedRef.current = true;
+
+    const laptopCat = findLaptopCategory(categories);
+    if (laptopCat) {
+      setFilters({ ...filters, categoryId: laptopCat.id });
+    }
+  }, [filtersReady, categories, filters, setFilters]);
+
   const specTemplates = specTemplatesQuery.data?.items ?? [];
   const myShops = useMemo(() => myShopsQuery.data ?? [], [myShopsQuery.data]);
   const warehouses = useMemo(() => warehousesQuery.data?.items ?? [], [warehousesQuery.data]);
@@ -283,6 +374,14 @@ export default function ProductsAdminPage() {
 
   const brandMap = useMemo(() => new Map(brands.map((b) => [b.id, b.name])), [brands]);
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+
+  // Số mục con đang được mở rộng khi chọn 1 category (trừ chính cha).
+  // Hiển thị trên chip "Danh mục: ..." để user biết filter đã gộp cả cây con.
+  const categoryChildCount = useMemo(() => {
+    if (!filters.categoryId || categories.length === 0) return 0;
+    const allIds = getDescendantIds(filters.categoryId, categories);
+    return Math.max(0, allIds.size - 1);
+  }, [filters.categoryId, categories]);
   // Map variant đầu tiên của mỗi product → dùng để grid card hiển thị SKU + giá mà không cần vào trang chi tiết
   const variantInfoMap = useMemo(() => {
     const list = (variantsQuery.data?.items ?? []) as VariantRow[];
@@ -461,6 +560,7 @@ export default function ProductsAdminPage() {
     } catch {
       setVariants([]);
     }
+    setDialogOpenNonce((n) => n + 1);
     setOpen(true);
   };
 
@@ -489,6 +589,20 @@ export default function ProductsAdminPage() {
     if (!shopId) setShopId(myShops[0]?.id ?? "");
     setWarehouseId(warehouses[0]?.id ?? "");
     setVariants([]);
+
+    // ── Default khi tạo mới: prefill "Laptop" + template kế thừa ──
+    // Section "Thông số kỹ thuật" sẽ tự mở (vì defaultOpen phụ thuộc specTemplateId)
+    // nên admin vào thẳng phần specs để điền ngay, không phải click mở.
+    const laptopCat = findLaptopCategory(categories);
+    if (laptopCat) {
+      setCategoryId(laptopCat.id);
+      const inherited = findTemplateForCategory(laptopCat.id, specTemplates, categories);
+      if (inherited) {
+        setSpecTemplateId(inherited.id);
+      }
+    }
+
+    setDialogOpenNonce((n) => n + 1);
     setOpen(true);
   };
 
@@ -851,61 +965,93 @@ export default function ProductsAdminPage() {
 
   return (
     <div className="space-y-4">
+      {/* Stats overview — tổng quan trước khi vào danh sách */}
+      <ProductStatsCards
+        total={productsQuery.data?.total ?? null}
+        active={activeCountQuery.data?.total ?? null}
+        draft={draftCountQuery.data?.total ?? null}
+        archived={archivedCountQuery.data?.total ?? null}
+        withoutVariants={activeProducts.filter((p) => (p.variants_count ?? 0) === 0).length}
+        loading={productsQuery.isLoading}
+      />
+
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-xl font-bold">Danh sách sản phẩm</CardTitle>
-            <CardDescription>Sản phẩm được sắp theo phân loại, ưu tiên nhóm Laptop hiển thị đầu tiên.</CardDescription>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm sản phẩm..."
-              className="w-full sm:w-64"
-            />
-            <TooltipProvider delayDuration={200}>
-              <div className="inline-flex rounded-md border bg-background p-0.5 shadow-sm">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant={viewMode === "grid" ? "default" : "outline"}
-                      size="icon"
-                      className="h-9 w-9 rounded-sm"
-                      aria-label="Dạng lưới"
-                      aria-pressed={viewMode === "grid"}
-                      onClick={() => setViewMode("grid")}
-                    >
-                      <LayoutGrid className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Dạng lưới</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant={viewMode === "table" ? "default" : "outline"}
-                      size="icon"
-                      className="h-9 w-9 rounded-sm"
-                      aria-label="Dạng bảng"
-                      aria-pressed={viewMode === "table"}
-                      onClick={() => setViewMode("table")}
-                    >
-                      <List className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Dạng bảng</TooltipContent>
-                </Tooltip>
-              </div>
-            </TooltipProvider>
-            <Button onClick={startCreate} className="w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" /> Thêm sản phẩm
-            </Button>
+        <CardHeader className="flex flex-col gap-3 space-y-0 pb-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                <Package className="h-5 w-5 text-primary" />
+                Danh sách sản phẩm
+              </CardTitle>
+              <CardDescription>
+                Sản phẩm được sắp theo phân loại, ưu tiên nhóm Laptop hiển thị đầu tiên.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <TooltipProvider delayDuration={200}>
+                <div className="inline-flex rounded-md border bg-background p-0.5 shadow-sm">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant={viewMode === "grid" ? "default" : "outline"}
+                        size="icon"
+                        className="h-9 w-9 rounded-sm"
+                        aria-label="Dạng lưới"
+                        aria-pressed={viewMode === "grid"}
+                        onClick={() => setViewMode("grid")}
+                      >
+                        <LayoutGrid className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Dạng lưới</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant={viewMode === "table" ? "default" : "outline"}
+                        size="icon"
+                        className="h-9 w-9 rounded-sm"
+                        aria-label="Dạng bảng"
+                        aria-pressed={viewMode === "table"}
+                        onClick={() => setViewMode("table")}
+                      >
+                        <List className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Dạng bảng</TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
+              <Button onClick={startCreate} className="shadow-sm">
+                <Plus className="mr-2 h-4 w-4" /> Thêm sản phẩm
+              </Button>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="space-y-3 pt-0">
+          {/* Filter bar */}
+          <ProductFilters
+            value={filters}
+            onChange={setFilters}
+            brandOptions={brandOptions}
+            categoryOptions={categoryOptions}
+            totalLabel={productsQuery.data?.total.toLocaleString("vi-VN")}
+            filteredLabel={activeProducts.length > 0 ? activeProducts.length.toLocaleString("vi-VN") : undefined}
+          />
+
+          {/* Active filter chips */}
+          <ProductFilterChips
+            value={filters}
+            brandName={filters.brandId ? brandMap.get(filters.brandId) : null}
+            categoryName={filters.categoryId ? categoryMap.get(filters.categoryId) : null}
+            categoryChildCount={categoryChildCount}
+            onRemove={(key) => setFilters({ ...filters, [key]: key === "sort" ? "created_at:desc" : "" })}
+            onClearAll={() => setFilters(EMPTY_FILTER)}
+          />
+
           {viewMode === "grid" ? (
             <>
             {/* ===== Grid view (áp dụng cho cả desktop & mobile) ===== */}
@@ -1000,7 +1146,7 @@ export default function ProductsAdminPage() {
           ) : (
             <>
           {/* ===== Desktop: bảng đầy đủ (ẩn trên mobile) ===== */}
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto rounded-md border">
           <BulkActionsToolbar
             count={selection.count}
             entityLabel="sản phẩm"
@@ -1013,7 +1159,7 @@ export default function ProductsAdminPage() {
             isPending={bulkDeleteProducts.isPending}
           />
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-muted/40">
                 <TableRow>
                   <TableHead className="w-10">
                     <Checkbox
@@ -1028,20 +1174,38 @@ export default function ProductsAdminPage() {
                     />
                   </TableHead>
                   <TableHead className="w-14">STT</TableHead>
-                  <TableHead>Sản phẩm</TableHead>
-                  <TableHead>Mã/SKU đại diện</TableHead>
-                  <TableHead>Thương hiệu</TableHead>
-                  <TableHead>Danh mục</TableHead>
-
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead className="text-right">Hành động</TableHead>
+                  <TableHead className="min-w-[260px]">Sản phẩm</TableHead>
+                  <TableHead className="w-[140px]">Mã/SKU đại diện</TableHead>
+                  <TableHead className="w-[160px]">Thương hiệu</TableHead>
+                  <TableHead className="w-[160px]">Danh mục</TableHead>
+                  <TableHead className="w-[120px] text-right">Giá bán</TableHead>
+                  <TableHead className="w-[80px] text-center">Biến thể</TableHead>
+                  <TableHead className="w-[120px]">Trạng thái</TableHead>
+                  <TableHead className="w-[110px] text-right">Hành động</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                      {productsQuery.isLoading ? "Đang tải dữ liệu..." : "Không tìm thấy sản phẩm nào"}
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-12">
+                      {productsQuery.isLoading ? (
+                        <div className="flex items-center justify-center gap-2 text-sm">
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
+                          <span className="ml-2">Đang tải sản phẩm...</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 py-4">
+                          <Package className="h-8 w-8 text-muted-foreground/50" />
+                          <p className="text-sm">Không tìm thấy sản phẩm nào phù hợp bộ lọc</p>
+                          {(filters.status || filters.brandId || filters.categoryId || filters.search) && (
+                            <Button variant="outline" size="sm" onClick={() => setFilters(EMPTY_FILTER)}>
+                              <X className="mr-1 h-3.5 w-3.5" /> Xoá bộ lọc
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1049,9 +1213,11 @@ export default function ProductsAdminPage() {
                     const b = prod.brand_id ? brandMap.get(prod.brand_id) : null;
                     const c = prod.category_id ? categoryMap.get(prod.category_id) : null;
                     const variantsCount = prod.variants_count ?? 0;
+                    const variantInfo = variantInfoMap.get(prod.id);
+                    const minPrice = variantInfo?.price ?? null;
                     const checked = selection.isSelected(prod.id);
                     return (
-                      <TableRow key={prod.id} data-state={checked ? "selected" : undefined}>
+                      <TableRow key={prod.id} data-state={checked ? "selected" : undefined} className="group">
                         <TableCell>
                           <Checkbox
                             checked={checked}
@@ -1059,42 +1225,81 @@ export default function ProductsAdminPage() {
                             aria-label={`Chọn ${prod.name}`}
                           />
                         </TableCell>
-                        <TableCell>{index + 1}</TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">{(page - 1) * 20 + index + 1}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2.5">
                             {prod.thumbnail_url ? (
-                              <Image src={prod.thumbnail_url} alt="" width={40} height={40} className="h-10 w-10 rounded object-cover border" />
+                              <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border bg-muted">
+                                <Image src={prod.thumbnail_url} alt="" width={44} height={44} className="h-full w-full object-cover" />
+                              </div>
                             ) : (
-                              <div className="h-10 w-10 bg-muted rounded flex items-center justify-center border text-[10px] text-muted-foreground">Ảnh</div>
+                              <div className="h-11 w-11 shrink-0 rounded-md border bg-muted flex items-center justify-center text-[10px] text-muted-foreground">N/A</div>
                             )}
-                            <div>
-                              <div className="font-semibold">{prod.name}</div>
-                              <div className="text-xs text-muted-foreground line-clamp-1">{prod.short_description ?? "Chưa có mô tả ngắn"}</div>
+                            <div className="min-w-0">
+                              <div className="font-semibold leading-tight line-clamp-1">{prod.name}</div>
+                              {prod.short_description ? (
+                                <div className="text-xs text-muted-foreground line-clamp-1">{prod.short_description}</div>
+                              ) : (
+                                <div className="text-xs italic text-muted-foreground/60">Chưa có mô tả ngắn</div>
+                              )}
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{prod.slug ?? "-"}</TableCell>
-                        <TableCell>{b ?? <span className="text-muted-foreground text-xs">Chưa chọn</span>}</TableCell>
-                        <TableCell>{c ?? <span className="text-muted-foreground text-xs">Chưa chọn</span>}</TableCell>
-
+                        <TableCell className="font-mono text-xs text-muted-foreground">{prod.slug ?? "-"}</TableCell>
+                        <TableCell>{b ?? <span className="text-xs italic text-muted-foreground/60">—</span>}</TableCell>
+                        <TableCell>{c ?? <span className="text-xs italic text-muted-foreground/60">—</span>}</TableCell>
+                        <TableCell className="text-right">
+                          {minPrice != null ? (
+                            <div className="font-semibold tabular-nums text-foreground">{formatCurrency(minPrice)}</div>
+                          ) : (
+                            <span className="text-xs italic text-muted-foreground/60">Liên hệ</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {variantsCount > 0 ? (
+                            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary tabular-nums">
+                              {variantsCount}
+                            </span>
+                          ) : (
+                            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-rose-50 px-1.5 text-xs font-medium text-rose-600 ring-1 ring-rose-200">
+                              0
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell>
-                          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-semibold ${prod.status === "active" ? "bg-green-100 text-green-800" :
-                              prod.status === "archived" ? "bg-gray-100 text-gray-800" : "bg-yellow-100 text-yellow-800"
-                            }`}>
+                          <span className={cn(
+                            "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold",
+                            prod.status === "active" && "bg-emerald-100 text-emerald-700",
+                            prod.status === "archived" && "bg-zinc-100 text-zinc-600",
+                            (prod.status === "draft" || !prod.status) && "bg-amber-100 text-amber-700",
+                          )}>
+                            <span className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              prod.status === "active" && "bg-emerald-500",
+                              prod.status === "archived" && "bg-zinc-400",
+                              (prod.status === "draft" || !prod.status) && "bg-amber-500",
+                            )} />
                             {prod.status === "active" ? "Đang bán" : prod.status === "archived" ? "Ngừng bán" : "Nháp"}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="outline" onClick={() => startEdit(prod)}>
-                              <Edit className="h-4 w-4 mr-1" /> Sửa
-                            </Button>
+                          <div className="flex justify-end gap-1.5">
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="outline" onClick={() => startEdit(prod)} className="h-8 px-2.5">
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Sửa sản phẩm</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                             <ConfirmDeleteDialog
                               entity="products"
                               id={prod.id}
                               trigger={
-                                <Button size="sm" variant="destructive">
-                                  <Trash2 className="h-4 w-4" />
+                                <Button size="sm" variant="outline" className="h-8 px-2.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700">
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               }
                             />
@@ -1174,32 +1379,15 @@ export default function ProductsAdminPage() {
           )}
         </CardContent>
         {productsQuery.data && productsQuery.data.totalPages > 1 && (
-          <CardContent className="pt-0">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <div className="text-xs sm:text-sm text-muted-foreground">
-                Trang {productsQuery.data.page} / {productsQuery.data.totalPages} (Tổng {productsQuery.data.total} sản phẩm)
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 sm:flex-none"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Trước
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 sm:flex-none"
-                  disabled={page >= (productsQuery.data?.totalPages ?? 1)}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Sau
-                </Button>
-              </div>
-            </div>
+          <CardContent className="pt-3">
+            <PaginationBar
+              page={page}
+              totalPages={productsQuery.data.totalPages}
+              total={productsQuery.data.total}
+              pageSize={productsQuery.data.pageSize}
+              isFetching={productsQuery.isFetching}
+              onChange={setPage}
+            />
           </CardContent>
         )}
       </Card>
@@ -1612,11 +1800,12 @@ export default function ProductsAdminPage() {
                 THÔNG SỐ KỸ THUẬT — collapsible, ẩn cho sản phẩm đơn giản
                ============================================================ */}
             <Section
+              key={`specs-${dialogOpenNonce}-${editingProduct?.id ?? "new"}`}
               title="Thông số kỹ thuật"
               description="Chỉ cần điền cho laptop / linh kiện. Sản phẩm đơn giản có thể bỏ qua."
               icon={<Cpu className="h-4 w-4 text-muted-foreground" />}
               badge={Object.values(specValues).filter(Boolean).length || null}
-              defaultOpen={Boolean(editingProduct && specTemplateId)}
+              defaultOpen={Boolean(specTemplateId)}
             >
               <div className="space-y-4">
                 <div className="space-y-2">

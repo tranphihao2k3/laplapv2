@@ -1,5 +1,9 @@
 //powershell.ts
 import { spawn } from "node:child_process";
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 
 export interface PwshResult {
   stdout: string;
@@ -18,10 +22,25 @@ function spawnPwsh(extraArgs: string[]) {
 function runPwshInternal(
   extraArgs: string[],
   timeoutMs: number,
-  sink: { stdin?: string },
+  sink: { stdin?: string; scriptPath?: string },
 ): Promise<PwshResult> {
   return new Promise((resolve, reject) => {
-    const child = spawnPwsh(extraArgs);
+    let child;
+    let tempFilePath: string | null = null;
+    const cleanup = () => {
+      if (tempFilePath) {
+        fs.unlink(tempFilePath).catch(() => {});
+        tempFilePath = null;
+      }
+    };
+
+    if (sink.scriptPath) {
+      // Use -File with a real file (avoids the >~2KB stdin truncation bug)
+      child = spawnPwsh(["-File", sink.scriptPath]);
+    } else {
+      child = spawnPwsh(extraArgs);
+    }
+
     let stdout = "";
     let stderr = "";
     let settled = false;
@@ -30,6 +49,7 @@ function runPwshInternal(
       if (settled) return;
       settled = true;
       child.kill();
+      cleanup();
       reject(new Error(`PowerShell timed out after ${timeoutMs}ms`));
     }, timeoutMs);
 
@@ -39,12 +59,14 @@ function runPwshInternal(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      cleanup();
       reject(err);
     });
     child.on("close", (code) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      cleanup();
       resolve({
         stdout,
         stderr,
@@ -60,14 +82,17 @@ function runPwshInternal(
 }
 
 /**
- * Chạy 1 đoạn PowerShell ngắn (qua stdin). Không cần file .ps1.
- * Dùng cho hardware query where script không cần ship kèm app.
+ * Chạy 1 đoạn PowerShell ngắn. Để tránh bug PowerShell nuốt mất output khi
+ * pipe STDIN >~2KB, luôn ghi script ra temp file rồi dùng -File.
  */
 export function runPwshCommand(
   command: string,
   timeoutMs = 30_000,
 ): Promise<PwshResult> {
-  return runPwshInternal(["-Command", "-"], timeoutMs, { stdin: command });
+  const scriptPath = join(tmpdir(), `lap-pwsh-${randomBytes(6).toString("hex")}.ps1`);
+  return fs
+    .writeFile(scriptPath, command, "utf8")
+    .then(() => runPwshInternal([], timeoutMs, { scriptPath }));
 }
 
 /**
@@ -78,5 +103,5 @@ export function runPwshScript(
   args: string[] = [],
   timeoutMs = 30_000,
 ): Promise<PwshResult> {
-  return runPwshInternal(["-File", scriptPath, ...args], timeoutMs, {});
+  return runPwshInternal([], timeoutMs, {});
 }
