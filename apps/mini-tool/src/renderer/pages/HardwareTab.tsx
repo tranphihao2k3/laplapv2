@@ -279,10 +279,26 @@ export function HardwareTab() {
       }
       setStatus((s) => ({ ...s, [key]: "ready" }));
       // Cập nhật staging + đẩy vào store để cache qua remount.
+      // Normalize disks/gpu/network: ConvertTo-Json có thể trả array / object
+      // lẻ / {value:[...]} tùy số phần tử.
+      const rawData = (part as { data: unknown }).data;
+      let normalized: unknown = rawData;
+      if (key === "disks" || key === "gpu" || key === "network") {
+        const d: any = rawData;
+        if (Array.isArray(d)) {
+          normalized = d;
+        } else if (Array.isArray(d?.value)) {
+          normalized = d.value;
+        } else if (d && typeof d === "object") {
+          normalized = [d];
+        } else {
+          normalized = [];
+        }
+      }
       setStaging((prev) => {
         const next: CollectedHardware = {
           ...prev,
-          [key]: (part as { data: unknown }).data,
+          [key]: normalized,
         } as CollectedHardware;
         setHardware(next);
         return next;
@@ -390,8 +406,34 @@ export function HardwareTab() {
             <SpecTable
               rows={[
                 { label: "Tổng", value: formatBytes(totalMemBytes) },
-                { label: "Số thanh", value: memory?.slots ?? "—" },
-                { label: "Bus", value: memory?.platformMaxMhz ? `${memory.platformMaxMhz} MHz` : "—" },
+                {
+                  label: "Hệ thống báo",
+                  value:
+                    memory?.csTotalGB != null && memory.totalGB != null &&
+                    Math.abs(memory.csTotalGB - memory.totalGB) >= 0.5
+                      ? `${memory.csTotalGB} GB (memory reserved)`
+                      : memory?.csTotalGB != null
+                      ? `${memory.csTotalGB} GB`
+                      : "—",
+                },
+                {
+                  label: "Loại",
+                  value: memory?.memoryType ?? "—",
+                },
+                {
+                  label: "Tốc độ max",
+                  value: memory?.maxSpeedMhz ? `${memory.maxSpeedMhz} MT/s` : "—",
+                },
+                {
+                  label: "Số khe",
+                  value:
+                    memory?.totalSlots != null
+                      ? `${memory.dimmCount}/${memory.totalSlots} đang dùng${
+                          memory.freeSlots ? ` (còn ${memory.freeSlots} trống)` : ""
+                        }`
+                      : `${memory?.dimmCount ?? "—"} thanh`,
+                },
+                { label: "Bus tối đa", value: memory?.platformMaxMhz ? `${memory.platformMaxMhz} MHz` : "—" },
               ]}
             />
             {memory?.modules && memory.modules.length > 0 && (
@@ -400,25 +442,52 @@ export function HardwareTab() {
                   const running = m.configuredMhz ?? m.speedMhz;
                   const platformMax = m.platformMaxMhz ?? memory.platformMaxMhz;
                   const belowSpec = typeof running === "number" && typeof platformMax === "number" && running < platformMax;
+                  const genLabel = m.memoryType ?? m.generation ?? memGen(m.type);
                   return (
-                    <li key={i} className="flex flex-wrap items-center gap-1.5 rounded border border-border/40 bg-muted/30 px-2 py-0.5">
-                      <span className="font-mono font-medium text-[10px]">{m.slot ?? `#${i + 1}`}</span>
-                      <span className="text-muted-foreground">·</span>
-                      <span>{formatBytes(m.sizeBytes)}</span>
-                      {m.manufacturer && (
-                        <span className="text-[10px] text-cyan-400 font-medium">{m.manufacturer}</span>
-                      )}
-                      <span className={cn(
-                        "font-medium",
-                        (m.generation ?? memGen(m.type)) === "DDR5" ? "text-blue-400" :
-                        (m.generation ?? memGen(m.type)) === "DDR4" ? "text-green-400" : "text-zinc-400"
-                      )}>
-                        {m.generation ?? memGen(m.type)}
-                      </span>
-                      <span>{running ? `${running}MHz` : "—"}</span>
-                      {belowSpec && (
-                        <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] font-medium uppercase text-amber-300">
-                          dưới spec
+                    <li key={i} className="flex flex-wrap items-center gap-1.5 rounded border border-border/40 bg-muted/30 px-2 py-1">
+                      <div className="flex flex-wrap items-center gap-1.5 w-full">
+                        <span className="font-mono font-medium text-[10px]">
+                          {m.slot ?? `#${i + 1}`}
+                        </span>
+                        {m.bankLabel && m.bankLabel !== m.slot && (
+                          <span className="text-[10px] text-muted-foreground">({m.bankLabel})</span>
+                        )}
+                        <span className="text-muted-foreground">·</span>
+                        <span>{formatBytes(m.sizeBytes)}</span>
+                        {m.formFactor && (
+                          <span className="rounded bg-slate-500/15 px-1 py-0.5 text-[9px] font-medium uppercase text-slate-300">
+                            {m.formFactor}
+                          </span>
+                        )}
+                        {m.manufacturer && (
+                          <span className="text-[10px] text-cyan-400 font-medium">{m.manufacturer}</span>
+                        )}
+                        <span className={cn(
+                          "font-medium",
+                          genLabel === "DDR5" ? "text-blue-400" :
+                          genLabel === "DDR4" ? "text-green-400" :
+                          genLabel === "DDR3" ? "text-yellow-400" : "text-zinc-400"
+                        )}>
+                          {genLabel}
+                        </span>
+                        <span>{running ? `${running}MHz` : "—"}</span>
+                        {m.voltageV != null && (
+                          <span className="text-[10px] text-amber-300">{m.voltageV}V</span>
+                        )}
+                        {m.rank && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {m.rank === 1 ? "1R" : m.rank === 2 ? "2R" : `${m.rank}R`}
+                          </span>
+                        )}
+                        {belowSpec && (
+                          <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] font-medium uppercase text-amber-300">
+                            dưới spec
+                          </span>
+                        )}
+                      </div>
+                      {m.partNumber && (
+                        <span className="font-mono text-[9px] text-muted-foreground w-full truncate" title={m.partNumber}>
+                          P/N: {m.partNumber}
                         </span>
                       )}
                     </li>
@@ -479,22 +548,61 @@ export function HardwareTab() {
             <p className="text-xs text-muted-foreground">Không tìm thấy GPU.</p>
           ) : (
             <div className="space-y-1.5">
-              {gpus.map((g, i) => (
-                <div key={i} className="rounded border border-border/40 bg-muted/20 px-2 py-1">
-                  <div className="font-semibold text-xs">{g.name ?? "?"}</div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-                    {g.vramMb && <span className="font-mono">{g.vramMb}MB VRAM</span>}
-                    {g.vramType && <span className="text-blue-400">{g.vramType}</span>}
-                    {g.tdpW && (
-                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-semibold text-amber-300">
-                        {g.tdpW}W (max)
+              {gpus.map((g, i) => {
+                const vramGB = typeof g.adapterRAMGB === "number"
+                  ? g.adapterRAMGB
+                  : typeof g.vramGB === "number"
+                    ? g.vramGB
+                    : typeof g.vramGb === "number"
+                      ? g.vramGb
+                      : (g.vramMb ? Math.round((g.vramMb / 1024) * 10) / 10 : null);
+                const typeBadge = g.isDiscrete
+                  ? { label: "Rời", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" }
+                  : g.isIntegrated
+                    ? { label: "Onboard", cls: "bg-sky-500/15 text-sky-300 border-sky-500/30" }
+                    : { label: g.type ?? "?", cls: "bg-muted text-muted-foreground" };
+                return (
+                  <div key={i} className="rounded border border-border/40 bg-muted/20 px-2 py-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-semibold text-xs truncate" title={g.name ?? ""}>
+                        {g.name ?? "?"}
+                      </div>
+                      <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${typeBadge.cls}`}>
+                        {typeBadge.label}
                       </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                      {vramGB != null && (
+                        <span className="font-mono">{vramGB}GB VRAM</span>
+                      )}
+                      {g.vramType && <span className="text-blue-400">{g.vramType}</span>}
+                      {typeof g.tdpW === "number" && g.tdpW > 0 && (
+                        <span className="rounded bg-orange-500/15 px-1.5 py-0.5 font-semibold text-orange-300">
+                          {g.tdpW}W (max)
+                        </span>
+                      )}
+                      {g.computeUnits && <span className="text-purple-400">{g.computeUnits} cores</span>}
+                      {g.driverVersion && <span>Driver v{g.driverVersion}</span>}
+                      {g.refreshRateHz != null && g.refreshRateHz > 0 && (
+                        <span>{g.refreshRateHz} Hz</span>
+                      )}
+                      {g.maxRefreshRateHz != null && g.maxRefreshRateHz > 0 && (
+                        <span className="text-purple-400">(max {g.maxRefreshRateHz} Hz)</span>
+                      )}
+                      {g.maxResolution && (
+                        <span className="text-yellow-400">({g.maxResolution})</span>
+                      )}
+                      {g.manufacturer && <span className="text-cyan-400">{g.manufacturer}</span>}
+                      {g.status && <span className="text-emerald-400">{g.status}</span>}
+                    </div>
+                    {g.videoModeDesc && (
+                      <div className="mt-0.5 text-[10px] text-muted-foreground font-mono truncate" title={g.videoModeDesc}>
+                        {g.videoModeDesc}
+                      </div>
                     )}
-                    {g.computeUnits && <span className="text-purple-400">{g.computeUnits} cores</span>}
-                    {g.driverVersion && <span>Driver v{g.driverVersion}</span>}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </SectionCard>

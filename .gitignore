@@ -33,6 +33,7 @@ cloudflare-env.d.ts
 Toolcheck/
 .claude
 .supabase/
+.cursor/
 # State cục bộ của Supabase CLI (project-ref, pooler URL đã kèm host/user).
 # Chỉ supabase/migrations/ mới thuộc mã nguồn.
 supabase/.temp/

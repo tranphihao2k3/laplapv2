@@ -464,6 +464,11 @@ function StockTable({
                 "border-border bg-card"
               }`}
             >
+              {/* STT */}
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted font-semibold text-sm text-muted-foreground">
+                {idx + 1}
+              </div>
+              
               {/* Icon & Tên sản phẩm */}
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">

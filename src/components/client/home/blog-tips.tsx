@@ -31,7 +31,7 @@ const TIPS = [
 
 export function BlogTips() {
   return (
-    <section className="container pt-14 sm:pt-24">
+    <section className="container py-12 sm:py-16">
       <SectionHeader
         eyebrow="Kiến thức & Tư vấn"
         title="Bài viết hữu ích"
@@ -43,23 +43,21 @@ export function BlogTips() {
           <Reveal key={t.title} variant="fade-up" delay={i * 80} threshold={0.05}>
             <Link
               href={t.href}
-              className="group flex h-full flex-col rounded-2xl border border-slate-200/80 bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_20px_50px_-28px_rgba(15,23,42,0.4)] sm:p-6"
+              className="group flex h-full flex-col rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-6"
             >
               <div className="mb-4 flex items-center justify-between">
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
                   {t.category}
                 </span>
-                <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   {t.time}
                 </div>
               </div>
-              <h3 className="text-[15px] font-semibold leading-snug text-slate-900">
-                {t.title}
-              </h3>
-              <p className="mt-2 flex-1 text-[13px] leading-relaxed text-slate-500">{t.desc}</p>
-              <div className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-400 transition-colors group-hover:text-slate-900">
-                Đọc tiếp <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-1" />
+              <h3 className="text-base font-semibold leading-snug">{t.title}</h3>
+              <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{t.desc}</p>
+              <div className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors group-hover:text-primary">
+                Đọc tiếp <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
               </div>
             </Link>
           </Reveal>

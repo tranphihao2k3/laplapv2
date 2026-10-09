@@ -50,14 +50,14 @@ export function Header({ appVersion }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/85 px-4 py-2.5 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-800/60 bg-slate-950/85 px-4 py-2.5 backdrop-blur-md">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gradient-to-br from-cyan-500/20 to-blue-500/20 text-cyan-400 border border-cyan-500/30">
           <Laptop className="h-5 w-5" />
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold tracking-tight">LapLap Mini Tool</span>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span className="text-sm font-semibold tracking-tight bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">LapLap Mini Tool</span>
+          <span className="text-[10px] uppercase tracking-wider text-slate-500">
             v{appVersion}
           </span>
         </div>

@@ -26,7 +26,7 @@ function Counter({ target, suffix, decimals = 0 }: { target: number; suffix: str
         const start = performance.now();
         function step(now: number) {
           const t = Math.min((now - start) / duration, 1);
-          const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+          const ease = 1 - Math.pow(1 - t, 3);
           setCount(+(ease * target).toFixed(decimals));
           if (t < 1) requestAnimationFrame(step);
         }
@@ -48,22 +48,18 @@ function Counter({ target, suffix, decimals = 0 }: { target: number; suffix: str
 
 export function StatsBar() {
   return (
-    <section className="container pt-14 sm:pt-24">
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
-        <div className="grid grid-cols-2 divide-x divide-y divide-slate-100 md:grid-cols-4 md:divide-y-0">
+    <section className="container py-12 sm:py-16">
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-4 md:divide-y-0">
           {STATS.map(({ icon: Icon, value, suffix, label }, i) => (
             <Reveal key={label} variant="fade-up" delay={i * 70} threshold={0.1}>
-              <div className="group flex flex-col gap-3 p-5 transition-colors hover:bg-slate-50/60 sm:p-7">
-                <Icon className="h-5 w-5 text-slate-400 transition-colors group-hover:text-slate-900" />
+              <div className="flex flex-col gap-3 p-5 transition-colors hover:bg-muted/50 sm:p-7">
+                <Icon className="h-5 w-5 text-muted-foreground transition-colors group-hover:text-primary" />
                 <div>
-                  <p className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px]">
-                    <Counter
-                      target={value}
-                      suffix={suffix}
-                      decimals={value % 1 !== 0 ? 1 : 0}
-                    />
+                  <p className="text-2xl font-bold tracking-tight sm:text-[28px]">
+                    <Counter target={value} suffix={suffix} decimals={value % 1 !== 0 ? 1 : 0} />
                   </p>
-                  <p className="mt-1 text-[13px] text-slate-500">{label}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{label}</p>
                 </div>
               </div>
             </Reveal>

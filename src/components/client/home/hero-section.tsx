@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Zap, Shield, Truck, Package } from "lucide-react";
 import { buildHeroSlide, type HomepageHeroSetting } from "@/lib/homepage-hero";
-import { FerrofluidLazy } from "@/components/ui/ferrofluid-lazy";
 
 export function HeroSection() {
   const defaultSlide = useMemo(() => buildHeroSlide(), []);
@@ -25,45 +24,32 @@ export function HeroSection() {
   );
 
   return (
-    <section className="relative w-full">
-      <div className="relative w-full overflow-hidden bg-[#0a0a0c]">
-        {/* Nền ferrofluid động phủ kín banner (WebGL, client-only) */}
-        <div className="absolute inset-0 z-0">
-          <FerrofluidLazy
-            className="h-full w-full"
-            colors={["#ffffff", "#ffffff", "#ffffff"]}
-            speed={0.5}
-            scale={1.4}
-            glow={2}
-            flowDirection="down"
-            mouseInteraction
-          />
-        </div>
+    <section className="relative w-full overflow-hidden bg-gradient-to-br from-primary/5 via-background to-accent/5">
+      {/* Subtle pattern */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: `linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)`,
+        backgroundSize: '40px 40px'
+      }} />
 
-        {/* Lớp phủ tối nhẹ ở giữa để chữ luôn đọc rõ */}
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,rgba(10,10,12,0.75)_0%,rgba(10,10,12,0.35)_45%,transparent_75%)]" />
+      {/* Decorative gradient orbs */}
+      <div className="absolute -left-20 top-1/4 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+      <div className="absolute -right-20 bottom-1/4 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
 
-        <div className="relative z-[2] flex min-h-[560px] flex-col items-center justify-center px-5 py-20 text-center sm:min-h-[600px]">
-          <div
-            className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-white/15 bg-white/[0.06] py-1.5 pl-1.5 pr-3.5 backdrop-blur-md"
-            style={{ animation: "fadeSlideUp 0.5s cubic-bezier(0.22,1,0.36,1) both" }}
-          >
-            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-900">
-              Mới
-            </span>
-            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/70">
-              {slide.eyebrow}
-            </span>
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex min-h-[480px] flex-col items-center justify-center py-16 text-center sm:min-h-[520px] sm:py-20">
+          {/* Badge */}
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-primary/10 px-4 py-1.5">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+            <span className="text-xs font-medium uppercase tracking-wider text-primary">{slide.eyebrow}</span>
           </div>
 
+          {/* Title */}
           <h1 className="max-w-4xl">
             {slide.title.map((line, i) => (
               <div key={`title-${i}`} className="overflow-hidden">
                 <span
-                  className="block text-[2.5rem] font-semibold leading-[1.04] tracking-[-0.02em] text-white sm:text-6xl md:text-7xl"
-                  style={{
-                    animation: `slideUpIn 0.65s cubic-bezier(0.22,1,0.36,1) ${i * 80}ms both`,
-                  }}
+                  className="block text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl"
+                  style={{ animation: `fadeSlideUp 0.6s ease-out ${i * 100}ms both` }}
                 >
                   {line}
                 </span>
@@ -71,42 +57,66 @@ export function HeroSection() {
             ))}
           </h1>
 
+          {/* Subtitle */}
           <p
-            className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 sm:text-base md:text-lg"
-            style={{ animation: "fadeSlideUp 0.7s cubic-bezier(0.22,1,0.36,1) 200ms both" }}
+            className="mt-4 max-w-xl text-base text-muted-foreground sm:text-lg"
+            style={{ animation: `fadeSlideUp 0.6s ease-out 200ms both` }}
           >
             {slide.sub}
           </p>
 
+          {/* CTA Buttons */}
           <div
-            className="mt-9 flex flex-col items-center gap-3 sm:flex-row sm:gap-3.5"
-            style={{ animation: "fadeSlideUp 0.7s cubic-bezier(0.22,1,0.36,1) 300ms both" }}
+            className="mt-8 flex flex-col gap-3 sm:flex-row sm:gap-4"
+            style={{ animation: `fadeSlideUp 0.6s ease-out 300ms both` }}
           >
             <Link
               href={slide.href || "/products"}
-              className="group inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-slate-900 transition-all hover:shadow-[0_8px_30px_-8px_rgba(255,255,255,0.5)] active:scale-[0.98]"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               {slide.cta}
-              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+              <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="/dich-vu-sua-chua"
-              className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.04] px-8 py-3.5 text-sm font-medium text-white backdrop-blur-sm transition-all hover:border-white/30 hover:bg-white/10 active:scale-[0.98]"
+              className="inline-flex items-center gap-2 rounded-lg border bg-background px-6 py-3 text-sm font-medium hover:bg-muted transition-colors"
             >
               Tìm hiểu thêm
             </Link>
+          </div>
+
+          {/* Trust Badges */}
+          <div
+            className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4"
+            style={{ animation: `fadeSlideUp 0.6s ease-out 400ms both` }}
+          >
+            {[
+              { icon: Zap, label: "Giao hàng nhanh", sub: "Trong 2h tại Cần Thơ" },
+              { icon: Shield, label: "Bảo hành chính hãng", sub: "12-36 tháng" },
+              { icon: Package, label: "Sản phẩm chính hãng", sub: "100% authentic" },
+              { icon: Truck, label: "Miễn phí vận chuyển", sub: "Đơn từ 500K" },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-xl border bg-card p-3"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <item.icon className="h-5 w-5 text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="text-xs font-semibold">{item.label}</p>
+                  <p className="text-[10px] text-muted-foreground">{item.sub}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       <style>{`
         @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(24px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes slideUpIn {
-          from { opacity: 0; transform: translateY(100%); }
-          to   { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </section>

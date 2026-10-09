@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { parseProductKind, type ProductKind } from "@/lib/product-kind";
 import {
   DEFAULT_QUERY,
   type ProductFilters,
@@ -19,6 +20,7 @@ function parseQuery(sp: URLSearchParams): ProductQuery {
   const rawMaxPrice = sp.get("maxPrice") ?? sp.get("price_max") ?? "";
 
   return {
+    kind: parseProductKind(sp.get("kind")) ?? "laptop",
     q: sp.get("q") ?? "",
     brand: sp.get("brand") ?? "",
     category: sp.get("category") ?? "",
@@ -36,6 +38,8 @@ function parseQuery(sp: URLSearchParams): ProductQuery {
 
 function toSearchString(q: ProductQuery): string {
   const sp = new URLSearchParams();
+  // kind mặc định là "laptop" → chỉ ghi vào URL khi khác laptop để URL gọn.
+  if (q.kind && q.kind !== "laptop") sp.set("kind", q.kind);
   if (q.q) sp.set("q", q.q);
   if (q.brand) sp.set("brand", q.brand);
   if (q.category) sp.set("category", q.category);
@@ -70,9 +74,29 @@ export function useProductQueryState() {
     [query, pathname, router],
   );
 
+  /**
+   * Đổi cả nhóm kind (laptop ↔ pc_component) — luôn reset filter + page vì
+   * brand/category/tag/ram/cpu/storage không tương thích giữa 2 nhóm.
+   */
+  const setKind = useCallback(
+    (nextKind: ProductKind) => {
+      const next: ProductQuery = {
+        ...DEFAULT_QUERY,
+        kind: nextKind,
+        sort: query.sort,
+      };
+      const qs = toSearchString(next);
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, query.sort, router],
+  );
+
   const reset = useCallback(() => {
-    router.push(pathname, { scroll: false });
-  }, [pathname, router]);
+    // Giữ nguyên kind, chỉ xoá filter trong nhóm.
+    const next: ProductQuery = { ...DEFAULT_QUERY, kind: query.kind };
+    const qs = toSearchString(next);
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, query.kind, router]);
 
   const activeCount = useMemo(() => {
     let n = 0;
@@ -87,15 +111,25 @@ export function useProductQueryState() {
     return n;
   }, [query]);
 
-  return { query, setQuery, reset, activeCount, defaults: DEFAULT_QUERY };
+  return { query, setQuery, setKind, reset, activeCount, defaults: DEFAULT_QUERY };
 }
 
 export function useProducts(query: ProductQuery) {
-  const qs = toSearchString({ ...query, sort: query.sort, page: query.page });
-  const params = new URLSearchParams(qs);
-  // Luôn gửi sort/page để API có giá trị tường minh.
+  const params = new URLSearchParams();
+  params.set("kind", query.kind);
   params.set("sort", query.sort);
   params.set("page", String(query.page));
+  params.set("limit", String(query.limit ?? 24));
+  if (query.q) params.set("q", query.q);
+  if (query.brand) params.set("brand", query.brand);
+  if (query.category) params.set("category", query.category);
+  if (query.tag) params.set("tag", query.tag);
+  if (query.priceBucket) params.set("priceBucket", query.priceBucket);
+  if (query.minPrice > 0) params.set("minPrice", String(query.minPrice));
+  if (query.maxPrice > 0) params.set("maxPrice", String(query.maxPrice));
+  if (query.ram) params.set("ram", query.ram);
+  if (query.cpu) params.set("cpu", query.cpu);
+  if (query.storage) params.set("storage", query.storage);
   const key = params.toString();
 
   return useQuery<ProductListResponse>({
@@ -109,11 +143,16 @@ export function useProducts(query: ProductQuery) {
   });
 }
 
-export function useProductFilters() {
+/**
+ * Filters theo kind — trang /products gọi hook này thay vì useHomeFilters
+ * để chỉ lấy đúng filter cho nhóm đang xem.
+ * Nếu sau này dùng chung cho cả laptop & linh kiện (vd mega-menu), bỏ kind đi.
+ */
+export function useProductFilters(kind: ProductKind) {
   return useQuery<ProductFilters>({
-    queryKey: ["public-product-filters"],
+    queryKey: ["public-product-filters", kind],
     queryFn: async () => {
-      const res = await fetch("/api/public/products/filters");
+      const res = await fetch(`/api/public/products/filters?kind=${kind}`);
       if (!res.ok) throw new Error("Không tải được bộ lọc");
       return res.json();
     },

@@ -37,6 +37,7 @@ import { CustomerPicker } from "./customer-picker";
 import { RepairTicketPicker, type RepairTicket } from "./repair-ticket-picker";
 import { PaymentDialog } from "./payment-dialog";
 import { ReceiptDialog } from "./receipt-dialog";
+import { RepairWarrantyDialog } from "./repair-warranty-dialog";
 import { HoldBillDrawer } from "./hold-bill-drawer";
 import { PosSessionBanner } from "./pos-session-banner";
 import { PosSessionProvider, usePosSession } from "@/hooks/use-pos-session";
@@ -55,6 +56,9 @@ import {
 type CheckoutResult = {
   order_id?: string;
   order_number?: string;
+  warranty_id?: string | null;
+  warranty_months?: number | null;
+  warranty_end_date?: string | null;
   [k: string]: unknown;
 };
 
@@ -95,6 +99,11 @@ function PosClientInner() {
   const [payOpen, setPayOpen] = useState(false);
   const [repairTicket, setRepairTicket] = useState<RepairTicket | null>(null);
   const [repairPayOpen, setRepairPayOpen] = useState(false);
+  // ===== Repair warranty (chọn trước khi thanh toán) =====
+  const [warrantyDialogOpen, setWarrantyDialogOpen] = useState(false);
+  // Số tháng BH đã chọn trong dialog, mặc định lấy theo ticket.warranty_months nếu đã set.
+  // 0 = không cấp BH.
+  const [chosenWarrantyMonths, setChosenWarrantyMonths] = useState<number>(0);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<{
     orderNumber?: string;
@@ -115,6 +124,8 @@ function PosClientInner() {
     issuedAt: string;
     policy: string | null;
     footer: string | null;
+    /** Bảo hành sửa chữa (nếu phiếu sửa được thanh toán tại POS). */
+    warrantyInfo?: { months: number; endDate?: string | null } | null;
   } | null>(null);
 
   // ===== Data =====
@@ -336,8 +347,25 @@ function PosClientInner() {
     [repairTicket],
   );
 
+  /**
+   * Bước 1: Khi chọn phiếu sửa chữa từ picker, KHÔNG mở PaymentDialog ngay.
+   * Mở RepairWarrantyDialog trước → chọn số tháng BH → mới mở PaymentDialog.
+   * Lợi: admin có thể cấp BH ngay tại POS mà không cần qua /repair-tickets.
+   *   Mặc định lấy theo `ticket.warranty_months` nếu đã set, fallback 0.
+   */
   const handlePickRepair = useCallback((ticket: RepairTicket) => {
     setRepairTicket(ticket);
+    setChosenWarrantyMonths(ticket.warranty_months ?? 0);
+    setWarrantyDialogOpen(true);
+  }, []);
+
+  /**
+   * Bước 2: Sau khi chọn xong tháng BH → mở PaymentDialog.
+   * Truyền `chosenWarrantyMonths` vào state → sẽ dùng khi gọi /complete.
+   */
+  const handleConfirmWarranty = useCallback((months: number) => {
+    setChosenWarrantyMonths(months);
+    setWarrantyDialogOpen(false);
     setRepairPayOpen(true);
   }, []);
 
@@ -359,6 +387,24 @@ function PosClientInner() {
   const repairCheckoutMutation = useMutation({
     mutationFn: ({ ticketId, payload }: { ticketId: string; payload: unknown }) =>
       httpPost<CheckoutResult>(`/v1/repair-tickets/${ticketId}/checkout`, payload),
+  });
+
+  /**
+   * Auto-mark ticket = "done" trước khi checkout.
+   * Service `/v1/repair-tickets/[id]/checkout` chỉ chấp nhận ticket đã "done" (status 409 nếu chưa).
+   * Nếu ticket đang `repairing / approved / quoted` thì gọi `/complete` trước, rồi mới checkout.
+   * Status "done" thì bỏ qua.
+   *
+   * Body truyền kèm `warranty_months` để service `/complete` tạo warranty record
+   * ngay trong bước này (nếu months > 0 && customer_id). Nếu KHÔNG truyền
+   * (object rỗng {}) → fallback về `ticket.warranty_months ?? 0` → 0 → không tạo BH.
+   */
+  const completeRepairMutation = useMutation({
+    mutationFn: ({ ticketId, warranty_months }: { ticketId: string; warranty_months?: number }) =>
+      httpPost<{ ticket?: RepairTicket; warranty?: unknown }>(
+        `/v1/repair-tickets/${ticketId}/complete`,
+        { warranty_months },
+      ),
   });
 
   const handleConfirmPayment = async (args: {
@@ -465,6 +511,37 @@ function PosClientInner() {
     if (!repairTicket) return;
     const finalAmount = args.total != null && args.total > 0 ? args.total : repairAmount;
     try {
+      // Bước 1: Luôn gọi /complete để đồng bộ `warranty_months` lựa chọn từ
+      // RepairWarrantyDialog, kể cả khi ticket đã ở status="done".
+      //
+      // Lý do cần luôn gọi:
+      //   - Status "delivered" / "cancelled" → /complete trả 409 (chặn đúng).
+      //   - Status "done" mà admin đổi ý chọn BH ở POS → /complete vẫn update
+      //     `warranty_months` + tạo warranty (nếu chưa có). Service đã idempotent:
+      //     check `existing` warranty trước khi insert.
+      //   - Status khác (received/diagnosing/.../repairing) → /complete chuyển
+      //     sang "done" + xử lý warranty.
+      //
+      // Service checkout bắt buộc status='done' (sẽ trả 409 nếu chưa). Lợi: admin
+      // không cần thoát POS → vào trang sửa chữa → bấm "Sửa xong" → quay lại POS
+      // mới thanh toán được.
+      if (repairTicket.status !== "delivered" && repairTicket.status !== "cancelled") {
+        try {
+          await completeRepairMutation.mutateAsync({
+            ticketId: repairTicket.id,
+            warranty_months: chosenWarrantyMonths,
+          });
+        } catch (completeErr) {
+          const apiErr = completeErr as { error?: { message?: string } };
+          toast.error(
+            apiErr?.error?.message ??
+              "Không thể cập nhật phiếu sửa. Vui lòng vào trang Sửa chữa kiểm tra.",
+          );
+          return;
+        }
+      }
+
+      // Bước 2: Checkout như cũ — tạo order, payment, chuyển ticket sang "delivered".
       const primary = args.payments[0];
       const result = await repairCheckoutMutation.mutateAsync({
         ticketId: repairTicket.id,
@@ -477,7 +554,7 @@ function PosClientInner() {
           actual_cost: finalAmount,
         },
       });
-      toast.success("Đã tính tiền phí sửa");
+      toast.success("Đã hoàn thành + tính tiền phí sửa");
       const repairLine: CartLine = {
         variant_id: `repair-${repairTicket.id}`,
         product_id: null,
@@ -490,6 +567,11 @@ function PosClientInner() {
         stock: 1,
       };
       const received = args.payments.reduce((s, p) => s + p.amount, 0);
+      // Lấy thông tin BH từ response service checkout (đã tự đồng bộ)
+      const warrantyInfo =
+        result?.warranty_id && result?.warranty_months && result.warranty_months > 0
+          ? { months: result.warranty_months, endDate: result.warranty_end_date ?? null }
+          : null;
       setLastReceipt({
         orderNumber:
           result?.order_number ??
@@ -511,6 +593,7 @@ function PosClientInner() {
         issuedAt: new Date().toISOString(),
         policy: receiptPolicy,
         footer: receiptFooter,
+        warrantyInfo,
       });
       setRepairPayOpen(false);
       setReceiptOpen(true);
@@ -529,6 +612,7 @@ function PosClientInner() {
     clearRedeem();
     setReceiptOpen(false);
     setRepairTicket(null);
+    setChosenWarrantyMonths(0);
   };
 
   // ===== Shortcuts =====
@@ -977,12 +1061,19 @@ function PosClientInner() {
         open={repairPayOpen}
         onOpenChange={setRepairPayOpen}
         total={repairAmount}
-        submitting={repairCheckoutMutation.isPending}
+        submitting={repairCheckoutMutation.isPending || completeRepairMutation.isPending}
         editableTotal
         editableLabel="Phí sửa chữa"
         customer={customer}
         loyaltyRate={DEFAULT_LOYALTY_RATE}
         onConfirm={handleConfirmRepairPayment}
+      />
+      <RepairWarrantyDialog
+        open={warrantyDialogOpen}
+        onOpenChange={setWarrantyDialogOpen}
+        ticket={repairTicket}
+        submitting={completeRepairMutation.isPending}
+        onConfirm={handleConfirmWarranty}
       />
       {lastReceipt && (
         <ReceiptDialog
@@ -1007,6 +1098,7 @@ function PosClientInner() {
           issuedAt={lastReceipt.issuedAt}
           policy={lastReceipt.policy}
           footer={lastReceipt.footer}
+          warrantyInfo={lastReceipt.warrantyInfo}
           onNew={resetForNewOrder}
         />
       )}

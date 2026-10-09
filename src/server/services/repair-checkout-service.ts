@@ -96,13 +96,69 @@ export const repairCheckoutService = {
     });
     if (payErr) throw payErr;
 
+    // ĐỒNG BỘ BẢO HÀNH: nếu ticket đã tick BH (warranty_months > 0) mà chưa
+    // có warranty record (do lỗi /complete, hoặc trước migration 036) → tạo ngay.
+    let warrantyId: string | null = null;
+    let warrantyMonths: number | null = null;
+    let warrantyEndDate: string | null = null;
+    const months = ticket.warranty_months ?? 0;
+    if (months > 0 && ticket.customer_id) {
+      const { data: existingW } = await db
+        .from("warranties")
+        .select("id, end_date, status")
+        .eq("repair_ticket_id", ticketId)
+        .eq("warranty_type", "repair")
+        .maybeSingle();
+
+      if (!existingW) {
+        const startDate = ticket.completed_at ?? new Date().toISOString();
+        const endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + months);
+        const wNote = ticket.repair_solution
+          ? `${ticket.repair_solution} · BH ${months} tháng sau sửa chữa`
+          : `BH ${months} tháng sau sửa chữa`;
+        const { data: w, error: wErr } = await db
+          .from("warranties")
+          .insert({
+            customer_id: ticket.customer_id,
+            shop_id: ticket.shop_id ?? null,
+            repair_ticket_id: ticketId,
+            warranty_type: "repair",
+            start_date: startDate,
+            end_date: endDate.toISOString(),
+            status: "active",
+            note: wNote,
+          })
+          .select("id, end_date, status")
+          .single();
+        if (wErr) throw wErr;
+        warrantyId = w?.id ?? null;
+        warrantyMonths = months;
+        warrantyEndDate = w?.end_date ?? endDate.toISOString();
+      } else {
+        warrantyId = existingW.id;
+        warrantyMonths = months;
+        warrantyEndDate = existingW.end_date ?? null;
+      }
+    }
+
     // Ghi lại phí sửa thực tế đã chốt (đồng bộ với hoá đơn) + chuyển trạng thái.
     const { error: updErr } = await db
       .from("repair_tickets")
-      .update({ status: "delivered", actual_cost: amount })
+      .update({
+        status: "delivered",
+        actual_cost: amount,
+        delivered_at: new Date().toISOString(),
+      })
       .eq("id", ticketId);
     if (updErr) throw updErr;
 
-    return { order_id: order.id, order_number: order.order_number };
+    return {
+      order_id: order.id,
+      order_number: order.order_number,
+      warranty_id: warrantyId,
+      warranty_months: warrantyMonths,
+      warranty_end_date: warrantyEndDate,
+    };
   },
 };

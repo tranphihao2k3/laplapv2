@@ -49,7 +49,7 @@ const SERVICES = [
 
 export function ServiceCards() {
   return (
-    <section className="container pt-14 sm:pt-24">
+    <section className="container py-12 sm:py-16">
       <SectionHeader
         eyebrow="Dịch vụ"
         title="Toàn diện — từ mua đến sau bán hàng"
@@ -63,23 +63,22 @@ export function ServiceCards() {
             <Reveal key={s.title} variant="fade-up" delay={i * 70} threshold={0.05}>
               <div
                 className={cn(
-                  "group flex h-full flex-col rounded-2xl border border-slate-200/80 bg-white p-5 transition-all duration-300 sm:p-6",
-                  "hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_20px_50px_-28px_rgba(15,23,42,0.4)]",
+                  "group flex h-full flex-col rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-6",
                 )}
               >
                 <div className="mb-4 flex items-start justify-between gap-2">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-700 transition-colors duration-300 group-hover:border-slate-900 group-hover:bg-slate-900 group-hover:text-white">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground transition-colors group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
                     {s.tag}
                   </span>
                 </div>
-                <h3 className="text-sm font-semibold text-slate-900">{s.title}</h3>
-                <p className="mt-2 flex-1 text-[13px] leading-relaxed text-slate-500">{s.desc}</p>
+                <h3 className="text-sm font-semibold">{s.title}</h3>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{s.desc}</p>
                 <Link
                   href={s.href}
-                  className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-900"
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
                 >
                   {s.cta}
                   <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />

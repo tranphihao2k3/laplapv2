@@ -134,12 +134,20 @@ export const DEFAULT_TRUST_BADGES: TrustBadge[] = [
     order: 1,
   },
   {
-    id: "returns",
-    icon: "RotateCcw",
+    id: "warranty-period",
+    icon: "BadgeCheck",
     title: "Bảo hành 12 tháng",
     description: "Đổi trả miễn phí",
     enabled: true,
     order: 2,
+  },
+  {
+    id: "support",
+    icon: "Headphones",
+    title: "Hỗ trợ 24/7",
+    description: "Tư vấn miễn phí",
+    enabled: true,
+    order: 3,
   },
 ];
 

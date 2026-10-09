@@ -1,6 +1,8 @@
 export { HeroSection } from "./hero-section";
 export { CategoryGrid } from "./category-grid";
 export { FeaturedProducts } from "./featured-products";
+export { PCComponentsSection } from "./pc-components-section";
+export { CategoryShowcase } from "./category-showcase";
 export { BestSellers } from "./best-sellers";
 export { PromoBanners } from "./promo-banners";
 export { TrustBar } from "./trust-bar";

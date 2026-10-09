@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
 
     // Supabase nested select: lấy customer, order, serial_number + product_variant + product
     const selectExpr = `
-      id, serial_number_id, customer_id, order_id, start_date, end_date, status,
+      id, serial_number_id, customer_id, order_id, repair_ticket_id, warranty_type, note,
+      start_date, end_date, status,
       customer:customers ( id, full_name, phone ),
       order:orders (
         id, order_number, created_at, total_amount,
@@ -58,6 +59,8 @@ export async function GET(req: NextRequest) {
     let q: any = (supabase as any).from("warranties").select(selectExpr, { count: "exact" });
 
     if (status) q = q.eq("status", status);
+    const warrantyType = sp.get("warranty_type");
+    if (warrantyType) q = q.eq("warranty_type", warrantyType);
     q = q.order("start_date", { ascending: false }).range(from, to);
 
     const { data, error, count } = await q;

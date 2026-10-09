@@ -8,10 +8,8 @@ import {
   ShieldOff,
   PencilLine,
   Image as ImageIcon,
-  AlertTriangle,
   PlayCircle,
   ImagePlus,
-  Zap,
   RefreshCcw,
   CheckCircle2,
 } from "lucide-react";
@@ -35,6 +33,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useSessionStore } from "@/store";
+import {
+  QuickOptimizePanel,
+  StartupAppsPanel,
+  OverlayShortcutsPanel,
+  RamSticksPanel,
+  OptimizeInfoFooter,
+} from "@/components/optimize-tools";
 
 interface OptimizeAction {
   id: string;
@@ -500,6 +505,18 @@ export function OptimizeTab() {
         </div>
       )}
 
+      {/* Quick optimize + RAM + Startup + Overlay — moved from Dashboard */}
+      <QuickOptimizePanel />
+      <RamSticksPanel />
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-3">
+          <StartupAppsPanel />
+        </div>
+        <div className="lg:col-span-2">
+          <OverlayShortcutsPanel />
+        </div>
+      </div>
+
       {CATEGORY_ORDER.map((cat) => {
         const catActions = grouped[cat];
         if (!catActions || catActions.length === 0) return null;
@@ -543,6 +560,8 @@ export function OptimizeTab() {
           </div>
         );
       })}
+
+      <OptimizeInfoFooter />
     </div>
   );
 }

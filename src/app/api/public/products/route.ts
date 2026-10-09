@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ramSize, storageSize } from "@/lib/normalize-ram";
 import { keepValidNeedTags, priceBucketOf } from "@/lib/product-collections";
 import { mergeVariants, type VariantForMerge } from "@/lib/products/merge-variant-specs";
+import { kindForProduct, parseProductKind, type ProductKind } from "@/lib/product-kind";
 
 type VariantRow = VariantForMerge;
 
@@ -44,6 +45,12 @@ export type PublicProduct = {
   stockQty?: number;
   /** ID của biến thể đầu tiên còn hàng — dùng để add-to-cart trực tiếp từ card. */
   variantId?: string;
+  /**
+   * Phân loại sản phẩm: "laptop" (mặc định) hoặc "pc_component".
+   * Suy ra từ cấu trúc category — xem `lib/product-kind.ts`.
+   * Giúp client lọc đúng nhóm ở UI (header, mega-menu, listing) mà không cần join thêm.
+   */
+  kind: ProductKind;
   /** Rating trung bình 0–5, optional — undefined khi DB chưa có column. */
   rating?: number;
   /** Số lượng đánh giá. */
@@ -69,6 +76,9 @@ export async function GET(req: NextRequest) {
   const q = (sp.get("q") ?? "").trim().toLowerCase();
   const brand = sp.get("brand") ?? "";
   const category = sp.get("category") ?? "";
+  // kind mặc định là "laptop" vì đa số traffic là khách xem laptop; trang /pc-builder &
+  // bất kỳ chỗ nào cần linh kiện sẽ chủ động truyền kind=pc_component.
+  const kind: ProductKind = parseProductKind(sp.get("kind")) ?? "laptop";
   const minPrice = Number(sp.get("minPrice") ?? "") || 0;
   const maxPrice = Number(sp.get("maxPrice") ?? "") || 0;
   const ram = (sp.get("ram") ?? "").toLowerCase();
@@ -89,19 +99,131 @@ export async function GET(req: NextRequest) {
       .eq("status", "active");
 
     if (brand) pq = pq.eq("brand_id", brand);
-    if (category) pq = pq.eq("category_id", category);
     if (tag) pq = pq.contains("tags", [tag]);
     if (q) pq = pq.ilike("name", `%${q}%`);
+
+    // Category filter chấp nhận cả UUID (id) lẫn slug (vd "cpu", "ram") — resolve slug
+    // sang id trước khi query để link header `/products?category=cpu` hoạt động.
+    //
+    // Mở rộng cha → con: nếu category truyền vào là node CÓ children (vd "laptop"
+    // — cha của 5 mục con), API sẽ tự gộp toàn bộ hậu duệ. Khi muốn lấy 1 mục
+    // con cụ thể, truyền slug/id của mục con đó (nó sẽ là lá → không mở rộng).
+    let resolvedCategoryIds: string[] | null = null;
+    let categoryExpanded = false;
+    if (category) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(category);
+      let rootId: string | null = null;
+      if (isUuid) {
+        rootId = category;
+      } else {
+        const { data: catRow } = await supabase
+          .from("categories")
+          .select("id")
+          .eq("slug", category)
+          .maybeSingle();
+        if (catRow?.id) rootId = catRow.id;
+      }
+      if (!rootId) {
+        return NextResponse.json({
+          items: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+          kind,
+        });
+      }
+
+      // Lấy toàn bộ categories (bảng rất nhỏ, < 200 rows) để dựng cây cha-con.
+      const { data: allCats } = await supabase
+        .from("categories")
+        .select("id,parent_id");
+      const childrenOf = new Map<string, string[]>();
+      for (const c of (allCats ?? []) as Array<{ id: string; parent_id: string | null }>) {
+        if (!c.parent_id) continue;
+        const arr = childrenOf.get(c.parent_id) ?? [];
+        arr.push(c.id);
+        childrenOf.set(c.parent_id, arr);
+      }
+      // DFS thu thập self + toàn bộ descendant
+      const idSet = new Set<string>([rootId]);
+      const stack: string[] = [rootId];
+      while (stack.length) {
+        const cur = stack.pop()!;
+        const kids = childrenOf.get(cur);
+        if (!kids) continue;
+        for (const k of kids) {
+          if (!idSet.has(k)) {
+            idSet.add(k);
+            stack.push(k);
+          }
+        }
+      }
+      resolvedCategoryIds = Array.from(idSet);
+      categoryExpanded = resolvedCategoryIds.length > 1;
+    }
+
+    if (resolvedCategoryIds && resolvedCategoryIds.length > 0) {
+      if (resolvedCategoryIds.length === 1) {
+        pq = pq.eq("category_id", resolvedCategoryIds[0]);
+      } else {
+        pq = pq.in("category_id", resolvedCategoryIds);
+      }
+    }
 
     const { data: rawProducts, error } = await pq;
     if (error) throw error;
 
     const products = (rawProducts ?? []) as ProductRow[];
     if (products.length === 0) {
-      return NextResponse.json({ items: [], total: 0, page, limit, totalPages: 0 });
+      return NextResponse.json({ items: [], total: 0, page, limit, totalPages: 0, kind });
     }
 
-    const ids = products.map((p) => p.id);
+    // ---- Lọc theo kind dựa trên category parent ----
+    // Tải toàn bộ category liên quan (chỉ vài chục record) để xác định parent_slug
+    // cho từng product. Cách này ổn định & khớp với convention của header.
+    const categoryIds = Array.from(
+      new Set(products.map((p) => p.category_id).filter((x): x is string => !!x)),
+    );
+    const categoryById = new Map<string, { id: string; slug: string; parent_id: string | null }>();
+    if (categoryIds.length > 0) {
+      const { data: rawCategories } = await supabase
+        .from("categories")
+        .select("id,slug,parent_id")
+        .in("id", categoryIds);
+      for (const c of (rawCategories ?? []) as Array<{ id: string; slug: string; parent_id: string | null }>) {
+        categoryById.set(c.id, c);
+      }
+    }
+    // Map parent_id -> slug (cần cho kind resolver).
+    const parentIds = Array.from(
+      new Set([...categoryById.values()].map((c) => c.parent_id).filter((x): x is string => !!x)),
+    );
+    const parentSlugById = new Map<string, string>();
+    if (parentIds.length > 0) {
+      const { data: rawParents } = await supabase
+        .from("categories")
+        .select("id,slug")
+        .in("id", parentIds);
+      for (const p of (rawParents ?? []) as Array<{ id: string; slug: string }>) {
+        parentSlugById.set(p.id, p.slug);
+      }
+    }
+    const kindByCategory = new Map<string, ProductKind>();
+    for (const cat of categoryById.values()) {
+      const parentSlug = cat.parent_id ? parentSlugById.get(cat.parent_id) ?? null : null;
+      kindByCategory.set(cat.id, kindForProduct({ parentSlug, slug: cat.slug }));
+    }
+
+    const productsByKind = products.filter((p) => {
+      if (!p.category_id) return kind === "laptop"; // mặc định: không có category → laptop
+      return kindByCategory.get(p.category_id) === kind;
+    });
+    if (productsByKind.length === 0) {
+      return NextResponse.json({ items: [], total: 0, page, limit, totalPages: 0, kind });
+    }
+
+    const ids = productsByKind.map((p) => p.id);
     const { data: rawVariants } = await supabase
       .from("product_variants")
       .select("id,product_id,selling_price,specs,is_active")
@@ -140,10 +262,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Filter to only products with stockQty > 0 (at least one variant has stock).
-    const inStockProducts = products.filter((p) => (stockByProduct.get(p.id) ?? 0) > 0);
+    // Liệt kê product có ít nhất 1 variant active — KHÔNG filter theo stock_levels.
+    // PC components thường chưa có dòng stock_levels (build-on-demand), laptop cũng có thể
+    // chưa seed stock; việc ẩn sản phẩm vì thiếu stock sẽ khiến khách không thấy catalog.
+    // Tồn kho thực được kiểm tra ở product detail / add-to-cart — UI listing chỉ cần biết
+    // sản phẩm có còn bán hay không (inStock = còn ít nhất 1 variant active).
+    const activeProductIds = new Set(
+      variants.filter((v) => v.is_active !== false).map((v) => v.product_id!).filter(Boolean),
+    );
+    const inStockProducts = productsByKind.filter((p) => activeProductIds.has(p.id));
     if (inStockProducts.length === 0) {
-      return NextResponse.json({ items: [], total: 0, page, limit, totalPages: 0 });
+      return NextResponse.json({ items: [], total: 0, page, limit, totalPages: 0, kind });
     }
 
     const inStockIds = inStockProducts.map((p) => p.id);
@@ -188,9 +317,13 @@ export async function GET(req: NextRequest) {
         categoryId: p.category_id,
         tags: keepValidNeedTags(p.tags),
         specs: specsByProduct.get(p.id) ?? {},
-        inStock: (stockByProduct.get(p.id) ?? 0) > 0,
+        // inStock = có variant active. PC components không có stock_levels vẫn là "in stock"
+        // vì catalog browseable; add-to-cart sẽ báo lỗi nếu variant thực sự hết.
+        inStock: activeProductIds.has(p.id),
+        // stockQty chỉ mang ý nghĩa tham khảo: 0 = chưa track / hết hàng.
         stockQty: firstVariantId ? (stockByVariant.get(firstVariantId) ?? 0) : 0,
         variantId: firstVariantId,
+        kind: p.category_id ? kindByCategory.get(p.category_id) ?? "laptop" : "laptop",
       };
       if (eng) {
         if (typeof eng.rating_avg === "number") item.rating = eng.rating_avg;
@@ -233,8 +366,26 @@ export async function GET(req: NextRequest) {
     const start = (page - 1) * limit;
     const paged = items.slice(start, start + limit);
 
-    return NextResponse.json({ items: paged, total, page, limit, totalPages });
+    return NextResponse.json({
+      items: paged,
+      total,
+      page,
+      limit,
+      totalPages,
+      kind,
+      categoryExpanded,
+      categoryMatched: resolvedCategoryIds?.length ?? 0,
+    });
   } catch {
-    return NextResponse.json({ items: [], total: 0, page, limit, totalPages: 0 });
+    return NextResponse.json({
+      items: [],
+      total: 0,
+      page,
+      limit,
+      totalPages: 0,
+      kind,
+      categoryExpanded: false,
+      categoryMatched: 0,
+    });
   }
 }

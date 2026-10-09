@@ -29,6 +29,9 @@ import {
   Music2,
   Cpu,
   Mail,
+  Folder,
+  Settings2,
+  FileText,
 } from "lucide-react";
 
 import { NavDocuments } from "@/components/nav-documents";
@@ -46,6 +49,7 @@ import {
 
 const navMain = [
   { title: "Tổng quan", url: "/quanly", icon: BarChart3 },
+  { title: "Phiếu sửa", url: "/quanly/repair-tickets", icon: Shield },
   { title: "Sản phẩm", url: "/quanly/products", icon: Package },
   { title: "Đơn hàng", url: "/quanly/orders", icon: ShoppingCart },
   { title: "POS", url: "/quanly/pos", icon: Calculator },
@@ -61,7 +65,9 @@ const documents = [
   { name: "Thương hiệu", url: "/quanly/brands", icon: Tag, group: "Sản phẩm" },
   { name: "Quà tặng kèm", url: "/quanly/product-gifts", icon: Sparkles, group: "Sản phẩm" },
   { name: "Mẫu thông số", url: "/quanly/spec-templates", icon: FileJson, group: "Sản phẩm" },
-  
+  { name: "Cấu hình PC đã lưu", url: "/quanly/pc-builds", icon: Folder, group: "PC Builder" },
+  { name: "Specs linh kiện PC", url: "/quanly/pc-components-specs", icon: Settings2, group: "PC Builder" },
+
   { name: "Quản lý đơn hàng", url: "/quanly/orders", icon: ShoppingCart, group: "Bán hàng" },
   { name: "POS hôm nay", url: "/quanly/pos-sessions", icon: Calculator, group: "Bán hàng" },
   { name: "Thanh toán", url: "/quanly/payments", icon: Receipt, group: "Bán hàng" },
@@ -77,7 +83,6 @@ const documents = [
   { name: "Nhà cung cấp", url: "/quanly/suppliers", icon: Truck, group: "Kho & Tồn" },
 
   { name: "Quản lý khách hàng", url: "/quanly/customers", icon: Users, group: "Khách hàng" },
-  { name: "Loyalty điểm", url: "/quanly/loyalty-transactions", icon: Tag, group: "Khách hàng" },
   { name: "Yêu cầu thu cũ", url: "/quanly/trade-in-requests", icon: FileJson, group: "Khách hàng" },
 
   { name: "Bảo hành", url: "/quanly/warranties", icon: ShieldCheck, group: "Hậu mãi" },
@@ -95,6 +100,7 @@ const documents = [
   { name: "Tạo tài khoản", url: "/quanly/admin/users", icon: UserPlus, group: "Hệ thống" },
   { name: "Newsletter", url: "/quanly/newsletter", icon: Mail, group: "Hệ thống" },
   { name: "Cài đặt", url: "/quanly/settings", icon: Settings, group: "Hệ thống" },
+  { name: "Trang About", url: "/quanly/about-page", icon: FileText, group: "Hệ thống" },
   { name: "Audit logs", url: "/quanly/audit-logs", icon: FileClock, group: "Hệ thống" },
 ];
 

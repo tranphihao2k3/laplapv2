@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,15 +21,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudList } from "@/lib/api/admin-crud";
+import { Wrench, ShoppingBag, PlusCircle, ExternalLink } from "lucide-react";
 
 type WarrantyRow = {
   id: string;
   serial_number_id: string | null;
   customer_id: string | null;
   order_id: string | null;
+  repair_ticket_id: string | null;
+  warranty_type: string | null;
   start_date: string | null;
   end_date: string | null;
   status: string | null;
+  note: string | null;
   customer: { id: string; full_name: string | null; phone: string | null } | null;
   order: {
     id: string;
@@ -61,6 +66,24 @@ type WarrantyRow = {
     } | null;
   } | null;
 };
+
+const WARRANTY_TYPE_META: Record<string, { label: string; cls: string; icon: React.ComponentType<{ className?: string }> }> = {
+  sold: { label: "Bán máy", cls: "bg-sky-100 text-sky-700 border-sky-200", icon: ShoppingBag },
+  repair: { label: "Sửa chữa", cls: "bg-violet-100 text-violet-700 border-violet-200", icon: Wrench },
+  extension: { label: "Gia hạn", cls: "bg-amber-100 text-amber-700 border-amber-200", icon: PlusCircle },
+};
+
+function WarrantyTypeBadge({ type }: { type: string | null }) {
+  const key = type ?? "sold";
+  const meta = WARRANTY_TYPE_META[key] ?? WARRANTY_TYPE_META.sold;
+  const Icon = meta.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${meta.cls}`}>
+      <Icon className="h-3 w-3" />
+      {meta.label}
+    </span>
+  );
+}
 
 function fmtDate(d: string | null) {
   if (!d) return "—";
@@ -118,6 +141,7 @@ function fmtCurrency(v: number | null) {
 export default function WarrantiesAdminPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
+  const [warrantyType, setWarrantyType] = useState<string>("all");
   const [page, setPage] = useState(1);
 
   const list = useCrudList<WarrantyRow>("warranties", {
@@ -125,6 +149,7 @@ export default function WarrantiesAdminPage() {
     page,
     pageSize: 20,
     ...(status !== "all" ? ({ filters: { status } } as never) : {}),
+    ...(warrantyType !== "all" ? ({ filters: { warranty_type: warrantyType } } as never) : {}),
   });
 
   const items = list.data?.items ?? [];
@@ -135,14 +160,18 @@ export default function WarrantiesAdminPage() {
     let active = 0;
     let expiringSoon = 0;
     let expired = 0;
+    let repairCount = 0;
+    let soldCount = 0;
     for (const w of items) {
       const left = daysLeft(w.end_date);
       if (w.status === "voided") continue;
       if (w.status === "expired" || (left !== null && left < 0)) expired += 1;
       else if (left !== null && left <= 30) expiringSoon += 1;
       else active += 1;
+      if (w.warranty_type === "repair") repairCount += 1;
+      else if (w.warranty_type === "sold") soldCount += 1;
     }
-    return { active, expiringSoon, expired };
+    return { active, expiringSoon, expired, repairCount, soldCount };
   }, [items]);
 
   return (
@@ -150,10 +179,11 @@ export default function WarrantiesAdminPage() {
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <CardTitle>Bảo hành sản phẩm</CardTitle>
+            <CardTitle>Bảo hành</CardTitle>
             <CardDescription>
-              Danh sách bảo hành phát sinh tự động khi hoá đơn được hoàn tất.
               Tổng: <strong>{total}</strong> bảo hành ·{" "}
+              <span className="text-sky-600">{stats.soldCount} BH bán máy</span> ·{" "}
+              <span className="text-violet-600">{stats.repairCount} BH sửa chữa</span> ·{" "}
               <span className="text-emerald-600">{stats.active} còn hiệu lực</span> ·{" "}
               <span className="text-amber-600">{stats.expiringSoon} sắp hết hạn</span> ·{" "}
               <span className="text-muted-foreground">{stats.expired} hết hạn</span>
@@ -170,6 +200,23 @@ export default function WarrantiesAdminPage() {
               className="w-full sm:w-72"
             />
             <Select
+              value={warrantyType}
+              onValueChange={(v) => {
+                setWarrantyType(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Loại BH" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả loại</SelectItem>
+                <SelectItem value="sold">BH bán máy</SelectItem>
+                <SelectItem value="repair">BH sửa chữa</SelectItem>
+                <SelectItem value="extension">Gia hạn</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
               value={status}
               onValueChange={(v) => {
                 setStatus(v);
@@ -180,7 +227,7 @@ export default function WarrantiesAdminPage() {
                 <SelectValue placeholder="Trạng thái" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tất cả</SelectItem>
+                <SelectItem value="all">Tất cả trạng thái</SelectItem>
                 <SelectItem value="active">Còn hiệu lực</SelectItem>
                 <SelectItem value="expired">Hết hạn</SelectItem>
                 <SelectItem value="claimed">Đã yêu cầu BH</SelectItem>
@@ -193,11 +240,12 @@ export default function WarrantiesAdminPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Sản phẩm</TableHead>
+                <TableHead>Loại</TableHead>
+                <TableHead>Sản phẩm / thiết bị</TableHead>
                 <TableHead>Khách hàng</TableHead>
-                <TableHead>Hoá đơn</TableHead>
-                <TableHead>Ngày mua</TableHead>
-                <TableHead>Hết bảo hành</TableHead>
+                <TableHead>Nguồn</TableHead>
+                <TableHead>Ngày bắt đầu</TableHead>
+                <TableHead>Ngày hết</TableHead>
                 <TableHead className="text-right">Thời hạn</TableHead>
                 <TableHead className="text-right">Còn lại</TableHead>
                 <TableHead>Trạng thái</TableHead>
@@ -212,7 +260,7 @@ export default function WarrantiesAdminPage() {
                 </TableRow>
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground">
                     Không có bảo hành nào
                   </TableCell>
                 </TableRow>
@@ -222,7 +270,6 @@ export default function WarrantiesAdminPage() {
                   const left = daysLeft(w.end_date);
                   const pv = w.serial?.product_variant ?? null;
                   const orderItems = w.order?.order_items ?? [];
-                  // Ưu tiên SP từ serial; fallback sang order_items (warranty không gắn serial)
                   const primary = orderItems[0]?.product_variant ?? null;
                   const productName =
                     pv?.product?.name ??
@@ -234,6 +281,9 @@ export default function WarrantiesAdminPage() {
                   const extraCount = Math.max(0, orderItems.length - 1);
                   return (
                     <TableRow key={w.id}>
+                      <TableCell>
+                        <WarrantyTypeBadge type={w.warranty_type} />
+                      </TableCell>
                       <TableCell>
                         <div className="font-medium">{productName}</div>
                         <div className="text-xs text-muted-foreground space-x-2">
@@ -258,18 +308,29 @@ export default function WarrantiesAdminPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {w.order ? (
-                          <>
-                            <div className="font-mono text-sm">
-                              {w.order.order_number ?? "—"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {fmtCurrency(w.order.total_amount)}
-                            </div>
-                          </>
+                        {w.warranty_type === "repair" && w.repair_ticket_id ? (
+                          <Link
+                            href={`/quanly/repair-tickets`}
+                            className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline"
+                            title="Mở phiếu sửa chữa"
+                          >
+                            <Wrench className="h-3 w-3" /> Phiếu sửa <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        ) : w.order ? (
+                          <Link
+                            href={`/quanly/orders/${w.order.id}`}
+                            className="inline-flex items-center gap-1 text-xs text-sky-600 hover:underline"
+                          >
+                            <ShoppingBag className="h-3 w-3" /> HĐ #{w.order.order_number ?? w.order.id.slice(0, 6)} <ExternalLink className="h-3 w-3" />
+                          </Link>
                         ) : (
-                          "—"
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
+                        {w.note ? (
+                          <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1" title={w.note}>
+                            {w.note}
+                          </div>
+                        ) : null}
                       </TableCell>
                       <TableCell>{fmtDate(w.start_date)}</TableCell>
                       <TableCell>{fmtDate(w.end_date)}</TableCell>
