@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { CACHE_KEY, CACHE_DURATION_MS } from "@/lib/cache-constants";
+import { onBrandCacheInvalidated } from "@/lib/brand-cache-invalidation";
 
 /**
  * Store settings interface — mirrors the server-side StoreInfo type.
@@ -63,9 +65,6 @@ interface CachedSettings {
   timestamp: number;
   expiresAt: number;
 }
-
-const CACHE_KEY = "store-settings-cache";
-const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
  * Get cached settings from localStorage
@@ -282,6 +281,11 @@ export function useStoreSettings(options?: { fetchOnMount?: boolean; refreshInte
       setIsLoading(false);
     }
 
+    // Lắng nghe event invalidation từ admin settings page
+    const unsubscribe = onBrandCacheInvalidated(() => {
+      fetchSettings(true);
+    });
+
     // Set up periodic refresh
     const refreshIntervalId = setInterval(() => {
       if (!document.hidden) {
@@ -307,6 +311,7 @@ export function useStoreSettings(options?: { fetchOnMount?: boolean; refreshInte
       }
       clearInterval(refreshIntervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      unsubscribe();
     };
   }, [fetchOnMount, fetchSettings, refreshInterval]);
 

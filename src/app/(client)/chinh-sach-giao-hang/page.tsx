@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
 import { Truck } from "lucide-react";
 import { env } from "@/lib/env";
+import { getStoreInfo } from "@/lib/store-info";
 import { PolicyPage, type PolicySection } from "@/components/shared/policy-page";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
-export const metadata: Metadata = {
-  title: "Chính sách giao hàng",
-  description:
-    "Chính sách giao hàng của LapLap - ship nội thành Cần Thơ 2 giờ, ship toàn quốc 2-5 ngày. Miễn phí vận chuyển cho đơn từ 5 triệu.",
-  alternates: { canonical: `${SITE}/chinh-sach-giao-hang` },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const store = await getStoreInfo();
+  return {
+    title: "Chính sách giao hàng",
+    description: `Chính sách giao hàng của ${store.name} - ship nội thành Cần Thơ 2 giờ, ship toàn quốc 2-5 ngày. Miễn phí vận chuyển cho đơn từ 5 triệu.`,
+    alternates: { canonical: `${SITE}/chinh-sach-giao-hang` },
+  };
+}
 
 const sections: PolicySection[] = [
   {

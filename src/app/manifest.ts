@@ -1,12 +1,14 @@
 import type { MetadataRoute } from "next";
-import { env } from "@/lib/env";
+import { getBrandNameAsync } from "@/lib/brand";
 
 // Web App Manifest — phục vụ tại /manifest.webmanifest.
-export default function manifest(): MetadataRoute.Manifest {
+// Tên & mô tả lấy từ settings DB (group store, key name/description).
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const brandName = await getBrandNameAsync();
   return {
-    name: `${env.NEXT_PUBLIC_APP_NAME} - Laptop Cần Thơ`,
-    short_name: env.NEXT_PUBLIC_APP_NAME,
-    description: "LapLap - Cửa hàng laptop uy tín tại Cần Thơ. Giá tốt, bảo hành uy tín.",
+    name: `${brandName} - Laptop Cần Thơ`,
+    short_name: brandName,
+    description: `${brandName} - Cửa hàng laptop uy tín tại Cần Thơ. Giá tốt, bảo hành uy tín.`,
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

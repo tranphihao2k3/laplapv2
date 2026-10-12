@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
 import { Lock } from "lucide-react";
 import { env } from "@/lib/env";
+import { getBrandNameAsync } from "@/lib/brand";
 import { PolicyPage, type PolicySection } from "@/components/shared/policy-page";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
-export const metadata: Metadata = {
-  title: "Chính sách bảo mật",
-  description:
-    "Chính sách bảo mật thông tin tại LapLap - tuân thủ Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân và Luật An toàn thông tin mạng 2015.",
-  alternates: { canonical: `${SITE}/chinh-sach-bao-mat` },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const brandName = await getBrandNameAsync();
+  return {
+    title: "Chính sách bảo mật",
+    description: `Chính sách bảo mật thông tin tại ${brandName} - tuân thủ Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân và Luật An toàn thông tin mạng 2015.`,
+    alternates: { canonical: `${SITE}/chinh-sach-bao-mat` },
+  };
+}
 
 const sections: PolicySection[] = [
   {

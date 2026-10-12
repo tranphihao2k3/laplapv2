@@ -14,86 +14,86 @@ import { z } from "zod";
 /** OS sub-shape — match §5.2.3 device.os */
 const osSchema = z
   .object({
-    name: z.string().optional().nullable(),
-    version: z.string().optional().nullable(),
-    build: z.string().optional().nullable(),
-    arch: z.string().optional().nullable(),
-    activated: z.boolean().optional().nullable(),
+    name: z.string().nullish(),
+    version: z.string().nullish(),
+    build: z.string().nullish(),
+    arch: z.string().nullish(),
+    activated: z.boolean().nullish(),
   })
   .passthrough();
 
 /** RAM module chi tiết (cho ram_slots_detail) */
 const ramModuleSchema = z
   .object({
-    sizeGb: z.number().optional(),
-    speedMhz: z.number().optional(),
-    type: z.string().optional().nullable(),
-    brand: z.string().optional().nullable(),
-    slot: z.number().int().optional(),
+    sizeGb: z.number().nullish(),
+    speedMhz: z.number().int().nullish(),
+    type: z.string().nullish(),
+    brand: z.string().nullish(),
+    slot: z.number().int().nullish(),
   })
   .passthrough();
 
 const cpuSchema = z
   .object({
-    name: z.string().optional().nullable(),
-    cores: z.number().int().optional(),
-    threads: z.number().int().optional(),
-    baseGhz: z.number().optional(),
-    boostGhz: z.number().optional(),
+    name: z.string().nullish(),
+    cores: z.number().int().nullish(),
+    threads: z.number().int().nullish(),
+    baseGhz: z.number().nullish(),
+    boostGhz: z.number().nullish(),
   })
   .passthrough();
 
 const ramSchema = z
   .object({
-    totalGb: z.number().optional(),
-    type: z.string().optional().nullable(),
-    speedMhz: z.number().int().optional(),
-    slots: z.number().int().optional(),
+    totalGb: z.number().nullish(),
+    type: z.string().nullish(),
+    speedMhz: z.number().int().nullish(),
+    slots: z.number().int().nullish(),
     modules: z.array(ramModuleSchema).optional(),
   })
   .passthrough();
 
 const storageDriveSchema = z
   .object({
-    name: z.string().optional().nullable(),
-    type: z.string().optional().nullable(),
-    capacityGb: z.number().optional(),
-    healthPct: z.number().int().optional(),
-    smart: z.record(z.unknown()).optional().nullable(),
+    name: z.string().nullish(),
+    type: z.string().nullish(),
+    capacityGb: z.number().nullish(),
+    healthPct: z.number().int().nullish(),
+    smart: z.record(z.unknown()).nullish(),
   })
   .passthrough();
 
 const gpuSchema = z
   .object({
-    name: z.string().optional().nullable(),
-    vendor: z.string().optional().nullable(),
-    vramGb: z.number().optional(),
-    driverVersion: z.string().optional().nullable(),
+    name: z.string().nullish(),
+    vendor: z.string().nullish(),
+    vramGb: z.number().nullish(),
+    driverVersion: z.string().nullish(),
   })
   .passthrough();
 
 const mainboardSchema = z
   .object({
-    model: z.string().optional().nullable(),
-    biosVersion: z.string().optional().nullable(),
+    model: z.string().nullish(),
+    biosVersion: z.string().nullish(),
   })
   .passthrough();
 
 const batterySchema = z
   .object({
-    designMwh: z.number().int().optional(),
-    fullMwh: z.number().int().optional(),
-    healthPct: z.number().optional(),
-    cycles: z.number().int().optional(),
-    voltageMv: z.number().int().optional(),
+    designMwh: z.number().int().nullish(),
+    fullMwh: z.number().int().nullish(),
+    healthPct: z.number().nullish(),
+    cycles: z.number().int().nullish(),
+    voltageMv: z.number().int().nullish(),
   })
   .passthrough();
 
 const networkSchema = z
   .object({
-    mac: z.string().optional().nullable(),
-    ip: z.string().optional().nullable(),
-    wifi: z.string().optional().nullable(),
+    mac: z.string().nullish(),
+    ip: z.string().nullish(),
+    wifi: z.string().nullish(),
   })
   .passthrough();
 
@@ -111,13 +111,13 @@ const hardwareSchema = z
 
 const benchmarkSchema = z
   .object({
-    tool: z.string().optional().nullable(),
-    gpuScore: z.number().int().optional(),
-    fpsAvg: z.number().optional(),
-    testWidth: z.number().int().optional(),
-    testHeight: z.number().int().optional(),
-    testPreset: z.string().optional().nullable(),
-    duration: z.number().int().optional(),
+    tool: z.string().nullish(),
+    gpuScore: z.number().int().nullish(),
+    fpsAvg: z.number().nullish(),
+    testWidth: z.number().int().nullish(),
+    testHeight: z.number().int().nullish(),
+    testPreset: z.string().nullish(),
+    duration: z.number().int().nullish(),
   })
   .passthrough();
 
@@ -127,7 +127,7 @@ const testItemSchema = z
     type: z.string().min(1),
     result: z.string().min(1),
     payload: z.record(z.unknown()).optional(),
-    note: z.string().optional().nullable(),
+    note: z.string().nullish(),
   })
   .passthrough();
 
@@ -137,16 +137,16 @@ export const miniToolPayloadSchema = z
     payloadVersion: z.string().optional(),
     device: z
       .object({
-        deviceId: z.string().optional(),
-        device_id: z.string().optional(),
-        deviceName: z.string().optional(),
-        device_name: z.string().optional(),
-        productSku: z.string().optional(),
-        product_sku: z.string().optional(),
+        deviceId: z.string().nullish(),
+        device_id: z.string().nullish(),
+        deviceName: z.string().nullish(),
+        device_name: z.string().nullish(),
+        productSku: z.string().nullish(),
+        product_sku: z.string().nullish(),
         serial: z
           .object({
-            bios: z.string().optional().nullable(),
-            motherboard: z.string().optional().nullable(),
+            bios: z.string().nullish(),
+            motherboard: z.string().nullish(),
           })
           .passthrough()
           .optional(),

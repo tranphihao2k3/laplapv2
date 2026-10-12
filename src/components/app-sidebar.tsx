@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useBrandName } from "@/lib/hooks/use-brand";
 import {
   BarChart3,
   Building2,
@@ -109,6 +110,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 };
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
+  const brandName = useBrandName();
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -120,7 +122,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             >
               <Link href="/quanly">
                 <Sparkles className="h-5 w-5" />
-                <span className="text-base font-semibold">LapLap Admin</span>
+                <span className="text-base font-semibold">{`${brandName} Admin`}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

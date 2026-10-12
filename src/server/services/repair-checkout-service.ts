@@ -76,9 +76,14 @@ export const repairCheckoutService = {
       unit_price: amount,
       total_price: amount,
       product_snapshot: {
+        // 'name' + 'image' giúp trang /account/orders/[id] hiển thị được tên sản phẩm
+        // (view doc fallback: snapshot.name || snapshot.device_name).
+        name: `Phí sửa chữa - ${ticket.device_name ?? "thiết bị"}`.trim(),
         kind: "repair_fee",
         repair_ticket_id: ticket.id,
         device_name: ticket.device_name,
+        device_brand: ticket.device_brand ?? null,
+        device_model: ticket.device_model ?? null,
         serial_number: ticket.serial_number,
       },
     });

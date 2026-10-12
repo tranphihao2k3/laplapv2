@@ -12,6 +12,7 @@ import { fail, ok } from "@/lib/api/response";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { sendEmail } from "@/lib/email/resend";
 import { renderContactNotification } from "@/lib/email/contact-templates";
+import { getBrandNameAsync } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -121,6 +122,7 @@ export async function POST(req: NextRequest) {
       message,
       ip_address,
       received_at: new Date(row.created_at).toISOString(),
+      brandName: await getBrandNameAsync(),
     });
     await sendEmail({
       to: recipient,

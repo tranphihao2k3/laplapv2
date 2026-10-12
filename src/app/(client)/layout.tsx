@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
+import { getBrandNameAsync } from "@/lib/brand";
 import { ClientHeader } from "@/components/client/layout/client-header";
 import { ClientFooter } from "@/components/client/layout/client-footer";
 import { CompareBar } from "@/components/client/compare/compare-bar";
 
-export const metadata: Metadata = {
-  title: {
-    default: "LapLap - Laptop Cần Thơ",
-    template: "%s | LapLap",
-  },
-  description: "LapLap - Cửa hàng laptop uy tín tại Cần Thơ",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const brandName = await getBrandNameAsync();
+  return {
+    title: {
+      default: `${brandName} - Laptop Cần Thơ`,
+      template: `%s | ${brandName}`,
+    },
+    description: `${brandName} - Cửa hàng laptop uy tín tại Cần Thơ`,
+  };
+}
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   return (

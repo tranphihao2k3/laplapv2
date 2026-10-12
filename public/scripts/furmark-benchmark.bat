@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 :: === CAU HINH - SUA O DAY ====================================
 set "FURMARK_PATH=C:\Program Files\Geeks3D\FurMark2_x64\furmark.exe"
-set "API_BASE=https://laplap.example.com"
+set "API_BASE=http://localhost:3000"
 set "DURATION_MIN=5"
 set "GPU_INDEX=0"
 set "DEVICE_ID="

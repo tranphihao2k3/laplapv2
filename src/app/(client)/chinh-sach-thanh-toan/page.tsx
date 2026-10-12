@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
 import { CreditCard } from "lucide-react";
 import { env } from "@/lib/env";
+import { getStoreInfo } from "@/lib/store-info";
 import { PolicyPage, type PolicySection } from "@/components/shared/policy-page";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
-export const metadata: Metadata = {
-  title: "Chính sách thanh toán",
-  description:
-    "Chính sách thanh toán tại LapLap - tiền mặt, chuyển khoản, thẻ tín dụng, trả góp 0%, ví điện tử. An toàn, bảo mật PCI DSS.",
-  alternates: { canonical: `${SITE}/chinh-sach-thanh-toan` },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const store = await getStoreInfo();
+  return {
+    title: "Chính sách thanh toán",
+    description: `Chính sách thanh toán tại ${store.name} - tiền mặt, chuyển khoản, thẻ tín dụng, trả góp 0%, ví điện tử. An toàn, bảo mật PCI DSS.`,
+    alternates: { canonical: `${SITE}/chinh-sach-thanh-toan` },
+  };
+}
 
 const sections: PolicySection[] = [
   {

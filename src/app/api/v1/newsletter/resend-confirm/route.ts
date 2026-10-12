@@ -18,6 +18,7 @@ import { ok, fail } from "@/lib/api/response";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { sendEmail } from "@/lib/email/resend";
 import { renderConfirmEmail } from "@/lib/email/templates";
+import { getBrandNameAsync } from "@/lib/brand";
 import { randomToken, normalizeEmail } from "@/lib/newsletter/tokens";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +99,12 @@ export async function POST(req: NextRequest) {
   const confirmUrl = `${baseUrl}/api/v1/newsletter/confirm?token=${encodeURIComponent(confirmToken)}`;
 
   try {
-    const { subject, html, text } = renderConfirmEmail({ email, confirmUrl, brandNames });
+    const { subject, html, text } = renderConfirmEmail({
+      email,
+      confirmUrl,
+      brandNames,
+      brandName: await getBrandNameAsync(),
+    });
     await sendEmail({ to: email, subject, html, text });
   } catch (e) {
     console.error("resend-confirm email failed:", e);

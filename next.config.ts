@@ -34,6 +34,25 @@ const nextConfig: NextConfig = {
     // externalize cho an toàn phòng code server lỡ import.
     "axios",
   ],
+  // Graceful redirect cho URL Mini Tool cũ (.exe/.bat/.ps1) trỏ tới file ZIP.
+  // File ZIP gộp .bat + .ps1 + README, user giai nen 1 lan, click .bat de chay.
+  // File .exe thật sẽ build sau (qua scripts/build-mini-tool.ps1 + PS2EXE trên Windows).
+  async rewrites() {
+    return [
+      {
+        source: "/scripts/laplap-mini-tool.exe",
+        destination: "/scripts/laplap-mini-tool.zip",
+      },
+      {
+        source: "/scripts/laplap-mini-tool.bat",
+        destination: "/scripts/laplap-mini-tool.zip",
+      },
+      {
+        source: "/scripts/laplap-mini-tool.ps1",
+        destination: "/scripts/laplap-mini-tool.zip",
+      },
+    ];
+  },
   // FIX #2 (theo https://hoangtaiki.com/blog/optimizing-nextjs-bundle-performance-cloudflare):
   // Alias 'next/og' -> false để gỡ @vercel/og + resvg.wasm + yoga.wasm khỏi bundle.
   // Project này KHÔNG dùng opengraph-image.tsx / ImageResponse / next/og (grep đã confirm)

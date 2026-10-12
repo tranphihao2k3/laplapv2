@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       throw new ApiError(
         "INVALID_BODY",
-        "Payload không đúng schema",
+        "Payload khong dung schema (xem server log de biet field nao)",
         422,
       );
     }

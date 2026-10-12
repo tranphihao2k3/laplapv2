@@ -49,6 +49,11 @@ tmp_decode_*.py
 tmp_decode_*.ps1
 dev-error.txt
 dev-output.txt
-
+public/scripts/FurMark_win64
 # File bundle tam cua script verify
 scripts/.verify-compare.cjs
+# Fly.io CLI wrapper scripts chua hardcoded token — chi dung local, khong commit
+scripts/fly.ps1
+scripts/fly-auth.ps1
+# Log FurMark portable sinh ra luc user chay tool
+public/scripts/_furmark_log*.txt

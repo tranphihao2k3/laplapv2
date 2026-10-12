@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { useBrandName } from "@/lib/hooks/use-brand";
 
 type AdminShellUser = {
   name: string;
@@ -23,6 +24,7 @@ export function AdminShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const brandName = useBrandName();
 
   if (pathname === "/quanly/pos") {
     return (
@@ -39,7 +41,7 @@ export function AdminShell({
             <h1 className="text-sm font-semibold tracking-tight uppercase text-primary">Máy bán hàng POS</h1>
           </div>
           <div className="text-xs text-muted-foreground font-mono">
-            Hệ thống LapLap v1.0
+            {`Hệ thống ${brandName} v1.0`}
           </div>
         </header>
         <div className="flex-1 overflow-auto p-2 sm:p-4">

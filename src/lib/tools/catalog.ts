@@ -13,11 +13,13 @@
  * Trường `extract` cho biết có phải ZIP (true) hay EXE trực tiếp (false).
  */
 
+export type ToolCategory = "diagnostic" | "stress" | "benchmark" | "utility";
+
 export interface ToolEntry {
   id: string;
   name: string;
   description: string;
-  category: "diagnostic" | "stress" | "benchmark";
+  category: ToolCategory;
   /** Dung lượng xấp xỉ (bytes). Chỉ để hiển thị UI. */
   sizeBytes: number;
   /** SHA256 của file gốc để verify sau khi tải. */
@@ -128,6 +130,26 @@ export const TOOL_CATALOG: ToolEntry[] = [
     launchArgs: [],
     requiresAdmin: false,
     icon: "💾",
+  },
+  {
+    id: "laplap-mini-tool",
+    name: "LapLap Mini Tool (All-in-One)",
+    description:
+      "Quét cấu hình + Benchmark FurMark + Auto-upload lên bảng xếp hạng. 1 file ZIP duy nhất: giai nen, double-click .bat, không cần cài.",
+    category: "utility",
+    sizeBytes: 10573, // ~10.3 KB ZIP (actual)
+    // SHA256 lay tu scripts\build-mini-tool-zip.ps1 output.
+    // Can chay lai moi khi .bat hoac .ps1 thay doi.
+    sha256: "EC0D4A252E4DA9C3B95591A34613062BE1AC2515FEA82C95B0B0F6B68263A5F5",
+    // Self-host (khong qua CDN ngoai) — file ZIP nam trong public/scripts/.
+    // ZIP gom ca .bat + .ps1 + README.txt, user giai nen 1 lan, chay .bat.
+    cdnUrl: "/scripts/laplap-mini-tool.zip",
+    r2Url: null,
+    extract: true,
+    exec: "laplap-mini-tool.bat",
+    launchArgs: [],
+    requiresAdmin: true,
+    icon: "🚀",
   },
 ];
 
