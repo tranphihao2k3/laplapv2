@@ -39,7 +39,7 @@ export default async function OrderDetailPage({
   const me = await requireCustomer();
 
   const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicitany
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
 
   const [orderRes, itemsRes, paymentsRes, logsRes, returnsRes, ticketRes] =
