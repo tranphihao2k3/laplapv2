@@ -18,7 +18,7 @@ import {
 import { TestLaptopAudioProvider } from "@/components/test-laptop/audio-player-provider";
 
 const tabs = [
-  { id: "ranking",        label: "Bảng xếp hạng",     href: "/test-laptop",                       icon: Trophy,   exact: true },
+  { id: "ranking",        label: "Tổng quan",            href: "/test-laptop",                       icon: Trophy,   exact: true },
   { id: "system-scan",    label: "Quét hệ thống",      href: "/test-laptop/system-scan",           icon: Cpu },
   { id: "camera-mic",     label: "Camera & Mic",       href: "/test-laptop/camera-mic",            icon: Camera },
   { id: "speakers",       label: "Loa",                href: "/test-laptop/speakers",              icon: Volume2 },

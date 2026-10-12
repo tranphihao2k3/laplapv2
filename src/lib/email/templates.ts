@@ -10,10 +10,14 @@
  * HTML truc tiep vao Gmail/Outlook. Inline styles + table layout cho
  * compatibility tot nhat.
  *
- * Branding: dung ten thuong hieu "LapLap - Laptop Can Tho".
+ * Branding: brand name lấy từ settings (group "store", key "name") — gọi
+ * `await getBrandNameAsync()` ở callsite rồi truyền vào options.brandName.
+ * Nếu không truyền, fallback env.NEXT_PUBLIC_APP_NAME.
  */
 
-const BRAND_NAME = "LapLap - Laptop Cần Thơ";
+import { env } from "@/lib/env";
+
+const FALLBACK_BRAND_NAME = env.NEXT_PUBLIC_APP_NAME || "LapLap - Laptop Cần Thơ";
 const BRAND_COLOR = "#0f172a"; // slate-900 (match website)
 
 // Helper: escape HTML entity de tranh XSS khi chen data dong (vd: product name).
@@ -30,10 +34,16 @@ function escapeHtml(s: string): string {
 const fmtVnd = (n: number | null | undefined) =>
   n == null ? "Liên hệ" : `${new Intl.NumberFormat("vi-VN").format(n)} đ`;
 
+/** Tách brand name: lấy phần trước dấu " - " làm brand ngắn. */
+function shortBrand(brandName: string): string {
+  const dash = brandName.indexOf(" - ");
+  return dash > 0 ? brandName.slice(0, dash).trim() : brandName;
+}
+
 /**
  * Layout chung cho moi email. Wrap content trong 1 table 600px (chuẩn email).
  */
-function emailLayout(opts: { title: string; body: string; preheader?: string }): string {
+function emailLayout(opts: { title: string; body: string; preheader?: string; brandName: string }): string {
   return `<!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -52,7 +62,7 @@ function emailLayout(opts: { title: string; body: string; preheader?: string }):
         <tr>
           <td style="background-color:${BRAND_COLOR};padding:24px 32px;text-align:center;">
             <h1 style="margin:0;font-size:20px;font-weight:600;color:#ffffff;letter-spacing:-0.01em;">
-              ${escapeHtml(BRAND_NAME)}
+              ${escapeHtml(opts.brandName)}
             </h1>
           </td>
         </tr>
@@ -65,7 +75,7 @@ function emailLayout(opts: { title: string; body: string; preheader?: string }):
         <!-- Footer -->
         <tr>
           <td style="background-color:#f1f5f9;padding:20px 32px;text-align:center;font-size:12px;color:#64748b;">
-            <p style="margin:0 0 8px 0;">Bạn nhận email này vì đã đăng ký nhận thông báo từ ${escapeHtml(BRAND_NAME)}.</p>
+            <p style="margin:0 0 8px 0;">Bạn nhận email này vì đã đăng ký nhận thông báo từ ${escapeHtml(opts.brandName)}.</p>
             {{UNSUBSCRIBE_LINK}}
           </td>
         </tr>
@@ -97,8 +107,10 @@ export function renderConfirmEmail(opts: {
   email: string;
   confirmUrl: string;
   brandNames: string[]; // ten cac brand user da chon (empty = all)
+  brandName?: string; // tên thương hiệu chính (lấy từ settings)
 }): { subject: string; html: string; text: string } {
-  const subject = `Xác nhận đăng ký nhận thông báo - ${BRAND_NAME}`;
+  const brandName = opts.brandName?.trim() || FALLBACK_BRAND_NAME;
+  const subject = `Xác nhận đăng ký nhận thông báo - ${shortBrand(brandName)}`;
   const scope =
     opts.brandNames.length === 0
       ? `<p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#334155;">
@@ -113,7 +125,7 @@ export function renderConfirmEmail(opts: {
       Xác nhận đăng ký
     </h2>
     <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#334155;">
-      Xin chào, bạn (hoặc ai đó dùng email <strong>${escapeHtml(opts.email)}</strong>) vừa đăng ký nhận thông báo sản phẩm mới từ ${escapeHtml(BRAND_NAME)}.
+      Xin chào, bạn (hoặc ai đó dùng email <strong>${escapeHtml(opts.email)}</strong>) vừa đăng ký nhận thông báo sản phẩm mới từ ${escapeHtml(brandName)}.
     </p>
     ${scope}
     <p style="margin:0 0 24px 0;font-size:16px;line-height:1.6;color:#334155;">
@@ -133,8 +145,8 @@ export function renderConfirmEmail(opts: {
       Nếu không phải bạn đăng ký, vui lòng bỏ qua email này — địa chỉ của bạn sẽ không được dùng để gửi thông báo.
     </p>
   `;
-  const html = emailLayout({ title: subject, body });
-  const text = `${BRAND_NAME} - Xác nhận đăng ký\n\nBấm link sau để xác nhận:\n${opts.confirmUrl}`;
+  const html = emailLayout({ title: subject, body, brandName });
+  const text = `${brandName} - Xác nhận đăng ký\n\nBấm link sau để xác nhận:\n${opts.confirmUrl}`;
   return { subject, html, text };
 }
 
@@ -145,12 +157,14 @@ export function renderConfirmEmail(opts: {
 export function renderProductAlertEmail(opts: {
   productName: string;
   productUrl: string;
-  brandName: string | null;
+  productBrandName: string | null;
   price: number | null;
   thumbnailUrl: string | null;
   unsubscribeUrl: string;
+  brandName?: string; // tên thương hiệu shop
 }): { subject: string; html: string; text: string } {
-  const subject = `Mới: ${opts.productName}${opts.brandName ? ` (${opts.brandName})` : ""} - ${BRAND_NAME}`;
+  const brandName = opts.brandName?.trim() || FALLBACK_BRAND_NAME;
+  const subject = `Mới: ${opts.productName}${opts.productBrandName ? ` (${opts.productBrandName})` : ""} - ${shortBrand(brandName)}`;
   const priceHtml =
     opts.price != null
       ? `<p style="margin:0;font-size:24px;font-weight:700;color:${BRAND_COLOR};">
@@ -165,7 +179,7 @@ export function renderProductAlertEmail(opts: {
     <h2 style="margin:0 0 8px 0;font-size:14px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">
       Sản phẩm mới vừa về
     </h2>
-    ${opts.brandName ? `<p style="margin:0 0 4px 0;font-size:13px;font-weight:500;color:#64748b;">${escapeHtml(opts.brandName)}</p>` : ""}
+    ${opts.productBrandName ? `<p style="margin:0 0 4px 0;font-size:13px;font-weight:500;color:#64748b;">${escapeHtml(opts.productBrandName)}</p>` : ""}
     <h3 style="margin:0 0 20px 0;font-size:22px;font-weight:600;color:${BRAND_COLOR};line-height:1.3;">
       ${escapeHtml(opts.productName)}
     </h3>
@@ -183,12 +197,12 @@ export function renderProductAlertEmail(opts: {
     </table>
   `;
   const html = injectUnsubscribeLink(
-    emailLayout({ title: subject, body }),
+    emailLayout({ title: subject, body, brandName }),
     opts.unsubscribeUrl,
   );
   const text =
-    `${BRAND_NAME}\n\n` +
-    `${opts.brandName ? opts.brandName + "\n" : ""}` +
+    `${brandName}\n\n` +
+    `${opts.productBrandName ? opts.productBrandName + "\n" : ""}` +
     `${opts.productName}\n` +
     `${fmtVnd(opts.price)}\n\n` +
     `Xem chi tiết: ${opts.productUrl}\n\n` +
@@ -199,20 +213,21 @@ export function renderProductAlertEmail(opts: {
 /**
  * (3) Email xac nhan da unsubscribe (optional nhung tot UX).
  */
-export function renderUnsubscribeConfirmEmail(): { subject: string; html: string; text: string } {
-  const subject = `Đã hủy đăng ký nhận thông báo - ${BRAND_NAME}`;
+export function renderUnsubscribeConfirmEmail(opts?: { brandName?: string }): { subject: string; html: string; text: string } {
+  const brandName = opts?.brandName?.trim() || FALLBACK_BRAND_NAME;
+  const subject = `Đã hủy đăng ký nhận thông báo - ${shortBrand(brandName)}`;
   const body = `
     <h2 style="margin:0 0 16px 0;font-size:22px;font-weight:600;color:${BRAND_COLOR};">
       Đã hủy đăng ký
     </h2>
     <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#334155;">
-      Bạn đã hủy đăng ký nhận thông báo sản phẩm mới từ ${escapeHtml(BRAND_NAME)}.
+      Bạn đã hủy đăng ký nhận thông báo sản phẩm mới từ ${escapeHtml(brandName)}.
     </p>
     <p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#64748b;">
       Nếu đây là nhầm lẫn, bạn có thể đăng ký lại bất kỳ lúc nào tại trang chủ.
     </p>
   `;
-  const html = emailLayout({ title: subject, body }); // unsubscribe link khong can o day
-  const text = `Đã hủy đăng ký nhận thông báo từ ${BRAND_NAME}.`;
+  const html = emailLayout({ title: subject, body, brandName }); // unsubscribe link khong can o day
+  const text = `Đã hủy đăng ký nhận thông báo từ ${brandName}.`;
   return { subject, html, text };
 }

@@ -21,7 +21,7 @@ import { ApiError } from "@/lib/api/response";
  */
 export const DEV_FALLBACK_SHARED_SECRET = "laplap-mini-tool-dev-secret-DO-NOT-USE-IN-PROD";
 
-/** Đọc secret: env → fallback dev. Log 1 lần khi fallback. */
+/** Đọc secret: env -> fallback dev. Log 1 lần khi fallback. */
 let warnedDevFallback = false;
 function getSharedSecret(): string {
   const fromEnv = process.env.MINI_TOOL_SHARED_SECRET;
@@ -51,7 +51,9 @@ function canonicalize(value: unknown): string {
   if (value === null) return "null";
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw new Error("Non-finite number not allowed");
-    return JSON.stringify(value);
+    // Số nguyên: "42", số thực: "1.5" — không có quotes, giống JSON.stringify nhưng
+    // đúng spec: numbers phải là literal, không phải string có quotes.
+    return Number.isInteger(value) ? String(value) : value.toString();
   }
   if (typeof value === "string" || typeof value === "boolean") {
     return JSON.stringify(value);

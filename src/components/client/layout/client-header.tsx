@@ -9,7 +9,6 @@ import {
   Menu,
   Search,
   ShoppingCart,
-  User,
   X,
   Laptop,
   Gamepad2,
@@ -30,8 +29,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { useCartStore } from "@/stores/cart-store";
+import { useBrandName } from "@/lib/hooks/use-brand";
+import { HeaderUserMenu } from "@/components/client/layout/header-user-menu";
+import { CartBadge } from "@/components/client/layout/cart-badge";
 import { cn } from "@/lib/utils";
 
 function catIconFor(label: string): LucideIcon {
@@ -86,7 +87,6 @@ export function ClientHeader() {
     id: string; name: string; slug: string; price: number; image?: string | null;
   }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const cartCount = useCartStore((s) => s.totalItems());
   const cartBounceAt = useCartStore((s) => s.cartBounceAt);
   const [bounceKey, setBounceKey] = useState(0);
   const router = useRouter();
@@ -176,11 +176,8 @@ export function ClientHeader() {
     <>
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
         <div className="container flex h-14 items-center justify-between gap-4">
-          {/* Logo - Text Only */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
-            <span className="text-primary">Lap</span>
-            <span>Lap</span>
-          </Link>
+          {/* Logo - brand name lấy động từ settings (localStorage cache). */}
+          <Logo />
 
           {/* Desktop Nav */}
           <nav className="hidden lg:flex items-center gap-1">
@@ -344,19 +341,11 @@ export function ClientHeader() {
             <Link href="/cart">
               <Button variant="ghost" size="icon" className="relative">
                 <ShoppingCart key={bounceKey} className={cn("h-5 w-5", bounceKey > 0 && "animate-cart-bounce")} />
-                {cartCount > 0 && (
-                  <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px]">
-                    {cartCount > 9 ? "9+" : cartCount}
-                  </Badge>
-                )}
+                <CartBadge />
               </Button>
             </Link>
 
-            <Link href="/account">
-              <Button variant="ghost" size="icon" className="hidden sm:flex">
-                <User className="h-5 w-5" />
-              </Button>
-            </Link>
+            <HeaderUserMenu />
 
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}>
               <Menu className="h-5 w-5" />
@@ -441,5 +430,18 @@ export function ClientHeader() {
         </div>
       )}
     </>
+  );
+}
+
+/** Logo: render brand name lấy từ settings, chia 2 phần (primary highlight + còn lại). */
+function Logo() {
+  const brand = useBrandName();
+  const highlight = brand.slice(0, 3) || "Web";
+  const rest = brand.slice(3) || "";
+  return (
+    <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
+      <span className="text-primary">{highlight}</span>
+      {rest && <span>{rest}</span>}
+    </Link>
   );
 }

@@ -63,7 +63,7 @@ type ChiNhanh = { id: string; name: string; code: string | null };
 type NguoiDung = { id: string; full_name: string | null; email: string | null };
 
 const ORDER_STATUSES = [
-  { value: "", label: "Tất cả trạng thái" },
+  { value: "all", label: "Tất cả trạng thái" },
   { value: "draft", label: "Nháp" },
   { value: "pending", label: "Chờ xử lý" },
   { value: "confirmed", label: "Đã xác nhận" },
@@ -75,7 +75,7 @@ const ORDER_STATUSES = [
 ];
 
 const PAYMENT_STATUSES = [
-  { value: "", label: "Tất cả thanh toán" },
+  { value: "all", label: "Tất cả thanh toán" },
   { value: "unpaid", label: "Chưa thanh toán" },
   { value: "partial", label: "Trả một phần" },
   { value: "paid", label: "Đã thanh toán" },
@@ -420,32 +420,32 @@ export default function OrdersAdminPage() {
             </div>
             <div className="md:col-span-2 space-y-1">
               <Label className="text-xs">Trạng thái</Label>
-              <Select value={statusFilter || "__all__"} onValueChange={(v) => { setStatusFilter(v === "__all__" ? "" : v); setPage(1); }}>
+              <Select value={statusFilter || "all"} onValueChange={(v) => { setStatusFilter(v === "all" ? "" : v); setPage(1); }}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ORDER_STATUSES.map((s) => (
-                    <SelectItem key={s.value || "__all__"} value={s.value || "__all__"}>{s.label}</SelectItem>
+                    <SelectItem key={s.value || "all"} value={s.value || "all"}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="md:col-span-2 space-y-1">
               <Label className="text-xs">Thanh toán</Label>
-              <Select value={paymentFilter || "__all__"} onValueChange={(v) => { setPaymentFilter(v === "__all__" ? "" : v); setPage(1); }}>
+              <Select value={paymentFilter || "all"} onValueChange={(v) => { setPaymentFilter(v === "all" ? "" : v); setPage(1); }}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {PAYMENT_STATUSES.map((s) => (
-                    <SelectItem key={s.value || "__all__"} value={s.value || "__all__"}>{s.label}</SelectItem>
+                    <SelectItem key={s.value || "all"} value={s.value || "all"}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="md:col-span-2 space-y-1">
               <Label className="text-xs flex items-center gap-1"><Store className="h-3 w-3" /> Cửa hàng</Label>
-              <Select value={shopFilter || "__all__"} onValueChange={(v) => { setShopFilter(v === "__all__" ? "" : v); setPage(1); }}>
+              <Select value={shopFilter || "all"} onValueChange={(v) => { setShopFilter(v === "all" ? "" : v); setPage(1); }}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Tất cả" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">Tất cả</SelectItem>
+                  <SelectItem value="all">Tất cả</SelectItem>
                   {chiNhanhs.map((s) => (
                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                   ))}
@@ -454,10 +454,10 @@ export default function OrdersAdminPage() {
             </div>
             <div className="md:col-span-2 space-y-1">
               <Label className="text-xs">Kênh bán</Label>
-              <Select value={channelFilter || "__all__"} onValueChange={(v) => { setChannelFilter(v === "__all__" ? "" : v); setPage(1); }}>
+              <Select value={channelFilter || "all"} onValueChange={(v) => { setChannelFilter(v === "all" ? "" : v); setPage(1); }}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Tất cả" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">Tất cả</SelectItem>
+                  <SelectItem value="all">Tất cả</SelectItem>
                   {Object.entries(CHANNELS).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v.icon} {v.label}</SelectItem>
                   ))}

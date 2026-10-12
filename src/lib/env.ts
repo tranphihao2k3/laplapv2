@@ -23,7 +23,9 @@ const FALLBACK: Env = {
   NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key",
   NEXT_PUBLIC_APP_URL: "http://localhost:3000",
-  NEXT_PUBLIC_APP_NAME: "LapLap",
+  // Fallback cuối cùng khi DB trống. Lưu ý: brand name THẬT nên được set
+  // qua /quanly/settings → Cấu hình hệ thống → key "name", group "store".
+  NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME || "LapLap",
 };
 
 const raw = {

@@ -58,8 +58,10 @@ export async function ClientFooter() {
           {/* Brand */}
           <div className="space-y-4">
             <Link href="/" className="inline-flex items-center gap-2 text-lg font-bold tracking-tight">
-              <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">Lap</span>
-              <span>Lap</span>
+              <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">
+                {store.name?.slice(0, 3) || "Web"}
+              </span>
+              <span>{store.name || "Website"}</span>
             </Link>
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
               {description}

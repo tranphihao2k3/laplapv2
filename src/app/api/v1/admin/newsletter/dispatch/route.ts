@@ -15,6 +15,7 @@ import { requirePermission } from "@/lib/api/guard";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { sendEmail } from "@/lib/email/resend";
 import { renderProductAlertEmail } from "@/lib/email/templates";
+import { getBrandNameAsync } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseServiceClient();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || req.nextUrl.origin;
+    const shopBrandName = await getBrandNameAsync();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (supabase.from("newsletter_outbox") as any)
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
         .in("status", ["pending", "failed"]); // single-mode co the dispatch failed rows
 
       try {
-        const sent = await processOne(row, appUrl, supabase);
+        const sent = await processOne(row, appUrl, supabase, shopBrandName);
         totalSent += sent;
         await supabase
           .from("newsletter_outbox")
@@ -115,6 +117,7 @@ async function processOne(
   },
   appUrl: string,
   supabase: ReturnType<typeof createSupabaseServiceClient>,
+  shopBrandName: string,
 ): Promise<number> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: subs, error: subErr } = await (supabase.from("newsletter_subscribers") as any)
@@ -141,10 +144,11 @@ async function processOne(
       const { subject, html, text } = renderProductAlertEmail({
         productName: row.product_name,
         productUrl,
-        brandName: row.product_brand_name,
+        productBrandName: row.product_brand_name,
         price: row.product_price,
         thumbnailUrl: null,
         unsubscribeUrl: unsubUrl,
+        brandName: shopBrandName,
       });
       const { messageId } = await sendEmail({ to: sub.email, subject, html, text });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

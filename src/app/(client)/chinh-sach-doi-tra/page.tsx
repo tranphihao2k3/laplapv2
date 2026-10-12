@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
 import { RefreshCw } from "lucide-react";
 import { env } from "@/lib/env";
+import { getStoreInfo } from "@/lib/store-info";
 import { PolicyPage, type PolicySection } from "@/components/shared/policy-page";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
-export const metadata: Metadata = {
-  title: "Chính sách đổi trả",
-  description:
-    "Chính sách đổi trả laptop tại LapLap - đổi trả trong 30 ngày, thu cũ đổi mới, hoàn tiền minh bạch.",
-  alternates: { canonical: `${SITE}/chinh-sach-doi-tra` },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const store = await getStoreInfo();
+  return {
+    title: "Chính sách đổi trả",
+    description: `Chính sách đổi trả laptop tại ${store.name} - đổi trả trong 30 ngày, thu cũ đổi mới, hoàn tiền minh bạch.`,
+    alternates: { canonical: `${SITE}/chinh-sach-doi-tra` },
+  };
+}
 
 const sections: PolicySection[] = [
   {

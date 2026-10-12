@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { httpGet, httpPatch, httpPost, httpDelete } from "@/lib/api/http";
+import { invalidateBrandCache } from "@/lib/brand-cache-invalidation";
 import { buildHeroSlide, HERO_TEMPLATES, type HomepageHeroSetting } from "@/lib/homepage-hero";
 import { FinancingSettings } from "./_components/financing-settings";
 import { TrustBadgesSettings } from "./_components/trust-badges-settings";
@@ -153,6 +154,7 @@ function ShopSettings() {
       httpPatch<Shop>(`/v1/shops/${id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings-shops"] });
+      invalidateBrandCache();
       toast.success("Đã lưu thông tin cửa hàng");
     },
     onError: (e) => toast.error(getApiErrorMsg(e)),
@@ -413,6 +415,8 @@ function OrgSettings() {
       httpPatch<Organization>(`/v1/organizations/${id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings-orgs"] });
+      // Bump brand cache — name/email có thể đã đổi.
+      invalidateBrandCache();
       toast.success("Đã cập nhật tổ chức");
     },
     onError: (e) => toast.error(getApiErrorMsg(e)),
@@ -636,6 +640,8 @@ function SystemSettings() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings-config"] });
+      // Brand name có thể đã đổi (key "name" trong group "store") → refresh toàn client.
+      invalidateBrandCache();
       toast.success("Đã lưu cấu hình");
     },
     onError: (e) => toast.error(getApiErrorMsg(e)),
@@ -645,6 +651,7 @@ function SystemSettings() {
     mutationFn: (id: string) => httpDelete(`/v1/settings/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings-config"] });
+      invalidateBrandCache();
       toast.success("Đã xoá");
     },
     onError: (e) => toast.error(getApiErrorMsg(e)),

@@ -48,18 +48,35 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
+  const isAdminAuthPage =
+    pathname === "/login" || pathname === "/signup";
+  // /account/{login,signup,forgot-password,verify-email,reset-password} là trang
+  // auth công khai của customer — KHÔNG redirect logged-in user (để họ đổi tài khoản
+  // hoặc đăng ký tài khoản mới nếu cần).
+  const isCustomerAuthPage =
+    pathname === "/account/login" ||
+    pathname === "/account/signup" ||
+    pathname === "/account/forgot-password" ||
+    pathname === "/account/verify-email" ||
+    pathname === "/account/reset-password";
+
   const isProtected =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/quanly") || pathname.startsWith("/account");
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/quanly") ||
+    (pathname.startsWith("/account") && !isCustomerAuthPage);
 
   if (!user && isProtected) {
+    // Admin panel → /login. Customer account → /account/login.
+    const loginUrl = pathname.startsWith("/account")
+      ? "/account/login"
+      : "/login";
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = loginUrl;
     url.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  if (user && isAdminAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/quanly";
     return NextResponse.redirect(url);

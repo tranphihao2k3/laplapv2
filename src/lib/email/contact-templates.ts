@@ -1,8 +1,13 @@
 /**
  * Email template cho form Liên hệ (thông báo nội bộ cho CSKH).
  * Gửi tới email shop + email người quản lý nội dung.
+ *
+ * brandName lấy từ settings (group "store", key "name") — truyền từ callsite
+ * qua options.brandName. Fallback env.NEXT_PUBLIC_APP_NAME.
  */
-const BRAND_NAME = "LapLap - Laptop Cần Thơ";
+import { env } from "@/lib/env";
+
+const FALLBACK_BRAND_NAME = env.NEXT_PUBLIC_APP_NAME || "LapLap - Laptop Cần Thơ";
 const BRAND_COLOR = "#0f172a";
 
 function escapeHtml(s: string): string {
@@ -22,7 +27,9 @@ export function renderContactNotification(opts: {
   message: string;
   ip_address: string | null;
   received_at: string; // ISO
+  brandName?: string;
 }): { subject: string; html: string; text: string } {
+  const brandName = opts.brandName?.trim() || FALLBACK_BRAND_NAME;
   const subject = `[Liên hệ] ${opts.subject || "Tin nhắn mới"} - ${opts.full_name}`;
 
   const rows = [
@@ -81,7 +88,7 @@ export function renderContactNotification(opts: {
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
       <tr>
         <td style="background-color:${BRAND_COLOR};padding:20px 32px;text-align:center;">
-          <h1 style="margin:0;font-size:18px;font-weight:600;color:#ffffff;">${escapeHtml(BRAND_NAME)}</h1>
+          <h1 style="margin:0;font-size:18px;font-weight:600;color:#ffffff;">${escapeHtml(brandName)}</h1>
         </td>
       </tr>
       <tr><td style="padding:32px;">${body}</td></tr>
@@ -103,7 +110,7 @@ export function renderContactNotification(opts: {
     `IP: ${opts.ip_address ?? "—"}\n` +
     `Thời gian: ${opts.received_at}\n\n` +
     `Nội dung:\n${opts.message}\n\n` +
-    `--\nEmail nội bộ — ${BRAND_NAME}`;
+    `--\nEmail nội bộ — ${brandName}`;
 
   return { subject, html, text };
 }
