@@ -324,13 +324,22 @@ export default function ProductsAdminPage() {
     try {
       const result = await bulkDeleteProducts.mutateAsync(ids);
       const deletedCount = result.deleted?.length ?? 0;
-      const missingCount = result.missing?.length ?? 0;
-      if (deletedCount === 0) {
-        toast.error("Không xoá được sản phẩm nào (có thể do khoá ngoại: còn biến thể / đơn hàng / sửa chữa)");
-      } else if (missingCount > 0) {
-        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      const archivedCount = result.archived?.length ?? 0;
+      const failedCount = result.failed?.length ?? 0;
+      if (deletedCount === 0 && archivedCount === 0 && failedCount > 0) {
+        const firstReason = result.failed[0]?.reason ?? "unknown";
+        toast.error(`Không xoá/lưu trữ được sản phẩm nào (${firstReason})`);
       } else {
-        toast.success(`Đã xoá ${deletedCount} sản phẩm`);
+        const parts: string[] = [];
+        if (deletedCount > 0) parts.push(`xoá ${deletedCount}`);
+        if (archivedCount > 0) parts.push(`lưu trữ ${archivedCount}`);
+        if (failedCount > 0) parts.push(`lỗi ${failedCount}`);
+        const summary = parts.length > 0 ? parts.join(", ") : "không thay đổi";
+        if (failedCount === 0) {
+          toast.success(`Đã ${summary} sản phẩm`);
+        } else {
+          toast.warning(`Đã ${summary} sản phẩm`);
+        }
       }
       selection.clear();
     } catch (e: unknown) {

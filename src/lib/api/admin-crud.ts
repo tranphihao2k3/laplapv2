@@ -113,7 +113,15 @@ export function useCrudBulkDelete(entity: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ids: string[]) =>
-      httpPost<{ deleted: string[]; missing: string[] }>(`/v1/admin/bulk-delete`, { entity, ids }),
+      httpPost<{
+        total: number;
+        deleted: string[];
+        archived: string[];
+        failed: { id: string; reason: string }[];
+        // Backward-compat alias: route vẫn trả `missing` (chỉ ids) để
+        // các trang admin cũ đọc `result.missing?.length` không phải sửa.
+        missing: string[];
+      }>(`/v1/admin/bulk-delete`, { entity, ids }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-crud", entity] });
     },
