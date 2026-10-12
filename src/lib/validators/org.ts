@@ -19,7 +19,23 @@ export const organizationCreateSchema = z.object({
 export const organizationUpdateSchema = organizationCreateSchema.partial();
 
 // shops
-// shops — code is auto-generated server-side from name when not provided
+// shops — code is auto-generated server-side from name when not provided.
+//
+// primary_domain: domain chính của shop, vd "laptopthanhvo.com". Middleware
+//   resolve shop từ Host header. Unique trong DB (case-insensitive).
+// allowed_domains: danh sách domain phụ cũng trỏ về shop này (www., alias,
+//   domain cũ sau khi rebrand, landing page phụ). Mỗi phần tử là host thuần,
+//   KHÔNG có scheme hay port. Mảng rỗng nếu shop chỉ có 1 domain.
+//
+// Normalization: lowercase + strip protocol + strip trailing slash + strip port
+// (xem `normalizeDomain` trong lib/shop-domain.ts).
+const normalizedDomain = z
+  .string()
+  .min(1)
+  .max(253)
+  .regex(/^[a-z0-9.\-:]+$/i, "Domain không hợp lệ")
+  .transform((s) => s.toLowerCase());
+
 export const shopCreateSchema = z.object({
   organization_id: uuid.optional(),
   name: z.string().min(1).max(200),
@@ -29,6 +45,8 @@ export const shopCreateSchema = z.object({
   address: z.string().nullable().optional(),
   timezone: z.string().default("Asia/Ho_Chi_Minh"),
   is_active: z.boolean().default(true),
+  primary_domain: normalizedDomain.nullable().optional(),
+  allowed_domains: z.array(normalizedDomain).default([]),
 });
 export const shopUpdateSchema = shopCreateSchema.partial();
 

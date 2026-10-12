@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
 import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
+import { NameCell } from "@/components/admin/name-cell";
 import { httpPost } from "@/lib/api/http";
 
 type SerialNumber = {
@@ -90,6 +91,26 @@ export default function SerialNumbersAdminPage() {
 
   const listQuery = useCrudList<SerialNumber>("serial-numbers", params);
   const allQuery = useCrudList<SerialNumber>("serial-numbers", allParams);
+
+  // Tải thêm warehouses + product-variants để hiển thị tên thay vì UUID
+  const warehousesQ = useCrudList<{ id: string; name: string }>("warehouses", { page: 1, pageSize: 500 });
+  const variantsQ = useCrudList<{ id: string; sku: string | null; name: string | null; product?: { name: string | null } | null }>(
+    "product-variants",
+    { page: 1, pageSize: 500 },
+  );
+  const warehouseNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (warehousesQ.data?.items ?? []).forEach((w) => m.set(w.id, w.name));
+    return m;
+  }, [warehousesQ.data]);
+  const variantLabelMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (variantsQ.data?.items ?? []).forEach((v) => {
+      const label = v.name || v.sku || v.id.slice(0, 8);
+      m.set(v.id, label);
+    });
+    return m;
+  }, [variantsQ.data]);
 
   const createMutation = useCrudCreate<SerialNumber, SerialNumberInput>("serial-numbers");
   const updateMutation = useCrudUpdate<SerialNumber, SerialNumberInput>("serial-numbers");
@@ -340,8 +361,22 @@ export default function SerialNumbersAdminPage() {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{item.serial ?? "-"}</TableCell>
                       <TableCell className="font-mono text-xs">{item.imei ?? "-"}</TableCell>
-                      <TableCell className="font-mono text-xs max-w-[120px] truncate" title={item.product_variant_id ?? ""}>{item.product_variant_id ?? "-"}</TableCell>
-                      <TableCell className="font-mono text-xs max-w-[120px] truncate" title={item.warehouse_id ?? ""}>{item.warehouse_id ?? "-"}</TableCell>
+                      <TableCell>
+                        <NameCell
+                          id={item.product_variant_id}
+                          kind="products"
+                          name={variantLabelMap.get(item.product_variant_id ?? "") ?? null}
+                          fallback={<span className="text-xs text-muted-foreground font-mono">{(item.product_variant_id ?? "").slice(0, 8)}…</span>}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <NameCell
+                          id={item.warehouse_id}
+                          kind="warehouses"
+                          name={warehouseNameMap.get(item.warehouse_id ?? "") ?? null}
+                          fallback={<span className="text-xs text-muted-foreground font-mono">{(item.warehouse_id ?? "").slice(0, 8)}…</span>}
+                        />
+                      </TableCell>
                       <TableCell>
                         <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
                       </TableCell>

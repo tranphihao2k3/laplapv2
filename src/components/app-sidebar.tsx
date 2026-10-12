@@ -33,6 +33,9 @@ import {
   Folder,
   Settings2,
   FileText,
+  Banknote,
+  Ticket,
+  FileBarChart,
 } from "lucide-react";
 
 import { NavDocuments } from "@/components/nav-documents";
@@ -50,6 +53,7 @@ import {
 
 const navMain = [
   { title: "Tổng quan", url: "/quanly", icon: BarChart3 },
+  { title: "Báo cáo", url: "/quanly/bao-cao/doanh-thu", icon: FileBarChart },
   { title: "Phiếu sửa", url: "/quanly/repair-tickets", icon: Shield },
   { title: "Sản phẩm", url: "/quanly/products", icon: Package },
   { title: "Đơn hàng", url: "/quanly/orders", icon: ShoppingCart },
@@ -60,6 +64,15 @@ const navMain = [
 ];
 
 const documents = [
+  { name: "Doanh thu", url: "/quanly/bao-cao/doanh-thu", icon: Banknote, group: "Báo cáo" },
+  { name: "Sản phẩm", url: "/quanly/bao-cao/san-pham", icon: Package, group: "Báo cáo" },
+  { name: "Khách hàng", url: "/quanly/bao-cao/khach-hang", icon: Users, group: "Báo cáo" },
+  { name: "Kho", url: "/quanly/bao-cao/kho", icon: Warehouse, group: "Báo cáo" },
+  { name: "Nhân viên", url: "/quanly/bao-cao/nhan-vien", icon: UserCog, group: "Báo cáo" },
+  { name: "Sửa chữa", url: "/quanly/bao-cao/sua-chua", icon: Wrench, group: "Báo cáo" },
+  { name: "Bảo hành", url: "/quanly/bao-cao/bao-hanh", icon: ShieldCheck, group: "Báo cáo" },
+  { name: "Voucher", url: "/quanly/bao-cao/voucher", icon: Ticket, group: "Báo cáo" },
+
   { name: "Quản lý sản phẩm", url: "/quanly/products", icon: Package, group: "Sản phẩm" },
   { name: "Biến thể", url: "/quanly/product-variants", icon: PackageSearch, group: "Sản phẩm" },
   { name: "Danh mục", url: "/quanly/categories", icon: Package, group: "Sản phẩm" },
