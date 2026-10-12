@@ -2202,6 +2202,7 @@ export type Database = {
       shops: {
         Row: {
           address: string | null
+          allowed_domains: string[]
           code: string
           created_at: string | null
           email: string | null
@@ -2210,10 +2211,12 @@ export type Database = {
           name: string
           organization_id: string
           phone: string | null
+          primary_domain: string | null
           timezone: string | null
         }
         Insert: {
           address?: string | null
+          allowed_domains?: string[]
           code: string
           created_at?: string | null
           email?: string | null
@@ -2222,10 +2225,12 @@ export type Database = {
           name: string
           organization_id: string
           phone?: string | null
+          primary_domain?: string | null
           timezone?: string | null
         }
         Update: {
           address?: string | null
+          allowed_domains?: string[]
           code?: string
           created_at?: string | null
           email?: string | null
@@ -2234,6 +2239,7 @@ export type Database = {
           name?: string
           organization_id?: string
           phone?: string | null
+          primary_domain?: string | null
           timezone?: string | null
         }
         Relationships: [

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCrudList } from "@/lib/api/admin-crud";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Eye, Package, ClipboardList, Hash } from "lucide-react";
+import { NameCell } from "@/components/admin/name-cell";
 
 type Transaction = {
   id: string;
@@ -81,6 +82,26 @@ export default function InventoryTransactionsPage() {
     "inventory-transactions",
     { search, page, pageSize: 20 },
   );
+
+  // Tải thêm warehouses + product-variants để hiển thị tên thay vì UUID
+  const warehousesQ = useCrudList<{ id: string; name: string }>("warehouses", { page: 1, pageSize: 500 });
+  const variantsQ = useCrudList<{ id: string; sku: string | null; name: string | null }>(
+    "product-variants",
+    { page: 1, pageSize: 500 },
+  );
+  const warehouseNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (warehousesQ.data?.items ?? []).forEach((w) => m.set(w.id, w.name));
+    return m;
+  }, [warehousesQ.data]);
+  const variantLabelMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (variantsQ.data?.items ?? []).forEach((v) => {
+      const label = v.name || v.sku || v.id.slice(0, 8);
+      m.set(v.id, label);
+    });
+    return m;
+  }, [variantsQ.data]);
 
   const transactions = data?.items ?? [];
   const totalPages = data?.totalPages ?? 1;
@@ -230,14 +251,21 @@ export default function InventoryTransactionsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="font-mono text-xs bg-muted px-2 py-1 rounded inline-block">
-                          {tx.warehouse_id.slice(0, 8)}...
-                        </div>
+                        <NameCell
+                          id={tx.warehouse_id}
+                          kind="warehouses"
+                          name={warehouseNameMap.get(tx.warehouse_id) ?? null}
+                          href={tx.warehouse_id ? `/quanly/inventory/transfer?warehouse_id=${tx.warehouse_id}` : undefined}
+                          fallback={<span className="text-xs text-muted-foreground">—</span>}
+                        />
                       </TableCell>
                       <TableCell>
-                        <div className="font-mono text-xs bg-muted px-2 py-1 rounded">
-                          {tx.product_variant_id.slice(0, 8)}...
-                        </div>
+                        <NameCell
+                          id={tx.product_variant_id}
+                          kind="products"
+                          name={variantLabelMap.get(tx.product_variant_id) ?? null}
+                          fallback={<span className="text-xs text-muted-foreground font-mono">{tx.product_variant_id.slice(0, 8)}…</span>}
+                        />
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -352,17 +380,26 @@ export default function InventoryTransactionsPage() {
                 <Label className="text-muted-foreground text-xs uppercase tracking-wide">Ngày tạo</Label>
                 <p className="mt-2 font-medium">{formatDate(selectedTx.created_at)}</p>
               </div>
-              <div className="col-span-2">
-                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Mã kho</Label>
-                <p className="font-mono text-xs mt-1 break-all bg-muted p-2 rounded">
-                  {selectedTx.warehouse_id}
-                </p>
+              <div>
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Kho</Label>
+                <div className="mt-1">
+                  <NameCell
+                    id={selectedTx.warehouse_id}
+                    kind="warehouses"
+                    name={warehouseNameMap.get(selectedTx.warehouse_id) ?? null}
+                    href={selectedTx.warehouse_id ? `/quanly/inventory/transfer?warehouse_id=${selectedTx.warehouse_id}` : undefined}
+                  />
+                </div>
               </div>
-              <div className="col-span-2">
-                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Mã biến thể sản phẩm</Label>
-                <p className="font-mono text-xs mt-1 break-all bg-muted p-2 rounded">
-                  {selectedTx.product_variant_id}
-                </p>
+              <div>
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Biến thể sản phẩm</Label>
+                <div className="mt-1">
+                  <NameCell
+                    id={selectedTx.product_variant_id}
+                    kind="products"
+                    name={variantLabelMap.get(selectedTx.product_variant_id) ?? null}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-muted-foreground text-xs uppercase tracking-wide">Số lượng</Label>

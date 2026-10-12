@@ -58,6 +58,10 @@ type Shop = {
   address: string | null;
   timezone: string | null;
   is_active: boolean | null;
+  /** Domain chính của shop, vd "laptopthanhvo.com". */
+  primary_domain: string | null;
+  /** Domain phụ trỏ về shop này (www, alias, domain cũ). */
+  allowed_domains: string[];
 };
 
 type Organization = {
@@ -89,6 +93,29 @@ type Setting = {
 function getApiErrorMsg(e: unknown) {
   const err = e as { error?: { message?: string } };
   return err?.error?.message ?? "Có lỗi xảy ra";
+}
+
+/**
+ * Normalize domain từ input người dùng (form textarea/input):
+ *  - lowercase
+ *  - bỏ protocol (http://, https://)
+ *  - bỏ path / query
+ *  - bỏ port
+ *  - trim trailing dot
+ *
+ * Trả về chuỗi rỗng nếu input không hợp lệ. KHÔNG dùng lib/shop-domain ở đây
+ * vì file đó dùng cả trong Edge runtime (chỉ regex đơn giản là đủ cho form).
+ */
+function normalizeDomainInput(raw: string | null | undefined): string {
+  if (!raw) return "";
+  let s = String(raw).trim().toLowerCase();
+  s = s.replace(/^https?:\/\//, "");
+  s = s.split("/")[0] ?? "";
+  s = s.replace(/:(\d+)$/, "");
+  s = s.replace(/\.+$/, "");
+  // Chỉ cho phép ký tự domain hợp lệ. Trả về rỗng nếu có ký tự lạ — UI sẽ
+  // báo lỗi khi submit.
+  return /^[a-z0-9.\-:]+$/.test(s) ? s : "";
 }
 
 // ====== Page ======
@@ -281,6 +308,39 @@ function ShopSettings() {
                   </SelectContent>
                 </Select>
               </Field>
+              <Field
+                label="Domain chính"
+                help="VD: laptopthanhvo.com. Middleware sẽ resolve shop từ Host header. Để trống = domain chính chưa khai báo."
+                className="sm:col-span-2"
+              >
+                <Input
+                  value={form.primary_domain ?? ""}
+                  onChange={(e) => set("primary_domain", e.target.value || null)}
+                  placeholder="laptopthanhvo.com"
+                />
+              </Field>
+              <Field
+                label="Domain phụ (mỗi dòng 1 domain)"
+                help="www., alias, domain cũ sau khi rebrand, landing page phụ. KHÔNG cần kèm scheme/port."
+                className="sm:col-span-2"
+              >
+                <Textarea
+                  value={(form.allowed_domains ?? []).join("\n")}
+                  onChange={(e) =>
+                    set(
+                      "allowed_domains",
+                      e.target.value
+                        .split("\n")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    )
+                  }
+                  placeholder={
+                    "www.laptopthanhvo.com\nlaplapcantho.store\ncuahangcu.laptopthanhvo.com"
+                  }
+                  rows={3}
+                />
+              </Field>
               <div className="sm:col-span-2 flex justify-end gap-2">
                 <Button
                   variant="outline"
@@ -302,6 +362,10 @@ function ShopSettings() {
                         address: form.address ?? null,
                         timezone: form.timezone ?? null,
                         is_active: form.is_active ?? true,
+                        // Domain fields: gửi kể cả khi rỗng/null để admin có
+                        // thể xoá domain chính / clear list nếu muốn rebrand.
+                        primary_domain: normalizeDomainInput(form.primary_domain) || null,
+                        allowed_domains: (form.allowed_domains ?? []).map(normalizeDomainInput).filter(Boolean),
                       },
                     })
                   }
@@ -1197,11 +1261,14 @@ function Field({
   label,
   required,
   className,
+  help,
   children,
 }: {
   label: string;
   required?: boolean;
   className?: string;
+  /** Optional helper text hiển thị dưới input, kiểu `text-xs text-muted-foreground`. */
+  help?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -1210,6 +1277,7 @@ function Field({
         {label} {required ? <span className="text-destructive">*</span> : null}
       </Label>
       {children}
+      {help ? <p className="text-xs text-muted-foreground">{help}</p> : null}
     </div>
   );
 }

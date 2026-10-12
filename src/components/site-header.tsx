@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { QuickCreateDropdown } from "@/components/quick-create";
+import { NotificationBell } from "@/components/admin/notification-bell";
+import { CommandPaletteTrigger } from "@/components/admin/command-palette";
 import {
   Select,
   SelectContent,
@@ -102,6 +104,8 @@ export function SiteHeader() {
         />
         <h1 className="text-sm sm:text-base font-medium truncate">{title}</h1>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <CommandPaletteTrigger />
+          <NotificationBell />
           {availableOrgs.length > 1 && (
             <Select
               value={currentOrg?.id ?? ""}

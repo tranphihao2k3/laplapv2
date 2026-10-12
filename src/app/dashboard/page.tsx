@@ -1,4 +1,6 @@
 import { DashboardContent } from "@/components/dashboard-content";
+import { AlertsPanel } from "@/components/admin/alerts-panel";
+import { QuickActions } from "@/components/admin/quick-actions";
 
 export default function Page() {
   return (
@@ -7,6 +9,8 @@ export default function Page() {
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Tổng quan</h1>
         <p className="text-xs text-muted-foreground sm:text-sm">8 nhóm thống kê chính — doanh thu, sản phẩm, kho, khách hàng, hậu mãi, ca bán</p>
       </div>
+      <AlertsPanel />
+      <QuickActions />
       <DashboardContent />
     </div>
   );
