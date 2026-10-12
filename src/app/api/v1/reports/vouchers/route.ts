@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const vouchers = (data ?? []) as Voucher[];
 
     // Lấy orders trong kỳ để tính doanh thu từ voucher (nếu có filter ngày)
-    let orderVoucherMap = new Map<string, { count: number; revenue: number; discount: number }>();
+    const orderVoucherMap = new Map<string, { count: number; revenue: number; discount: number }>();
     if (vouchers.length > 0 && (filters.from || filters.to)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let oq: any = supabase.from("orders").select("id, voucher_id, voucher_discount, total_amount, created_at");
