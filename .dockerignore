@@ -1,48 +1,75 @@
-# Git
+# .dockerignore — Loại bỏ khỏi Docker build context.
+#
+# KHÁC .gitignore: .gitignore chỉ chặn git tracking. .dockerignore chặn file
+# được upload lên remote builder. Build context càng nhỏ → deploy càng nhanh.
+# Trước khi thêm file này, build context là 321 MB (chủ yếu là Toolcheck/ 149 MB
+# + public/ 150 MB do FurMark portable scripts).
+#
+# Quy tắc: nếu file KHÔNG cần trong Docker image thì thêm vào đây.
+
+# === Build outputs (regenerated trong Docker) ===
+.next
+out
+build
+dist
+node_modules
+*.tsbuildinfo
+
+# === Cache / state cục bộ ===
+.cache
+.turbo
+.vercel
+.wrangler
+.open-next
+
+# === Tooling cục bộ — KHÔNG nên ship lên image ===
+Toolcheck
+.claude
+.cursor
+.supabase
+.vscode
+.idea
+*.log
+
+# === Fly.io / dev wrappers (chỉ dùng local) ===
+.fly
+scripts/fly.ps1
+scripts/fly-auth.ps1
+scripts/verify-compare.cjs
+fly-deploy.log
+decoded_*.txt
+decoded_*.ps1
+tmp_decode_*.py
+tmp_decode_*.ps1
+dev-error.txt
+dev-output.txt
+build-errors.txt
+tsc_out.txt
+decode_batch.js
+
+# === FurMark portable — file test/benchmark nặng, chỉ phát khi user tải về ===
+public/scripts/FurMark_win64
+public/scripts/_furmark_log*.txt
+
+# === Docs không cần trong image runtime ===
+docs
+*.md
+!README.md
+
+# === Git metadata (Docker không cần .git) ===
 .git
 .gitignore
 .gitattributes
 
-# Node
-node_modules
-npm-debug.log
-yarn-error.log
-.npm
-.eslintcache
-
-# Next.js
-.next
-out
-.swc
-.vercel
-.open-next
-
-# Fly.io
-.fly
-fly.toml
-
-# Docker
-Dockerfile
-.dockerignore
-docker-compose*.yml
-
-# IDE
-.vscode
-.idea
-.cursor
-
-# Environment
+# === Env / secrets (Docker inject qua env vars từ fly.toml) ===
 .env
 .env.local
-.env.*.local
+.env*.local
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs
-
-# Storage (Supabase migrations co the tach rieng)
-README.md
+# === Test files (chạy local, không cần trong production image) ===
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/__tests__/**
+tests
