@@ -57,7 +57,9 @@ export const DEFAULT_FOOTER_SETTINGS: FooterSettings = {
   columns: [
     {
       id: "about",
-      title: "Về LapLap",
+      // Template — sẽ được resolve ở client-footer.tsx bằng store.name.
+      // Khi admin customize cột này, họ có thể tự đặt tên cố định.
+      title: "Về {{brandName}}",
       order: 0,
       links: [
         { id: "about-us", href: "/about", label: "Giới thiệu", order: 0 },

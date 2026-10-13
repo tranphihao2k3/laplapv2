@@ -45,6 +45,7 @@ import { FinancingSettings } from "./_components/financing-settings";
 import { TrustBadgesSettings } from "./_components/trust-badges-settings";
 import { ContactSettings } from "./_components/contact-settings";
 import { FooterSettings } from "./_components/footer-settings";
+import { LegalSettings } from "./_components/legal-settings";
 import type { Paginated } from "@/lib/api/response";
 
 // ====== Types ======
@@ -130,6 +131,7 @@ export default function SettingsPage() {
           <TabsTrigger value="trust">Trust Badges</TabsTrigger>
           <TabsTrigger value="contact">Liên hệ</TabsTrigger>
           <TabsTrigger value="footer">Footer</TabsTrigger>
+          <TabsTrigger value="legal">Pháp lý & BCT</TabsTrigger>
         </TabsList>
       </div>
 
@@ -150,6 +152,9 @@ export default function SettingsPage() {
       </TabsContent>
       <TabsContent value="footer">
         <FooterSection />
+      </TabsContent>
+      <TabsContent value="legal">
+        <LegalSettings />
       </TabsContent>
     </Tabs>
   );
