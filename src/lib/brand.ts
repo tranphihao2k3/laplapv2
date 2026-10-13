@@ -1,35 +1,72 @@
 /**
- * Brand utilities — đọc tên thương hiệu từ settings DB (qua getStoreInfo)
- * với fallback an toàn từ env.NEXT_PUBLIC_APP_NAME.
+ * Brand utilities — đọc tên thương hiệu & email mặc định.
  *
- * Nguyên tắc:
- *   1. Server-side: getBrandNameAsync() đọc từ Supabase `settings` table.
- *   2. Client-side: useBrandName() hook đọc từ /api/public/store-info.
- *   3. Fallback cuối cùng: process.env.NEXT_PUBLIC_APP_NAME hoặc "LapLap".
+ * Resolution order (khi truyền shopId):
+ *   1. `shops` table WHERE id = shopId  → name, email
+ *   2. `settings` table (group "store", key "name" | "email")
+ *   3. process.env.NEXT_PUBLIC_APP_NAME | "LapLap" (fallback cuối)
  *
- * Mọi nơi hiển thị tên thương hiệu (title, manifest, email, hoá đơn, chính
- * sách) PHẢI dùng các helper này — KHÔNG hard-code "LapLap" trong code.
+ * Khi KHÔNG truyền shopId (vd trang admin global, email template):
+ *   → dùng `settings` table, fallback env.
+ *
+ * Mọi nơi hiển thị tên thương hiệu PHẢI truyền shopId (lấy từ
+ * `headers().get("x-shop-id")` trong server context). Middleware đã set
+ * header này từ `Host` header → mỗi domain có brand riêng.
  */
 import { cache } from "react";
 import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const FALLBACK_BRAND = "LapLap";
+const FALLBACK_EMAIL = "info@laplap.vn";
 
 function safeEnvName(): string {
   const v = env.NEXT_PUBLIC_APP_NAME?.trim();
   return v && v.length > 0 ? v : FALLBACK_BRAND;
 }
 
-/** Brand name lấy từ settings (group "store", key "name") với fallback an toàn. */
-export const getBrandNameAsync = cache(async (): Promise<string> => {
+/**
+ * Đọc tên cửa hàng từ `shops` table theo shopId.
+ * Trả về null nếu shopId không tồn tại / không có name.
+ */
+async function readShopName(shopId: string): Promise<string | null> {
+  try {
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from("shops")
+      .select("name")
+      .eq("id", shopId)
+      .maybeSingle();
+    const name = data?.name;
+    return typeof name === "string" && name.trim() ? name.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readShopEmail(shopId: string): Promise<string | null> {
+  try {
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from("shops")
+      .select("email")
+      .eq("id", shopId)
+      .maybeSingle();
+    const email = data?.email;
+    return typeof email === "string" && email.trim() ? email.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readSettingsStoreValue(key: "name" | "email"): Promise<string | null> {
   try {
     const supabase = createAdminClient();
     const { data } = await supabase
       .from("settings")
       .select("value")
       .eq("group_name", "store")
-      .eq("key", "name")
+      .eq("key", key)
       .maybeSingle();
 
     const raw = data?.value;
@@ -39,32 +76,48 @@ export const getBrandNameAsync = cache(async (): Promise<string> => {
       if (typeof v === "string" && v.trim()) return v.trim();
     }
   } catch {
-    // ignore — fall through
+    // ignore
   }
-  return safeEnvName();
-});
+  return null;
+}
+
+/**
+ * Tên thương hiệu cho domain hiện tại.
+ *
+ * @param shopId - shopId từ middleware (qua `headers().get("x-shop-id")`).
+ *                 Nếu null/undefined → fallback về settings global.
+ */
+export const getBrandNameAsync = cache(
+  async (shopId?: string | null): Promise<string> => {
+    if (shopId) {
+      const fromShop = await readShopName(shopId);
+      if (fromShop) return fromShop;
+    }
+    const fromSettings = await readSettingsStoreValue("name");
+    if (fromSettings) return fromSettings;
+    return safeEnvName();
+  },
+);
 
 /** Sync version for client components — chỉ trả env fallback. */
 export function getBrandNameSync(): string {
   return safeEnvName();
 }
 
-/** Domain email mặc định từ store info (group store, key email). */
-export async function getBrandEmailAsync(): Promise<string> {
-  try {
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("settings")
-      .select("value")
-      .eq("group_name", "store")
-      .eq("key", "email")
-      .maybeSingle();
-
-    const raw = data?.value;
-    const v = typeof raw === "string" ? raw : (raw as { value?: string } | null)?.value;
-    if (typeof v === "string" && v.trim()) return v.trim();
-  } catch {
-    // ignore
-  }
-  return "info@laplap.vn";
-}
+/**
+ * Email liên hệ mặc định cho domain hiện tại.
+ *
+ * Ưu tiên `shops.email` (per-shop), fallback về `settings.email`, cuối
+ * cùng là `info@laplap.vn`.
+ */
+export const getBrandEmailAsync = cache(
+  async (shopId?: string | null): Promise<string> => {
+    if (shopId) {
+      const fromShop = await readShopEmail(shopId);
+      if (fromShop) return fromShop;
+    }
+    const fromSettings = await readSettingsStoreValue("email");
+    if (fromSettings) return fromSettings;
+    return FALLBACK_EMAIL;
+  },
+);

@@ -11,7 +11,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getShopInfo } from "@/lib/shop-info";
+import { getShopInfoForRequest } from "@/lib/request-shop";
 import { env } from "@/lib/env";
 import { Breadcrumb } from "@/components/client/product/breadcrumb";
 import { ProductGallery } from "@/components/client/product/product-gallery";
@@ -212,7 +212,7 @@ export default async function ProductDetailPage({
   if (!product) notFound();
 
   const related = await getRelatedProducts(product.category?.id ?? null, product.id);
-  const shop = await getShopInfo();
+  const shop = await getShopInfoForRequest();
 
   const hasSpecs = (product.variants?.[0]?.specs &&
     Object.values(product.variants[0].specs as Record<string, string>).some((v) => v?.trim())) as boolean | undefined;

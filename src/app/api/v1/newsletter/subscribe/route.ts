@@ -1,4 +1,4 @@
-/**
+﻿/**
  * POST /api/v1/newsletter/subscribe
  * Body: { email: string, brandIds?: string[] }
  *
@@ -16,7 +16,7 @@ import { ok, fail } from "@/lib/api/response";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { sendEmail } from "@/lib/email/resend";
 import { renderConfirmEmail } from "@/lib/email/templates";
-import { getBrandNameAsync } from "@/lib/brand";
+import { getBrandNameForRequest } from "@/lib/request-shop";
 import { randomToken, normalizeEmail } from "@/lib/newsletter/tokens";
 
 export const dynamic = "force-dynamic";
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       email,
       confirmUrl,
       brandNames,
-      brandName: await getBrandNameAsync(),
+      brandName: await getBrandNameForRequest(),
     });
     await sendEmail({ to: email, subject, html, text });
   } catch (e) {

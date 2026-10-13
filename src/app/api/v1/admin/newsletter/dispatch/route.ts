@@ -1,4 +1,4 @@
-/**
+﻿/**
  * POST /api/v1/admin/newsletter/dispatch
  * Body: {} hoac { outboxId?: string }
  *
@@ -15,7 +15,7 @@ import { requirePermission } from "@/lib/api/guard";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { sendEmail } from "@/lib/email/resend";
 import { renderProductAlertEmail } from "@/lib/email/templates";
-import { getBrandNameAsync } from "@/lib/brand";
+import { getBrandNameForRequest } from "@/lib/request-shop";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseServiceClient();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || req.nextUrl.origin;
-    const shopBrandName = await getBrandNameAsync();
+    const shopBrandName = await getBrandNameForRequest();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (supabase.from("newsletter_outbox") as any)

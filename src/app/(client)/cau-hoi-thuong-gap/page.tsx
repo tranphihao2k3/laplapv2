@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import {
   HelpCircle,
@@ -11,14 +11,14 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { env } from "@/lib/env";
-import { getStoreInfo } from "@/lib/store-info";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { Reveal } from "@/components/client/home/reveal";
 import { FaqList, type FaqGroup } from "@/components/shared/faq-list";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return {
     title: "Câu hỏi thường gặp",
     description: `Tổng hợp câu hỏi thường gặp về mua hàng, bảo hành, đổi trả, trả góp tại ${store.name}.`,
@@ -156,7 +156,7 @@ const GROUPS: FaqGroup[] = [
 ];
 
 export default async function FaqPage() {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
 
   return (
     <div className="pb-20">

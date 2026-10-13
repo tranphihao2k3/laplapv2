@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { FileText } from "lucide-react";
 import { env } from "@/lib/env";
-import { getStoreInfo } from "@/lib/store-info";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { PolicyPage, type PolicySection } from "@/components/shared/policy-page";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return {
     title: "Điều khoản sử dụng",
     description: `Điều khoản sử dụng website ${store.name} - quyền và nghĩa vụ của người dùng khi truy cập, mua hàng và sử dụng dịch vụ.`,
@@ -195,7 +195,7 @@ const sections: PolicySection[] = [
 ];
 
 export default async function DieuKhoanPage() {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return (
     <PolicyPage
       title="Điều khoản sử dụng"

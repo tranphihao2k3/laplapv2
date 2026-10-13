@@ -2,6 +2,9 @@
  * Store Info — Server-only cached functions.
  * This file can ONLY be imported in Server Components or API routes.
  * It re-exports from store-info.ts and adds Next.js caching.
+ *
+ * Cache key khi truyền shopId: ["store-info", shopId] — Next.js unstable_cache
+ * mặc định hash toàn bộ args, nên mỗi shopId có 1 cache entry riêng.
  */
 
 import { unstable_cache, revalidateTag } from "next/cache";
@@ -24,18 +27,18 @@ import {
  * Use this in API routes and when you need cross-request caching.
  */
 export const getStoreInfoCached = unstable_cache(
-  async (): Promise<StoreInfo> => {
-    return getStoreInfo();
+  async (shopId?: string | null): Promise<StoreInfo> => {
+    return getStoreInfo(shopId);
   },
-  ["store-info"],
+  ["store-info-v2"],
   {
     revalidate: 3600, // 1 hour
     tags: ["store-info", "store-legal", "store-contact"],
-  }
+  },
 );
 
 /**
- * Invalidate all store-info related caches.
+ * Invalidate all store-info related caches (mọi shopId).
  * Call this after admin saves store/legal/contact settings.
  */
 export async function invalidateStoreInfoCache() {

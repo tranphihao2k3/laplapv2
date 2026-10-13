@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
-import { getStoreInfo } from "@/lib/store-info";
+﻿import type { Metadata } from "next";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { RepairServicesClient } from "./repair-services-client";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return {
     title: `Bảng giá sửa chữa laptop – ${store.name} Cần Thơ`,
     description: `Bảng giá sửa chữa laptop tại ${store.name} Cần Thơ: thay linh kiện, sửa phần cứng, sửa phần mềm, vệ sinh & nâng cấp. Giá minh bạch, bảo hành sau sửa chữa, kỹ thuật viên chuyên nghiệp.`,

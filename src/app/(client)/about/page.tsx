@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Trang /about — nội dung render từ `page_blocks` (bảng DB).
  *
  * Admin chỉnh sửa tại /quanly/about-page: thêm/xoá/sửa/kéo thả các khối.
@@ -9,14 +9,14 @@
 
 import type { Metadata } from "next";
 import { env } from "@/lib/env";
-import { getStoreInfo } from "@/lib/store-info";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { getPageBlocks } from "@/lib/page-blocks";
 import { BlockRenderer } from "@/components/client/about/block-renderer";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   const title = `Giới thiệu ${store.name} - Laptop chính hãng tại Cần Thơ`;
   return {
     title: "Giới thiệu - Cửa hàng laptop chính hãng tại Cần Thơ",
@@ -43,7 +43,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AboutPage() {
-  const [store, blocks] = await Promise.all([getStoreInfo(), getPageBlocks("about")]);
+  const [store, blocks] = await Promise.all([getStoreInfoForRequest(), getPageBlocks("about")]);
 
   const jsonLd = {
     "@context": "https://schema.org",

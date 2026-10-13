@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { getBrandNameAsync } from "@/lib/brand";
+import { getShopIdFromRequest } from "@/lib/request-shop";
 import { ClientHeader } from "@/components/client/layout/client-header";
 import { ClientFooter } from "@/components/client/layout/client-footer";
 import { CompareBar } from "@/components/client/compare/compare-bar";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const brandName = await getBrandNameAsync();
+  const shopId = await getShopIdFromRequest();
+  const brandName = await getBrandNameAsync(shopId);
   return {
     title: {
       default: `${brandName} - Laptop Cần Thơ`,
