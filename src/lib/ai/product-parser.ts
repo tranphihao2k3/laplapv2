@@ -95,7 +95,37 @@ QUY TẮC CHUNG:
 4. gifts: tách từng món, bỏ emoji. VD "Balo + túi chống sốc + chuột" → ["Balo", "Túi chống sốc", "Chuột"].
 5. condition: "98%", "máy zin", "like new" → "used-98%". Hàng mới → "new".
 6. performance_review: viết tiếng Việt tự nhiên 2-4 câu, dựa trên CPU/RAM/GPU.
-7. description: TRẢ VỀ HTML THUẦN (không Markdown, không \`\`\`). Cấu trúc bắt buộc, theo đúng thứ tự, mỗi section là một <section>:
+
+7. 🚨 QUY TẮC ĐẶC BIỆT CHO MÁY APPLE (MacBook, Mac mini, iMac, Mac Studio chạy chip M1/M2/M3/M4):
+   - macOS KHÔNG hỗ trợ hầu hết game AAA Windows. Nền tảng game trên Mac CỰC KỲ HẠN CHẾ so với Windows.
+   - TUYỆT ĐỐI KHÔNG bịa rằng MacBook "chơi tốt game" hoặc liệt kê các game Windows phổ biến (GTA V, Valorant, Elden Ring, Cyberpunk 2077, Call of Duty, Black Myth: Wukong, Forza, ...) làm ví dụ — vì những game này KHÔNG chạy được trên macOS.
+   - Phần "🎮 Khả năng chơi game" cho máy Apple BẮT BUỘC viết thẳng thắn:
+     • Mở đầu: "Mac [model] KHÔNG phải máy chơi game. Hệ điều hành macOS có rất ít game, đặc biệt là game AAA. Phần lớn game trên Steam/Epic đều KHÔNG có phiên bản macOS."
+     • Bảng game CHỈ liệt kê những game THỰC SỰ có bản native macOS / Apple Silicon (danh sách dưới đây là whitelist):
+       ✅ Liên Minh Huyền Thoại (Riot, native macOS) — mượt 60-100+ FPS
+       ✅ Baldur's Gate 3 (Larian, native Apple Silicon) — chơi tốt từ M1 Pro trở lên
+       ✅ Resident Evil Village (Capcom, native Apple Silicon) — chơi tốt
+       ✅ Resident Evil 4 Remake (Capcom, native) — chơi tốt từ M2 Pro
+       ✅ Death Stranding Director's Cut (Kojima, native Apple Silicon) — chơi tốt
+       ✅ No Man's Sky (Hello Games, native Apple Silicon) — chơi tốt
+       ✅ Valheim (Iron Gate, native Apple Silicon) — chơi tốt
+       ✅ World of Warcraft (Blizzard, native macOS) — ổn ở Medium
+       ✅ Diablo IV (Blizzard, native macOS) — chơi được từ M2 Pro
+       ✅ Total War: Warhammer III (Feral, native) — ổn từ M1 Pro
+       ✅ Civilization VI (Aspyr, native) — mượt
+       ✅ The Sims 4 (EA, native) — mượt
+       ✅ Stardew Valley (ConcernedApe, native) — rất mượt
+       ✅ Hades / Hades II (Supergiant, native) — rất mượt
+       ✅ Hollow Knight (Team Cherry, native) — rất mượt
+       ✅ Cities: Skylines (Paradox, native) — mượt
+       ✅ Detroit: Become Human (native Apple Silicon) — chơi tốt
+       ✅ The Witcher 3 (có port macOS) — ổn từ M1 Pro
+       ⚠️ Genshin Impact (có native macOS nhưng chỉ ổn ở Low) — chỉ chơi nhẹ nhàng
+     • Dòng cuối bảng (BẮT BUỘC): "Các game AAA khác (Elden Ring, Cyberpunk 2077, GTA V, Call of Duty, Black Myth: Wukong, Valorant, CS2, Dota 2, ...) KHÔNG có trên macOS. Nếu cần chơi các game này, nên mua máy Windows hoặc cài Parallels/CrossOver (hiệu năng giảm 30-50%)."
+     • Có thể ghi thêm 1 dòng: "Mac chỉ phù hợp giải trí nhẹ, làm việc, đồ họa, lập trình — KHÔNG nên mua Mac nếu mục đích chính là chơi game."
+   - Với máy Mac M1/M2 cũ, RAM 8GB: chỉ chơi mượt game indie. Cần ghi rõ "(khuyến nghị RAM tối thiểu 16GB để chơi game AAA native macOS)".
+
+8. description: TRẢ VỀ HTML THUẦN (không Markdown, không \`\`\`). Cấu trúc bắt buộc, theo đúng thứ tự, mỗi section là một <section>:
 
    <section>
      <h3>🧩 Cấu hình chính</h3>
@@ -139,7 +169,9 @@ QUY TẮC CHUNG:
 
    <section>
      <h3>🎮 Khả năng chơi game</h3>
-     <p>Đánh giá tổng quan 1-2 câu (chơi tốt / chơi nhẹ / không phù hợp gaming).</p>
+     <p><strong>QUAN TRỌNG:</strong> Phải phân biệt 2 trường hợp — chọn biến thể phù hợp theo sản phẩm:</p>
+     <p><strong>Trường hợp A — Máy Apple (MacBook, Mac mini, iMac, Mac Studio chạy chip M1/M2/M3/M4):</strong> Viết thẳng thắn "KHÔNG phù hợp chơi game". KHÔNG liệt kê game Windows (GTA V, Valorant, CS2, Elden Ring, Cyberpunk, COD, Black Myth Wukong, ...) làm ví dụ. Bảng chỉ gồm các game có native macOS/Apple Silicon theo whitelist ở QUY TẮC 7.</p>
+     <p><strong>Trường hợp B — Laptop/PC Windows (mọi máy khác):</strong> Đánh giá tổng quan 1-2 câu (chơi tốt / chơi nhẹ / không phù hợp gaming).</p>
      <table>
        <thead><tr><th>Game</th><th>Mức chơi được</th><th>Setting gợi ý</th></tr></thead>
        <tbody>
