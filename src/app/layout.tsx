@@ -3,12 +3,14 @@ import { Inter } from "next/font/google";
 import { Providers } from "@/providers";
 import { env } from "@/lib/env";
 import { getBrandNameAsync } from "@/lib/brand";
+import { getShopIdFromRequest } from "@/lib/request-shop";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-sans" });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const brandName = await getBrandNameAsync();
+  const shopId = await getShopIdFromRequest();
+  const brandName = await getBrandNameAsync(shopId);
   return {
     title: {
       default: `${brandName} - Laptop Cần Thơ`,
@@ -32,7 +34,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   // Pre-warm brand name so the first paint có thể dùng nếu cần.
-  await getBrandNameAsync();
+  const shopId = await getShopIdFromRequest();
+  await getBrandNameAsync(shopId);
   return (
     <html lang="vi" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>

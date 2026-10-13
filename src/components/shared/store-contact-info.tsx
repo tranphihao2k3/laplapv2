@@ -1,4 +1,4 @@
-/**
+﻿/**
  * StoreContactInfo — Khối hiển thị thông tin liên hệ + thông tin pháp lý.
  * Dùng cho footer, trang /contact và các trang chính sách.
  *
@@ -8,7 +8,7 @@
  */
 import Link from "next/link";
 import { MapPin, Phone, Mail, Building2, FileText, User } from "lucide-react";
-import { getStoreInfo } from "@/lib/store-info";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { telHref } from "@/lib/shop-info";
 import { TradeBadge } from "@/components/shared/trade-badge";
 
@@ -18,7 +18,7 @@ interface Props {
 }
 
 export async function StoreContactInfo({ compact = false }: Props) {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   const tel = telHref(store.phone);
 
   return (

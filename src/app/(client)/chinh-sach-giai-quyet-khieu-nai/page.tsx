@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Gavel } from "lucide-react";
 import { env } from "@/lib/env";
-import { getStoreInfo } from "@/lib/store-info";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { PolicyPage, type PolicySection } from "@/components/shared/policy-page";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return {
     title: "Chính sách giải quyết khiếu nại",
     description: `Quy trình tiếp nhận và giải quyết khiếu nại tại ${store.name} - theo Luật Bảo vệ quyền lợi người tiêu dùng 2010 và Nghị định 52/2013/NĐ-CP.`,
@@ -190,7 +190,7 @@ const sections: PolicySection[] = [
 ];
 
 export default async function KhieuNaiPage() {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return (
     <PolicyPage
       title="Chính sách giải quyết khiếu nại"

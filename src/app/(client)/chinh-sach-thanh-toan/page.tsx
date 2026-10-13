@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { CreditCard } from "lucide-react";
 import { env } from "@/lib/env";
-import { getStoreInfo } from "@/lib/store-info";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { PolicyPage, type PolicySection } from "@/components/shared/policy-page";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return {
     title: "Chính sách thanh toán",
     description: `Chính sách thanh toán tại ${store.name} - tiền mặt, chuyển khoản, thẻ tín dụng, trả góp 0%, ví điện tử. An toàn, bảo mật PCI DSS.`,

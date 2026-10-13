@@ -5,21 +5,31 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Thông tin cửa hàng + thông tin pháp lý đầy đủ (dùng cho trang pháp lý,
  * footer, contact… theo Nghị định 52/2013 + 85/2021 về TMĐT).
  *
- * Nguồn dữ liệu:
- *   1. Bảng `shops` — thông tin liên hệ (name/phone/email/address).
- *   2. Bảng `settings` (group "store", "legal", "contact") — mô tả + thông tin pháp lý
- *      (MST, ĐKKD, người chịu trách nhiệm, link đăng ký Bộ Công Thương…) + thông tin liên hệ.
+ * Nguồn dữ liệu (theo thứ tự ưu tiên, khi có shopId):
+ *   1. Bảng `shops` (name/phone/email/address) — theo domain hiện tại.
+ *   2. Bảng `settings` (group "store", "legal", "contact") — global fallback.
+ *   3. DEFAULTS trong file này — fallback cuối cùng nếu DB lỗi.
  *
- * Sử dụng React `cache()` để nhiều component trong cùng request chỉ query 1 lần.
- * Sử dụng Next.js `unstable_cache()` để cache xuyên request với revalidation.
+ * Khi KHÔNG truyền shopId (vd trang admin global, transactional email):
+ *   → chỉ dùng settings + DEFAULTS, không query shops.
  *
- * Cache tags:
- *   - "store-info": Cho toàn bộ thông tin cửa hàng
- *   - "store-legal": Cho thông tin pháp lý
- *   - "store-contact": Cho thông tin liên hệ
+ * Cache:
+ *   - React `cache()` — trong 1 request nhiều component dùng chung kết quả.
+ *   - Next.js `unstable_cache()` (xem store-info-cached.ts) cho cache xuyên
+ *     request, tách theo shopId.
  *
- * Để invalidate cache sau khi admin lưu settings, gọi:
- *   revalidateTag("store-info")
+ * Cache tags (set bởi store-info-cached.ts):
+ *   - "store-info", "store-legal", "store-contact"
+ *
+ * Invalidate khi admin lưu:
+ *   - revalidateTag("store-info")
+ *   - revalidateTag("store-legal")
+ *   - revalidateTag("store-contact")
+ *
+ * Để mỗi domain hiển thị brand riêng:
+ *   - Middleware resolve shop từ `Host` header → set `x-shop-id`.
+ *   - Layout/API đọc `headers().get("x-shop-id")` rồi truyền vào đây.
+ *   - Nếu shop có name, sẽ ghi đè settings.name.
  */
 
 // ===== Contact Channels =====
@@ -65,6 +75,8 @@ export type StoreInfo = {
   social_links?: SocialLinks;
   // Thông tin pháp lý (NN 52/2013 + 85/2021)
   legal: LegalInfo;
+  // Multi-shop metadata
+  shop_id?: string | null;
 };
 
 export type LegalInfo = {
@@ -155,15 +167,48 @@ function asJson<T>(v: unknown): T | null {
   return null;
 }
 
-export const getStoreInfo = cache(async (): Promise<StoreInfo> => {
-  return _getStoreInfo();
-});
+/**
+ * Read shop row theo shopId. Trả về null nếu không tìm thấy.
+ */
+async function readShopBasic(shopId: string): Promise<{
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+} | null> {
+  try {
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from("shops")
+      .select("name, phone, email, address")
+      .eq("id", shopId)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      name: asString(data.name),
+      phone: asString(data.phone),
+      email: asString(data.email),
+      address: asString(data.address),
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
- * Cached version using Next.js unstable_cache is in store-info-cached.ts
+ * Public entry: trả StoreInfo, có thể cache theo shopId qua React `cache()`.
+ * Cache ở đây CHỈ scope trong 1 request — cache xuyên request là
+ * `getStoreInfoCached` ở store-info-cached.ts.
  */
+export const getStoreInfo = cache(
+  async (shopId?: string | null): Promise<StoreInfo> => {
+    return _getStoreInfo(shopId ?? null);
+  },
+);
 
-async function _getStoreInfo(): Promise<StoreInfo> {
+async function _getStoreInfo(shopId: string | null): Promise<StoreInfo> {
+  // 1) Đọc settings (luôn chạy — cung cấp các field legal/social).
+  let baseInfo: StoreInfo;
   try {
     const supabase = createAdminClient();
     const { data } = await supabase
@@ -215,7 +260,7 @@ async function _getStoreInfo(): Promise<StoreInfo> {
     const opening_hours = asJson<OpeningHours>(map.get("opening_hours")) ?? DEFAULTS.opening_hours;
     const social_links = asJson<SocialLinks>(map.get("social_links")) ?? DEFAULTS.social_links;
 
-    return {
+    baseInfo = {
       name: map.get("name") ?? DEFAULTS.name,
       description: map.get("description") ?? DEFAULTS.description,
       address: map.get("address") ?? DEFAULTS.address,
@@ -229,10 +274,33 @@ async function _getStoreInfo(): Promise<StoreInfo> {
       opening_hours,
       social_links,
       legal,
+      shop_id: null,
     };
   } catch {
-    return { ...DEFAULTS, legal: DEFAULTS_LEGAL };
+    baseInfo = { ...DEFAULTS, legal: DEFAULTS_LEGAL, shop_id: null };
   }
+
+  // 2) Nếu có shopId, đọc thêm `shops` row và override name/phone/email/address.
+  if (shopId) {
+    const shop = await readShopBasic(shopId);
+    if (shop) {
+      baseInfo = {
+        ...baseInfo,
+        name: shop.name ?? baseInfo.name,
+        phone: shop.phone ?? baseInfo.phone,
+        email: shop.email ?? baseInfo.email,
+        address: shop.address ?? baseInfo.address,
+        // Hotline: ưu tiên shop.phone, fallback settings.hotline
+        hotline: shop.phone ?? baseInfo.hotline,
+        shop_id: shopId,
+      };
+    } else {
+      // shopId truyền vào nhưng không tìm thấy → vẫn ghi nhận để UI biết
+      baseInfo = { ...baseInfo, shop_id: shopId };
+    }
+  }
+
+  return baseInfo;
 }
 
 /**
@@ -241,8 +309,8 @@ async function _getStoreInfo(): Promise<StoreInfo> {
  */
 export type StoreContact = Pick<StoreInfo, "name" | "phone" | "email" | "address">;
 
-export async function getStoreContact(): Promise<StoreContact> {
-  const info = await getStoreInfo();
+export async function getStoreContact(shopId?: string | null): Promise<StoreContact> {
+  const info = await getStoreInfo(shopId);
   return {
     name: info.name,
     phone: info.phone,

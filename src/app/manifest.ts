@@ -1,10 +1,13 @@
 import type { MetadataRoute } from "next";
 import { getBrandNameAsync } from "@/lib/brand";
+import { getShopIdFromRequest } from "@/lib/request-shop";
 
 // Web App Manifest — phục vụ tại /manifest.webmanifest.
-// Tên & mô tả lấy từ settings DB (group store, key name/description).
+// Tên & mô tả lấy từ shop của domain hiện tại (qua middleware x-shop-id),
+// fallback về settings (group store, key name) nếu không resolve được shop.
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
-  const brandName = await getBrandNameAsync();
+  const shopId = await getShopIdFromRequest();
+  const brandName = await getBrandNameAsync(shopId);
   return {
     name: `${brandName} - Laptop Cần Thơ`,
     short_name: brandName,

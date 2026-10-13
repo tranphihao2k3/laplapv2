@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import {
   MapPin,
@@ -14,7 +14,7 @@ import {
   Video,
 } from "lucide-react";
 import { env } from "@/lib/env";
-import { getStoreInfo } from "@/lib/store-info";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { telHref } from "@/lib/shop-info";
 import { Reveal } from "@/components/client/home/reveal";
 import { ContactForm } from "@/components/shared/contact-form";
@@ -23,7 +23,7 @@ import { ContactChannels } from "@/components/client/contact/contact-channels";
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return {
     title: "Liên hệ",
     description: `Liên hệ với ${store.name} - Hệ thống bán lẻ laptop chính hãng tại Cần Thơ. Hotline ${store.phone}, showroom tại ${store.address}.`,
@@ -40,7 +40,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ContactPage() {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   const tel = telHref(store.phone);
 
   // Encode địa chỉ cho Google Maps embed

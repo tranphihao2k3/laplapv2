@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Truck } from "lucide-react";
 import { env } from "@/lib/env";
-import { getStoreInfo } from "@/lib/store-info";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { PolicyPage, type PolicySection } from "@/components/shared/policy-page";
 
 const SITE = env.NEXT_PUBLIC_APP_URL;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const store = await getStoreInfo();
+  const store = await getStoreInfoForRequest();
   return {
     title: "Chính sách giao hàng",
     description: `Chính sách giao hàng của ${store.name} - ship nội thành Cần Thơ 2 giờ, ship toàn quốc 2-5 ngày. Miễn phí vận chuyển cho đơn từ 5 triệu.`,

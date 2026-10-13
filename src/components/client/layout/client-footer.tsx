@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { getStoreInfo } from "@/lib/store-info";
+﻿import Link from "next/link";
+import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { getFooterSettings } from "@/lib/footer-settings";
 import { telHref } from "@/lib/shop-info";
 import { TradeBadge } from "@/components/shared/trade-badge";
@@ -24,7 +24,7 @@ const SOCIAL_ICONS: Record<string, LucideIcon> = {
 
 export async function ClientFooter() {
   const [store, footerSettings] = await Promise.all([
-    getStoreInfo(),
+    getStoreInfoForRequest(),
     getFooterSettings(),
   ]);
 

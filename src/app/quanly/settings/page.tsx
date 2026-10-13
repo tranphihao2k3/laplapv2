@@ -121,10 +121,11 @@ function normalizeDomainInput(raw: string | null | undefined): string {
 // ====== Page ======
 export default function SettingsPage() {
   return (
-    <Tabs defaultValue="shop" className="space-y-4">
+    <Tabs defaultValue="brand" className="space-y-4">
       <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <TabsList className="w-max">
-          <TabsTrigger value="shop">Thông tin cửa hàng</TabsTrigger>
+          <TabsTrigger value="brand">Thương hiệu</TabsTrigger>
+          <TabsTrigger value="shop">Cửa hàng</TabsTrigger>
           <TabsTrigger value="org">Tổ chức</TabsTrigger>
           <TabsTrigger value="config">Cấu hình hệ thống</TabsTrigger>
           <TabsTrigger value="trust">Trust Badges</TabsTrigger>
@@ -133,6 +134,9 @@ export default function SettingsPage() {
         </TabsList>
       </div>
 
+      <TabsContent value="brand">
+        <BrandSettings />
+      </TabsContent>
       <TabsContent value="shop">
         <ShopSettings />
       </TabsContent>
@@ -152,6 +156,230 @@ export default function SettingsPage() {
         <FooterSection />
       </TabsContent>
     </Tabs>
+  );
+}
+
+// ====== Brand tab ======
+/**
+ * Tab "Thương hiệu" — UI nổi bật nhất, mặc định mở khi vào /quanly/settings.
+ * Hiển thị: domain hiện tại → shop khớp → cho sửa `shops.name` (tên thương hiệu).
+ * Preview tab title + slogan để admin thấy ngay thay đổi sẽ áp dụng ở đâu.
+ */
+function BrandSettings() {
+  const qc = useQueryClient();
+  const shopsQ = useQuery({
+    queryKey: ["settings-shops"],
+    queryFn: () => httpGet<Paginated<Shop>>("/v1/shops", { page: 1, pageSize: 50 }),
+  });
+  const shops = shopsQ.data?.items ?? [];
+
+  // Domain hiện tại + shopId cookie do middleware set
+  const [currentHost, setCurrentHost] = useState<string>("");
+  const [currentShopId, setCurrentShopId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setCurrentHost(window.location.host);
+    // Cookie 'shop_id' do middleware (src/middleware.ts) set. Path=/, sameSite=lax.
+    const match = document.cookie.match(/(?:^|;\s*)shop_id=([^;]+)/);
+    setCurrentShopId(match ? decodeURIComponent(match[1]) : null);
+  }, []);
+
+  // Chọn shop mặc định: ưu tiên shop của domain hiện tại → fallback shop đầu tiên
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (selectedId) return;
+    const fromCookie = currentShopId ? shops.find((s) => s.id === currentShopId) : null;
+    setSelectedId(fromCookie?.id ?? shops[0]?.id ?? null);
+  }, [shops, currentShopId, selectedId]);
+
+  const selected = shops.find((s) => s.id === selectedId) ?? null;
+
+  const [brandName, setBrandName] = useState("");
+  const [tagline, setTagline] = useState("Cửa hàng laptop uy tín");
+  useEffect(() => {
+    if (selected) setBrandName(selected.name ?? "");
+  }, [selected?.id, selected?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const update = useMutation({
+    mutationFn: (body: { name: string }) =>
+      httpPatch<Shop>(`/v1/shops/${selected!.id}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["settings-shops"] });
+      invalidateBrandCache();
+      toast.success("Đã cập nhật tên thương hiệu. Tải lại tab khác để xem ngay.");
+    },
+    onError: (e) => toast.error(getApiErrorMsg(e)),
+  });
+
+  const matchedByCookie = currentShopId && shops.some((s) => s.id === currentShopId);
+  const matchedByPrimaryDomain = currentHost
+    ? shops.find((s) => (s.primary_domain ?? "").toLowerCase() === currentHost.toLowerCase())
+    : null;
+  const matchedByAllowed = currentHost
+    ? shops.find((s) => (s.allowed_domains ?? []).some((d) => d.toLowerCase() === currentHost.toLowerCase()))
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Tên thương hiệu theo từng domain</CardTitle>
+          <CardDescription>
+            Mỗi domain có thể hiển thị một tên thương hiệu khác nhau. Tên này sẽ xuất hiện
+            trên tab trình duyệt, logo header, manifest PWA, email xác nhận và trang pháp lý.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-muted-foreground">Domain hiện tại:</span>
+              <code className="rounded bg-background px-2 py-0.5 font-mono text-xs">
+                {currentHost || "—"}
+              </code>
+              <span className="text-muted-foreground">→ Shop:</span>
+              <span className="font-medium">
+                {selected?.name ?? "(chưa chọn)"}
+                {matchedByPrimaryDomain && (
+                  <span className="ml-2 text-xs text-emerald-600">primary_domain</span>
+                )}
+                {matchedByAllowed && !matchedByPrimaryDomain && (
+                  <span className="ml-2 text-xs text-emerald-600">allowed_domains</span>
+                )}
+                {!matchedByPrimaryDomain && !matchedByAllowed && currentHost && (
+                  <span className="ml-2 text-xs text-amber-600">chưa map → dùng global</span>
+                )}
+              </span>
+            </div>
+            {currentHost && !matchedByCookie && (
+              <p className="mt-2 text-xs text-amber-700">
+                ⚠️ Domain này chưa được map với shop nào trong cơ sở dữ liệu. Thêm nó vào
+                <strong> primary_domain</strong> hoặc <strong>allowed_domains</strong> ở
+                tab <em>Cửa hàng</em> để phân biệt brand giữa các domain.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Chỉnh tên thương hiệu</CardTitle>
+            <CardDescription>
+              Sửa trực tiếp <code>shops.name</code>. Sau khi lưu, các domain trỏ về
+              shop này sẽ hiển thị tên mới.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {shopsQ.isLoading ? (
+              <p className="text-sm text-muted-foreground">Đang tải danh sách cửa hàng…</p>
+            ) : shops.length === 0 ? (
+              <p className="text-sm text-amber-700">
+                Chưa có cửa hàng nào. Tạo mới ở tab <strong>Cửa hàng</strong> trước.
+              </p>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Áp dụng cho cửa hàng</Label>
+                  <Select value={selectedId ?? ""} onValueChange={setSelectedId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn cửa hàng" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shops.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                          {s.primary_domain ? ` · ${s.primary_domain}` : s.code ? ` · ${s.code}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    Tên thương hiệu <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    value={brandName}
+                    onChange={(e) => setBrandName(e.target.value)}
+                    placeholder="VD: LapLap Cần Thơ, Laptop Thành Võ..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Tên này sẽ thay thế <code>settings.name</code> cho mọi request
+                    đến từ domain trỏ về shop này.
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => selected && setBrandName(selected.name ?? "")}
+                    disabled={!selected}
+                  >
+                    Hoàn tác
+                  </Button>
+                  <Button
+                    disabled={!selected || !brandName.trim() || update.isPending}
+                    onClick={() => {
+                      if (!selected) return;
+                      update.mutate({ name: brandName.trim() });
+                    }}
+                  >
+                    {update.isPending ? "Đang lưu..." : "Lưu tên thương hiệu"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Xem trước</CardTitle>
+            <CardDescription>
+              Cách tên thương hiệu sẽ hiển thị.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Tab trình duyệt
+              </div>
+              <div className="mt-1 truncate rounded border bg-background px-2 py-1 font-mono text-xs">
+                {brandName || "LapLap"} - Laptop Cần Thơ | Trang chủ
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Logo header
+              </div>
+              <div className="mt-1 text-2xl font-bold tracking-tight">
+                <span className="text-primary">
+                  {(brandName || "LapLap").slice(0, 3) || "Web"}
+                </span>
+                <span>{(brandName || "LapLap").slice(3)}</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                PWA Manifest
+              </div>
+              <div className="mt-1 truncate rounded border bg-background px-2 py-1 font-mono text-xs">
+                {brandName || "LapLap"} - Laptop Cần Thơ
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Tên trong manifest.webmanifest
+              </div>
+              <div className="mt-1 rounded border bg-background px-2 py-1 font-mono text-xs">
+                short_name: "{brandName || "LapLap"}"
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 
