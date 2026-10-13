@@ -7,6 +7,60 @@ import { createCrud, type ListQuery } from "./_crud-factory";
 import { requireOrg } from "@/lib/api/guard";
 import { rangeOf, paginated } from "@/lib/api/response";
 
+/**
+ * Cache schema của bảng shops: query 1 lần thông qua information_schema để
+ * biết những cột nào THỰC SỰ tồn tại trong DB. Dùng để filter input PATCH/
+ * POST trước khi gửi sang Supabase, tránh lỗi PG_PGRST204 khi migration
+ * (vd: thêm cột primary_domain, allowed_domains) chưa được apply trên DB.
+ *
+ * Cache per-process, TTL 60s. Nếu DB reject query (RLS hoặc không accessible)
+ * → fallback trả về `null`, nghĩa là "không filter" — caller chịu trách
+ * nhiệm nếu cột thực sự thiếu.
+ */
+type ColumnSet = Set<string>;
+let shopsColumnsCache: { cols: ColumnSet | null; expires: number } | null = null;
+const SHOPS_COLUMNS_TTL_MS = 60_000;
+
+async function getShopsTableColumns(db: unknown): Promise<ColumnSet | null> {
+  const now = Date.now();
+  if (shopsColumnsCache && shopsColumnsCache.expires > now) {
+    return shopsColumnsCache.cols;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (db as any)
+      .from("information_schema.columns")
+      .select("column_name")
+      .eq("table_schema", "public")
+      .eq("table_name", "shops");
+    if (error || !data) {
+      shopsColumnsCache = { cols: null, expires: now + SHOPS_COLUMNS_TTL_MS };
+      return null;
+    }
+    const cols = new Set<string>(
+      (data as Array<{ column_name: string }>).map((r) => r.column_name),
+    );
+    shopsColumnsCache = { cols, expires: now + SHOPS_COLUMNS_TTL_MS };
+    return cols;
+  } catch {
+    shopsColumnsCache = { cols: null, expires: now + SHOPS_COLUMNS_TTL_MS };
+    return null;
+  }
+}
+
+/** Loại bỏ các key trong `input` mà cột tương ứng chưa tồn tại trong DB. */
+function stripMissingColumns(
+  input: Record<string, unknown>,
+  cols: ColumnSet | null,
+): Record<string, unknown> {
+  if (!cols) return input;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (cols.has(k)) out[k] = v;
+  }
+  return out;
+}
+
 // ===== Organizations & people =====
 export const organizationsService = createCrud({
   table: "organizations",
@@ -57,6 +111,7 @@ export const shopsService = {
   },
 
   async create(db: ShopsDB, input: Record<string, unknown>): Promise<ShopsRow> {
+    const cols = await getShopsTableColumns(db);
     let code = input.code as string | null | undefined;
 
     // Auto-generate code from name if not provided
@@ -87,14 +142,20 @@ export const shopsService = {
     const { orgId } = await requireOrg();
     if (payload.organization_id == null) payload.organization_id = orgId;
 
+    // Filter: bỏ các field chưa có cột trong DB (vd: primary_domain,
+    // allowed_domains khi migration chưa apply). Tránh PG_PGRST204.
+    const safePayload = stripMissingColumns(payload, cols) as typeof payload;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (db.from("shops") as any).insert(payload).select().single();
+    const { data, error } = await (db.from("shops") as any).insert(safePayload).select().single();
     if (error) throw error;
     return data as ShopsRow;
   },
 
   async update(db: ShopsDB, id: string, input: Record<string, unknown>) {
-    return createCrud({ table: "shops", searchColumns: ["name", "code", "phone", "email"], allowedSortColumns: ["name", "code", "created_at"], defaultOrder: { column: "created_at", ascending: false }, autoStampOrg: true }).update(db, id, input);
+    const cols = await getShopsTableColumns(db);
+    const filtered = stripMissingColumns({ ...input }, cols);
+    return createCrud({ table: "shops", searchColumns: ["name", "code", "phone", "email"], allowedSortColumns: ["name", "code", "created_at"], defaultOrder: { column: "created_at", ascending: false }, autoStampOrg: true }).update(db, id, filtered);
   },
 
   async remove(db: ShopsDB, id: string) {
