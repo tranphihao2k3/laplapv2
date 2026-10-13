@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/client";
 import { exportElementToPdf } from "@/lib/pc-builder/pdf";
+import { useStoreSettings } from "@/components/client/layout/use-store-settings";
 import {
   computeTotal,
   formatDateTime,
@@ -106,6 +107,14 @@ export function PcBuildDetail({ initialBuild }: { initialBuild: InitialPayload }
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const { build, items, user } = initialBuild;
+
+  // Lấy thông tin cửa hàng để render phiếu in (thay vì hardcode "LapLap Laptop").
+  // Không fetch on mount vì trang này chỉ cần data khi in.
+  const { settings: storeSettings } = useStoreSettings({ fetchOnMount: false });
+  const brandName = storeSettings?.name?.trim() || "Website";
+  const storePhone = storeSettings?.hotline?.trim() || storeSettings?.phone?.trim() || "";
+  const storeAddress = storeSettings?.address?.trim() || "";
+  const storeEmail = storeSettings?.email?.trim() || "";
 
   // Tổng tiền: ưu tiên build.total_price, fallback tính lại từ items (đề phòng lệch).
   const itemsTotal = useMemo(() => computeTotal(items), [items]);
@@ -193,6 +202,10 @@ export function PcBuildDetail({ initialBuild }: { initialBuild: InitialPayload }
         items={items}
         userLabel={userLabel}
         total={total}
+        brandName={brandName}
+        storePhone={storePhone}
+        storeAddress={storeAddress}
+        storeEmail={storeEmail}
       />
 
       <AlertDialog open={deletingOpen} onOpenChange={(o) => !o && setDeletingOpen(false)}>
@@ -200,7 +213,7 @@ export function PcBuildDetail({ initialBuild }: { initialBuild: InitialPayload }
           <AlertDialogHeader>
             <AlertDialogTitle>Xoá cấu hình này?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cấu hình <strong>"{build.name || "(chưa đặt tên)"}"</strong> sẽ bị xoá cùng
+              Cấu hình <strong>&quot;{build.name || "(chưa đặt tên)"}&quot;</strong> sẽ bị xoá cùng
               toàn bộ linh kiện trong build. Hành động không thể hoàn tác.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -229,11 +242,19 @@ function BuildReceipt({
   items,
   userLabel,
   total,
+  brandName,
+  storePhone,
+  storeAddress,
+  storeEmail,
 }: {
   build: PcBuildRow;
   items: ItemView[];
   userLabel: string;
   total: number;
+  brandName: string;
+  storePhone: string;
+  storeAddress: string;
+  storeEmail: string;
 }) {
   return (
     <Card id="pc-builder-receipt" className="border shadow-sm print:shadow-none print:border-black">
@@ -267,7 +288,7 @@ function BuildReceipt({
                 L
               </div>
               <div>
-                <div className="text-xl font-bold">LapLap Laptop</div>
+                <div className="text-xl font-bold">{brandName}</div>
                 <div className="text-xs text-gray-600">Cửa hàng Laptop &amp; Linh kiện PC</div>
               </div>
             </div>
@@ -387,10 +408,10 @@ function BuildReceipt({
         <div className="hidden print:block mt-6 pt-3 border-t border-black/40 text-xs text-gray-600">
           <div className="flex items-start justify-between gap-6">
             <div>
-              <div className="font-semibold mb-1">LapLap Laptop</div>
-              <div>Hotline: 1900-xxxx</div>
-              <div>Địa chỉ: —</div>
-              <div>Website: laplap.vn</div>
+              <div className="font-semibold mb-1">{brandName}</div>
+              {storePhone && <div>Hotline: {storePhone}</div>}
+              {storeAddress && <div>Địa chỉ: {storeAddress}</div>}
+              {storeEmail && <div>Website: {storeEmail}</div>}
             </div>
             <div className="text-right">
               <div className="italic mb-6">Cảm ơn quý khách!</div>

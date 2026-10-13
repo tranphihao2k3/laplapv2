@@ -41,13 +41,38 @@ export async function ClientFooter() {
   }).filter(([, url]) => !!url) as [string, string][];
 
   // Gộp nhóm cột để hiển thị gọn: lấy tối đa 3 cột, mỗi cột tối đa 5 link.
+  // Đồng thời resolve template `{{brandName}}` trong title/label (để mặc định
+  // động theo store.name, không phải hardcode).
+  const resolveTemplate = (s: string) =>
+    s.replace(/\{\{\s*brandName\s*\}\}/gi, store.name ?? "");
   const visibleColumns = columns.slice(0, 3).map((c) => ({
     ...c,
-    links: c.links.slice(0, 5),
+    title: resolveTemplate(c.title),
+    links: c.links.slice(0, 5).map((l) => ({
+      ...l,
+      label: resolveTemplate(l.label),
+    })),
   }));
 
-  const hoursLine = opening
-    ? [opening.weekday, opening.saturday, opening.sunday].filter(Boolean).join(" · ")
+  // Format giờ mở cửa gọn, dễ đọc. Hỗ trợ cả field cũ `weekend` (alias
+  // cho "Thứ 7 + Chủ nhật"). Mỗi dòng có prefix ngày nếu biết.
+  const hoursParts: string[] = [];
+  if (opening?.weekday) {
+    hoursParts.push(`T2-T6: ${opening.weekday}`);
+  }
+  if (opening?.saturday) {
+    hoursParts.push(`T7: ${opening.saturday}`);
+  } else if (opening?.weekend) {
+    hoursParts.push(`Cuối tuần: ${opening.weekend}`);
+  }
+  if (opening?.sunday) {
+    hoursParts.push(`CN: ${opening.sunday}`);
+  }
+  if (opening?.holidays) {
+    hoursParts.push(`Lễ: ${opening.holidays}`);
+  }
+  const hoursLine = hoursParts.length
+    ? hoursParts.join(" · ")
     : "8:00 - 21:00";
 
   return (

@@ -15,16 +15,20 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const sections: PolicySection[] = [
+const buildSections = (
+  storeName: string,
+  brandName: string,
+  storeDomain: string,
+): PolicySection[] => [
   {
     id: "chap-nhan",
     title: "Chấp nhận điều khoản",
     content: (
       <>
         <p>
-          Bằng việc truy cập và sử dụng website <strong>laplapcantho.store</strong> (sau đây gọi là
-          &ldquo;Website&rdquo;) của <strong>CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPLAP</strong> (sau đây gọi là
-          &ldquo;LapLap&rdquo;, &ldquo;chúng tôi&rdquo;), bạn đồng ý tuân thủ các điều khoản và điều kiện sử dụng được
+          Bằng việc truy cập và sử dụng website <strong>{storeDomain}</strong> (sau đây gọi là
+          &ldquo;Website&rdquo;) của <strong>{brandName}</strong> (sau đây gọi là
+          &ldquo;{storeName}&rdquo;, &ldquo;chúng tôi&rdquo;), bạn đồng ý tuân thủ các điều khoản và điều kiện sử dụng được
           nêu dưới đây.
         </p>
         <p>
@@ -40,7 +44,7 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          LapLap có quyền sửa đổi, bổ sung điều khoản bất kỳ lúc nào. Phiên bản mới nhất luôn
+          {storeName} có quyền sửa đổi, bổ sung điều khoản bất kỳ lúc nào. Phiên bản mới nhất luôn
           được đăng tại đây với ngày cập nhật. Việc bạn tiếp tục sử dụng Website sau khi có
           thay đổi đồng nghĩa với việc chấp nhận điều khoản mới.
         </p>
@@ -64,7 +68,7 @@ const sections: PolicySection[] = [
             Thông báo ngay cho chúng tôi nếu phát hiện truy cập trái phép vào tài khoản.
           </li>
           <li>
-            LapLap có quyền khoá hoặc xoá tài khoản vi phạm điều khoản mà không cần báo trước.
+            {storeName} có quyền khoá hoặc xoá tài khoản vi phạm điều khoản mà không cần báo trước.
           </li>
         </ul>
       </>
@@ -92,8 +96,8 @@ const sections: PolicySection[] = [
             Thu thập thông tin người dùng khác mà không có sự đồng ý.
           </li>
           <li>
-            Sử dụng Website vào mục đích thương mại mà không có thoả thuận bằng văn bản với
-            LapLap.
+            Sử dụng Website vào mục đích thương mại mà không có thoả thuận bằng văn bản với{" "}
+            {storeName}.
           </li>
           <li>
             Mạo danh cá nhân/tổ chức khác.
@@ -109,7 +113,7 @@ const sections: PolicySection[] = [
       <>
         <p>
           Toàn bộ nội dung trên Website (văn bản, hình ảnh, logo, biểu tượng, video, mã
-          nguồn…) thuộc quyền sở hữu của <strong>LapLap</strong> hoặc các đối tác được cấp
+          nguồn…) thuộc quyền sở hữu của <strong>{storeName}</strong> hoặc các đối tác được cấp
           phép, được bảo vệ bởi Luật Sở hữu trí tuệ Việt Nam và các điều ước quốc tế.
         </p>
         <p>
@@ -130,7 +134,7 @@ const sections: PolicySection[] = [
             Đơn hàng được xác nhận qua email/SĐT trong vòng 2 giờ làm việc (trừ ngoài giờ).
           </li>
           <li>
-            LapLap có quyền từ chối đơn hàng nếu phát hiện dấu hiệu gian lận, sai giá, hoặc không
+            {storeName} có quyền từ chối đơn hàng nếu phát hiện dấu hiệu gian lận, sai giá, hoặc không
             đủ tồn kho.
           </li>
           <li>
@@ -150,11 +154,11 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          LapLap <strong>không chịu trách nhiệm</strong> cho các thiệt hại gián tiếp, ngẫu
+          {storeName} <strong>không chịu trách nhiệm</strong> cho các thiệt hại gián tiếp, ngẫu
           nhiên, đặc biệt phát sinh từ việc sử dụng hoặc không thể sử dụng Website.
         </p>
         <p>
-          Trong phạm vi pháp luật cho phép, tổng trách nhiệm của LapLap không vượt quá giá
+          Trong phạm vi pháp luật cho phép, tổng trách nhiệm của {storeName} không vượt quá giá
           trị đơn hàng của bạn.
         </p>
       </>
@@ -184,7 +188,7 @@ const sections: PolicySection[] = [
       <>
         <p>Mọi câu hỏi về Điều khoản sử dụng, vui lòng liên hệ:</p>
         <ul>
-          <li>CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPLAP</li>
+          <li>{brandName}</li>
           <li>Địa chỉ: 123 Nguyễn Văn Cừ, Ninh Kiều, Cần Thơ</li>
           <li>Email: info@laplap.vn</li>
           <li>Hotline: 1900 1234</li>
@@ -196,6 +200,12 @@ const sections: PolicySection[] = [
 
 export default async function DieuKhoanPage() {
   const store = await getStoreInfoForRequest();
+  // `store.legal.business_name` có thể rỗng → fallback về store.name.
+  const brandName = store.legal.business_name?.trim() || store.name;
+  // Lấy domain từ header host nếu middleware đã resolve shop, fallback về app URL.
+  // (Server component này không có `headers()` tự động — dùng giá trị fallback.)
+  const storeDomain = env.NEXT_PUBLIC_APP_URL;
+  const sections = buildSections(store.name, brandName, storeDomain);
   return (
     <PolicyPage
       title="Điều khoản sử dụng"
