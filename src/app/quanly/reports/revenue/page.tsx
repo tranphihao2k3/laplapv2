@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCrudList } from "@/lib/api/admin-crud";
+import { useMyShops } from "@/lib/api/admin-crud";
 import { httpGet } from "@/lib/api/http";
 
-type Shop = { id: string; name: string };
 type RevenueReport = {
   summary: { totalRevenue: number; completedOrders: number; cancelledOrders: number; totalOrders: number; averageOrderValue: number };
   series: Array<{ bucket: string; revenue: number; orders: number; cancelled: number }>;
@@ -30,8 +29,8 @@ export default function RevenueReportPage() {
   const [shopId, setShopId] = useState("");
   const [groupBy, setGroupBy] = useState<"day" | "week" | "month">("day");
 
-  const shopsQ = useCrudList<Shop>("shops", { pageSize: 100 });
-  const shops = shopsQ.data?.items ?? [];
+  const shopsQ = useMyShops();
+  const shops = shopsQ.data ?? [];
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["revenue-report", from, to, shopId, groupBy],

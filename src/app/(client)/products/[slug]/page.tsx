@@ -20,7 +20,7 @@ import { ProductSpecs } from "@/components/client/product/product-specs";
 import { ProductDescription } from "@/components/client/product/product-description";
 import { WarrantyPolicy } from "@/components/client/product/warranty-policy";
 import { RelatedProducts } from "@/components/client/product/related-products";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProductTabs } from "@/components/client/product/product-tabs";
 import { Reveal } from "@/components/client/home/reveal";
 import { ScrollProgressBar } from "@/components/client/product/scroll-progress-bar";
 import type { ProductWithVariants } from "@/components/client/product/types";
@@ -274,7 +274,7 @@ export default async function ProductDetailPage({
   };
 
   return (
-    <div className="container relative py-6 pb-28 lg:py-8 lg:pb-8">
+    <div className="container relative overflow-x-hidden py-4 pb-24 sm:py-6 sm:pb-28 lg:py-8 lg:pb-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
@@ -302,7 +302,7 @@ export default async function ProductDetailPage({
       </Reveal>
 
       {/* Main section */}
-      <div className="mt-5 grid gap-6 sm:mt-7 sm:gap-8 lg:grid-cols-2 lg:gap-14">
+      <div className="mt-3 grid gap-5 sm:mt-7 sm:gap-8 lg:grid-cols-2 lg:gap-14">
         <Reveal variant="fade-left" duration={700}>
           <ProductGallery images={product.images} productName={product.name} />
         </Reveal>
@@ -313,60 +313,28 @@ export default async function ProductDetailPage({
         </Reveal>
       </div>
 
-      {/* Detail tabs */}
+      {/* Detail tabs — sticky trên mobile */}
       <Reveal variant="fade-up" duration={700}>
-        <div className="mt-12 sm:mt-20">
-          <Tabs defaultValue="description" className="w-full">
-            <div className="relative -mx-1 overflow-x-auto px-1 scrollbar-none sm:mx-0 sm:px-0">
-              <TabsList className="inline-flex h-auto w-auto min-w-full gap-1 rounded-2xl border bg-card/80 p-1 shadow-sm backdrop-blur-sm sm:flex">
-                <TabsTrigger
-                  value="description"
-                  className="tab-underline relative whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-fuchsia-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-                >
-                  Mô tả chi tiết
-                </TabsTrigger>
-                {hasSpecs && (
-                  <TabsTrigger
-                    value="specs"
-                    className="tab-underline relative whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-fuchsia-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-                  >
-                    Thông số kỹ thuật
-                  </TabsTrigger>
-                )}
-                <TabsTrigger
-                  value="policy"
-                  className="tab-underline relative whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-fuchsia-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:text-sm"
-                >
-                  Bảo hành &amp; Chính sách
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="description" className="mt-6 animate-fade-in-up sm:mt-8">
+        <div className="mt-10 sm:mt-20">
+          <ProductTabs
+            hasSpecs={!!hasSpecs}
+            description={
               <ProductDescription
                 description={product.description}
                 shortDescription={product.short_description}
                 productName={product.name}
                 specs={product.variants?.[0]?.specs as Record<string, string> | null}
               />
-            </TabsContent>
-
-            {hasSpecs && (
-              <TabsContent value="specs" className="mt-6 animate-fade-in-up sm:mt-8">
-                <ProductSpecs product={product} />
-              </TabsContent>
-            )}
-
-            <TabsContent value="policy" className="mt-6 animate-fade-in-up sm:mt-8">
-              <WarrantyPolicy />
-            </TabsContent>
-          </Tabs>
+            }
+            specs={hasSpecs ? <ProductSpecs product={product} /> : null}
+            policy={<WarrantyPolicy />}
+          />
         </div>
       </Reveal>
 
       {/* Related products */}
       <Reveal variant="fade-up" duration={700}>
-        <div className="mt-16 sm:mt-24">
+        <div className="mt-12 sm:mt-24">
           <RelatedProducts products={related} />
         </div>
       </Reveal>

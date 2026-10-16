@@ -156,10 +156,6 @@ export const PERMISSION_PRESETS: PermissionPreset[] = [
   { code: "organizations.create", description: "Tạo tổ chức — /api/v1/organizations (POST)", group: "Tổ chức", apiEnforced: true },
   { code: "organizations.update", description: "Cập nhật tổ chức — /api/v1/organizations/{id}", group: "Tổ chức", apiEnforced: true },
   { code: "organizations.delete", description: "Xóa tổ chức — /api/v1/organizations/{id} (DELETE)", group: "Tổ chức", apiEnforced: true },
-  { code: "shops.read", description: "Xem cửa hàng — /api/v1/shops", group: "Tổ chức", apiEnforced: true },
-  { code: "shops.create", description: "Tạo cửa hàng — /api/v1/shops (POST)", group: "Tổ chức", apiEnforced: true },
-  { code: "shops.update", description: "Cập nhật cửa hàng — /api/v1/shops/{id}", group: "Tổ chức", apiEnforced: true },
-  { code: "shops.delete", description: "Xóa cửa hàng — /api/v1/shops/{id} (DELETE)", group: "Tổ chức", apiEnforced: true },
 
   // ===== Hệ thống =====
   { code: "audit_logs.read", description: "Xem nhật ký hệ thống — /api/v1/audit-logs", group: "Hệ thống", apiEnforced: true },

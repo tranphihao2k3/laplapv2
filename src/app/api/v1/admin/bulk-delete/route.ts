@@ -42,7 +42,6 @@ const bodySchema = z.object({
  */
 const ENTITY_PERMISSIONS: Record<string, string> = {
   organizations: "organizations.delete",
-  shops: "shops.delete",
   warehouses: "warehouses.delete",
   "user-profiles": "user_profiles.delete",
   roles: "roles.delete",
@@ -80,7 +79,6 @@ const ENTITY_PERMISSIONS: Record<string, string> = {
 /** Map từ URL entity sang key trong services. */
 const ENTITY_TO_SERVICE: Record<string, keyof typeof services> = {
   organizations: "organizationsService",
-  shops: "shopsService",
   warehouses: "warehousesService",
   "user-profiles": "userProfilesService",
   roles: "rolesService",

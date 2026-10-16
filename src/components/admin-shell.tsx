@@ -54,11 +54,11 @@ export function AdminShell({
   return (
     <SidebarProvider>
       <AppSidebar variant="inset" user={user} />
-      <SidebarInset className="md:peer-data-[variant=inset]:ml-2">
+      <SidebarInset className="min-w-0 md:peer-data-[variant=inset]:ml-2">
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2 px-4 md:px-6">
-            <div key={pathname} className="flex flex-col gap-4 py-4 animate-fade-in md:gap-6 md:py-6">
+          <div className="@container/main flex flex-1 flex-col gap-2 px-3 sm:px-4 md:px-6">
+            <div key={pathname} className="flex min-w-0 flex-col gap-4 py-4 animate-fade-in md:gap-6 md:py-6">
               {children}
             </div>
           </div>

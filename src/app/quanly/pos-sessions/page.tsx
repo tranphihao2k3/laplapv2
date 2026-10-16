@@ -37,7 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCrudList } from "@/lib/api/admin-crud";
+import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { httpPost } from "@/lib/api/http";
 
 type Session = {
@@ -51,8 +51,6 @@ type Session = {
   expected_cash: number | null;
   difference_cash: number | null;
 };
-
-type Shop = { id: string; name: string; code: string | null };
 
 function fmtCurrency(v: number | null | undefined) {
   return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(v ?? 0);
@@ -68,9 +66,9 @@ function getApiMsg(e: unknown) {
 export default function PosSessionsPage() {
   const qc = useQueryClient();
   const sessionQ = useCrudList<Session>("pos-sessions", { page: 1, pageSize: 100 });
-  const shopQ = useCrudList<Shop>("shops", { page: 1, pageSize: 100 });
+  const shopQ = useMyShops();
 
-  const shopMap = useMemo(() => new Map((shopQ.data?.items ?? []).map((s) => [s.id, s])), [shopQ.data]);
+  const shopMap = useMemo(() => new Map((shopQ.data ?? []).map((s) => [s.id, s])), [shopQ.data]);
   const sessions = sessionQ.data?.items ?? [];
 
   const openSessions = sessions.filter((s) => !s.closed_at);
@@ -210,7 +208,7 @@ export default function PosSessionsPage() {
               <Select value={shopId} onValueChange={setShopId}>
                 <SelectTrigger><SelectValue placeholder="Chọn cửa hàng" /></SelectTrigger>
                 <SelectContent>
-                  {(shopQ.data?.items ?? []).map((s) => (
+                  {(shopQ.data ?? []).map((s) => (
                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                   ))}
                 </SelectContent>

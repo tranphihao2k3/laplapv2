@@ -55,7 +55,8 @@ import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-ac
 import { ActiveBadge, IdCell, RowActions, RowIndexCell } from "@/components/admin/table-cells";
 
 type Organization = { id: string; name: string; code: string | null };
-type Shop = { id: string; organization_id: string | null; name: string; code: string | null };
+// Shop: single-shop mode. Giữ type rỗng để tương thích với code cũ (nhiều row
+// warehouses vẫn có shop_id từ trước, sẽ hiển thị raw id).
 
 type Warehouse = {
   id: string;
@@ -116,13 +117,11 @@ export default function WarehousesAdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [filterOrg, setFilterOrg] = useState("");
-  const [filterShop, setFilterShop] = useState("");
   const [filterType, setFilterType] = useState("");
 
   const [formName, setFormName] = useState("");
   const [formCode, setFormCode] = useState("");
   const [formOrgId, setFormOrgId] = useState("");
-  const [formShopId, setFormShopId] = useState("");
   const [formType, setFormType] = useState("");
   const [formAddress, setFormAddress] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
@@ -134,11 +133,6 @@ export default function WarehousesAdminPage() {
     queryFn: () => httpGet<Paginated<Organization>>("/v1/organizations?pageSize=100"),
   });
 
-  const shopsQuery = useQuery({
-    queryKey: ["shops", "list"],
-    queryFn: () => httpGet<Paginated<Shop>>("/v1/shops?pageSize=100"),
-  });
-
   const list = useCrudList<Warehouse>("warehouses", { search, page: 1, pageSize: 100 });
   const createMutation = useCrudCreate<Warehouse, Record<string, unknown>>("warehouses");
   const updateMutation = useCrudUpdate<Warehouse, Record<string, unknown>>("warehouses");
@@ -147,25 +141,13 @@ export default function WarehousesAdminPage() {
   const selection = useBulkSelection();
 
   const organizations = orgsQuery.data?.items ?? [];
-  const shops = shopsQuery.data?.items ?? [];
   const rows = list.data?.items ?? [];
-
-  const filteredShops = useMemo(() => {
-    if (!filterOrg) return shops;
-    return shops.filter((s) => s.organization_id === filterOrg);
-  }, [shops, filterOrg]);
-
-  const formFilteredShops = useMemo(() => {
-    if (!formOrgId) return shops;
-    return shops.filter((s) => s.organization_id === formOrgId);
-  }, [shops, formOrgId]);
 
   function resetForm() {
     setEditingId(null);
     setFormName("");
     setFormCode("");
     setFormOrgId("");
-    setFormShopId("");
     setFormType("");
     setFormAddress("");
     setFormIsActive(true);
@@ -183,7 +165,6 @@ export default function WarehousesAdminPage() {
     setFormName(row.name ?? "");
     setFormCode(row.code ?? "");
     setFormOrgId(row.organization_id ?? "");
-    setFormShopId(row.shop_id ?? "");
     setFormType(row.type ?? "");
     setFormAddress(row.address ?? "");
     setFormIsActive(row.is_active ?? true);
@@ -211,7 +192,6 @@ export default function WarehousesAdminPage() {
       phone: formPhone.trim() || null,
     };
     if (formOrgId) payload.organization_id = formOrgId;
-    if (formShopId) payload.shop_id = formShopId;
     try {
       if (editingId) {
         await updateMutation.mutateAsync({ id: editingId, input: payload });
@@ -248,14 +228,11 @@ export default function WarehousesAdminPage() {
     if (filterOrg) {
       result = result.filter((r) => r.organization_id === filterOrg);
     }
-    if (filterShop) {
-      result = result.filter((r) => r.shop_id === filterShop);
-    }
     if (filterType) {
       result = result.filter((r) => r.type === filterType);
     }
     return result;
-  }, [rows, filterOrg, filterShop, filterType]);
+  }, [rows, filterOrg, filterType]);
 
   const pageIds = useMemo(() => filteredRows.map((r) => r.id), [filteredRows]);
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
@@ -316,7 +293,7 @@ export default function WarehousesAdminPage() {
               <Warehouse className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground whitespace-nowrap">Bộ lọc:</span>
             </div>
-            <Select value={filterOrg} onValueChange={(v) => { setFilterOrg(v); setFilterShop(""); }}>
+            <Select value={filterOrg} onValueChange={setFilterOrg}>
               <SelectTrigger className="w-52">
                 <SelectValue placeholder="Tất cả tổ chức" />
               </SelectTrigger>
@@ -326,19 +303,6 @@ export default function WarehousesAdminPage() {
                   <SelectItem key={o.id} value={o.id}>
                     {o.name ?? o.id}
                     {o.code ? <span className="ml-1 text-xs text-muted-foreground">({o.code})</span> : null}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterShop} onValueChange={setFilterShop}>
-              <SelectTrigger className="w-52">
-                <SelectValue placeholder="Tất cả cửa hàng" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Tất cả cửa hàng</SelectItem>
-                {filteredShops.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name ?? s.id}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -418,7 +382,6 @@ export default function WarehousesAdminPage() {
                 </TableRow>
               ) : (
                 filteredRows.map((row, idx) => {
-                  const shop = shops.find((s) => s.id === row.shop_id);
                   const checked = selection.isSelected(row.id);
                   return (
                     <TableRow key={row.id} data-state={checked ? "selected" : undefined}>
@@ -440,7 +403,7 @@ export default function WarehousesAdminPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {shop?.name ?? row.shop_id ?? "—"}
+                        {row.shop_id ?? "—"}
                       </TableCell>
                       <TableCell className="max-w-[160px] truncate" title={row.address ?? ""}>
                         {row.address ?? "—"}
@@ -520,7 +483,7 @@ export default function WarehousesAdminPage() {
               <Label>Tổ chức</Label>
               <Select
                 value={formOrgId}
-                onValueChange={(v) => { setFormOrgId(v === "__none__" ? "" : v); setFormShopId(""); }}
+                onValueChange={(v) => setFormOrgId(v === "__none__" ? "" : v)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={orgsQuery.isLoading ? "Đang tải..." : "Chọn tổ chức"} />
@@ -531,26 +494,6 @@ export default function WarehousesAdminPage() {
                     <SelectItem key={o.id} value={o.id}>
                       {o.name ?? o.id}
                       {o.code ? <span className="ml-1 text-xs text-muted-foreground">({o.code})</span> : null}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Cửa hàng</Label>
-              <Select
-                value={formShopId}
-                onValueChange={(v) => setFormShopId(v === "__none__" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={shopsQuery.isLoading ? "Đang tải..." : "Chọn cửa hàng"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Không chọn —</SelectItem>
-                  {formFilteredShops.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name ?? s.id}
                     </SelectItem>
                   ))}
                 </SelectContent>

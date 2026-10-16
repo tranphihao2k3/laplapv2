@@ -21,9 +21,10 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete, useMyShops } from "@/lib/api/admin-crud";
 import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import {
   Search, Plus, Edit, Trash2, Wrench, Camera, X, ImageIcon,
   Printer, ShieldCheck, CheckCircle2, Circle, Clock, Truck, Package, XCircle,
@@ -58,7 +59,6 @@ type RepairTicket = {
   created_at: string | null;
 };
 
-type Shop = { id: string; name: string; code: string | null };
 type Customer = { id: string; full_name: string | null; phone: string | null };
 
 /**
@@ -116,7 +116,13 @@ export default function RepairTicketsPage() {
   const [form, setForm] = useState<Record<string, any>>({ status: "received" });
   const [images, setImages] = useState<{ file: File; preview: string }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [costType, setCostType] = useState<"estimated" | "actual">("estimated");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputGalleryRef = useRef<HTMLInputElement>(null);
+  // Mode chụp: 'gallery' mở thư viện/file picker, 'camera' mở camera trực tiếp
+  // và tự động re-trigger sau khi user chụp xong 1 tấm (chụp liên tục).
+  const [captureMode, setCaptureMode] = useState<"gallery" | "camera">("gallery");
 
   // Quick customer creation
   const [quickCustomer, setQuickCustomer] = useState(false);
@@ -134,9 +140,9 @@ export default function RepairTicketsPage() {
   const [printTicket, setPrintTicket] = useState<IntakeReceiptData | null>(null);
 
   const q = useCrudList<RepairTicket>("repair-tickets", { search, page: 1, pageSize: 100 });
-  const shopsQ = useCrudList<Shop>("shops", { page: 1, pageSize: 100 });
+  const shopsQ = useMyShops();
   const customersQ = useCrudList<Customer>("customers", { page: 1, pageSize: 500 });
-  const shopMap = useMemo(() => new Map((shopsQ.data?.items ?? []).map((s) => [s.id, s])), [shopsQ.data]);
+  const shopMap = useMemo(() => new Map((shopsQ.data ?? []).map((s) => [s.id, s])), [shopsQ.data]);
   const customerMap = useMemo(() => new Map((customersQ.data?.items ?? []).map((c) => [c.id, c])), [customersQ.data]);
 
   const items = useMemo(() => {
@@ -219,13 +225,24 @@ export default function RepairTicketsPage() {
     setQuickCustomer(false);
     setNewCustName("");
     setNewCustPhone("");
+    setShowAdvanced(false);
+    setCostType("estimated");
   }
 
   function openEdit(t: RepairTicket) {
     setEditing(t);
+    // Map DB fields (issue/condition) về 1 textarea chung.
+    // DB cũ có 2 cột tách riêng; nếu cả 2 cùng có thì ghép lại bằng dòng phân cách.
+    let combinedIssue = t.issue_description ?? "";
+    if (t.condition_description && t.condition_description !== t.issue_description) {
+      const condPart = `Tình trạng máy khi nhận: ${t.condition_description}`;
+      combinedIssue = combinedIssue
+        ? `${combinedIssue}\n\n${condPart}`
+        : condPart;
+    }
     setForm({
       shop_id: t.shop_id, customer_id: t.customer_id, device_name: t.device_name,
-      serial_number: t.serial_number, issue_description: t.issue_description,
+      serial_number: t.serial_number, issue_description: combinedIssue,
       condition_description: t.condition_description, status: t.status ?? "received",
       estimated_cost: t.estimated_cost, actual_cost: t.actual_cost, assigned_to: t.assigned_to,
       images: t.images,
@@ -300,9 +317,35 @@ export default function RepairTicketsPage() {
       const imageUrls = await uploadImages();
       setUploading(false);
 
-      const body: Record<string, any> = {};
-      Object.entries({ ...form, customer_id: customerId, images: imageUrls }).forEach(([k, v]) => {
-        if (v !== "" && v !== null && v !== undefined) body[k] = v;
+      // Single-shop: nếu user chưa chọn shop_id, tự gán shop duy nhất từ API.
+      const effectiveShopId = form.shop_id || (shopsQ.data?.[0]?.id ?? null);
+
+      // Tách mô tả & tình trạng (nếu user gõ kèm dòng "Tình trạng máy khi nhận:")
+      const issueText = (form.issue_description ?? "").trim();
+      let issueDescription = issueText;
+      let conditionDescription: string | null = null;
+      const sep = issueText.indexOf("Tình trạng máy khi nhận:");
+      if (sep >= 0) {
+        issueDescription = issueText.slice(0, sep).trim();
+        conditionDescription = issueText.slice(sep + "Tình trạng máy khi nhận:".length).trim() || null;
+      }
+
+      const body: Record<string, any> = {
+        shop_id: effectiveShopId,
+        customer_id: customerId,
+        device_name: form.device_name,
+        serial_number: form.serial_number || null,
+        issue_description: issueDescription || null,
+        condition_description: conditionDescription,
+        status: form.status ?? "received",
+        estimated_cost: form.estimated_cost ?? null,
+        actual_cost: form.actual_cost ?? null,
+        assigned_to: form.assigned_to ?? null,
+        images: imageUrls,
+      };
+      // Loại bỏ key null/undefined/empty để backend không nhận rác.
+      Object.entries(body).forEach(([k, v]) => {
+        if (v === "" || v === undefined) delete body[k];
       });
 
       let saved: RepairTicket | null = null;
@@ -341,6 +384,24 @@ export default function RepairTicketsPage() {
       setImages((prev) => [...prev, { file, preview }]);
     }
     e.target.value = "";
+
+    // Nếu đang ở chế độ "camera" thì tự động mở lại camera để user chụp tiếp.
+    // Dùng setTimeout 0 để đảm bảo React render xong trước khi trigger lại.
+    if (captureMode === "camera") {
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 250);
+    }
+  }
+
+  function openCamera() {
+    setCaptureMode("camera");
+    fileInputRef.current?.click();
+  }
+
+  function openGallery() {
+    setCaptureMode("gallery");
+    fileInputGalleryRef.current?.click();
   }
 
   function removeImage(index: number) {
@@ -402,7 +463,10 @@ export default function RepairTicketsPage() {
             }}
             isPending={bulkDeleteMutation.isPending}
           />
-          <Table>
+
+          {/* === DESKTOP: Table view (md+) === */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[40px]">
@@ -555,7 +619,42 @@ export default function RepairTicketsPage() {
                 })
               )}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
+
+          {/* === MOBILE: Card list (<md) === */}
+          <div className="md:hidden space-y-3">
+            {q.isLoading ? (
+              <div className="text-center text-sm text-muted-foreground py-10">Đang tải...</div>
+            ) : items.length === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-10">Chưa có phiếu sửa chữa</div>
+            ) : (
+              items.map((t) => (
+                <MobileRepairCard
+                  key={t.id}
+                  ticket={t}
+                  status={STATUS_ORDER[t.status ?? ""] ?? { label: t.status ?? "—", cls: "bg-muted", step: 0 }}
+                  customerName={t.customer_id ? customerMap.get(t.customer_id)?.full_name ?? null : null}
+                  customerPhone={t.customer_id ? customerMap.get(t.customer_id)?.phone ?? null : null}
+                  zaloUrl={zaloLink(t.customer_id ? customerMap.get(t.customer_id)?.phone ?? null : null)}
+                  telUrl={telLink(t.customer_id ? customerMap.get(t.customer_id)?.phone ?? null : null)}
+                  selected={selection.isSelected(t.id)}
+                  onToggleSelect={() => selection.toggle(t.id)}
+                  onView={() => setDetailTicket(t)}
+                  onPrint={() => openPrint(t)}
+                  onEdit={() => openEdit(t)}
+                  onDelete={() => handleDelete(t)}
+                  onComplete={() => {
+                    setCompleteOpen(t);
+                    setCompleteSolution(t.repair_solution ?? "");
+                    setCompleteWarrantyMonths(t.warranty_months ?? 3);
+                  }}
+                  onCheckout={() => checkoutMutation.mutate(t.id)}
+                  checkoutPending={checkoutMutation.isPending}
+                />
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -573,22 +672,7 @@ export default function RepairTicketsPage() {
               <Label>Tên thiết bị *</Label>
               <Input value={form.device_name ?? ""} onChange={(e) => setForm((p: any) => ({ ...p, device_name: e.target.value }))} placeholder="VD: iPhone 14 Pro Max" />
             </div>
-            <div className="space-y-2">
-              <Label>Cửa hàng</Label>
-              <Select value={form.shop_id ?? ""} onValueChange={(v) => setForm((p: any) => ({ ...p, shop_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Chọn cửa hàng" /></SelectTrigger>
-                <SelectContent>
-                  {(shopsQ.data?.items ?? []).length === 0 ? (
-                    <SelectItem value="__loading" disabled>Đang tải...</SelectItem>
-                  ) : (
-                    (shopsQ.data?.items ?? []).map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}{s.code ? ` (${s.code})` : ""}</SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label>Khách hàng</Label>
               {!quickCustomer ? (
                 <div className="flex gap-2">
@@ -619,28 +703,53 @@ export default function RepairTicketsPage() {
                 </div>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Serial / IMEI</Label>
-              <Input value={form.serial_number ?? ""} onChange={(e) => setForm((p: any) => ({ ...p, serial_number: e.target.value }))} placeholder="Serial hoặc IMEI" />
-            </div>
-            <div className="space-y-2">
-              <Label>Trạng thái</Label>
-              <Select value={form.status ?? "received"} onValueChange={(v) => setForm((p: any) => ({ ...p, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label>Mô tả lỗi *</Label>
-              <Textarea value={form.issue_description ?? ""} onChange={(e) => setForm((p: any) => ({ ...p, issue_description: e.target.value }))} placeholder="Mô tả chi tiết lỗi khách báo..." rows={3} />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Tình trạng máy khi nhận</Label>
-              <Textarea value={form.condition_description ?? ""} onChange={(e) => setForm((p: any) => ({ ...p, condition_description: e.target.value }))} placeholder="Mô tả hiện trạng máy khi nhận (trầy, móp, màn...)" rows={2} />
+              <Label>Mô tả & tình trạng *</Label>
+              <Textarea
+                value={form.issue_description ?? ""}
+                onChange={(e) => setForm((p: any) => ({ ...p, issue_description: e.target.value }))}
+                placeholder={"Mô tả lỗi khách báo + tình trạng máy khi nhận (trầy, móp, màn hình...).\nVD:\n- Màn hình sọc dọc, không hiển thị được 1/2 màn\n- Vỏ mặt lưng trầy nhẹ ở góc phải, không ảnh hưởng chức năng"}
+                rows={4}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Mô tả chung cho cả <strong>lỗi khách báo</strong> và <strong>tình trạng máy khi tiếp nhận</strong>.
+              </p>
             </div>
 
+            {/* Tuỳ chọn mở rộng: Serial + Trạng thái (mặc định thu gọn) */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="sm:col-span-2 flex items-center justify-between rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
+            >
+              <span className="flex items-center gap-1.5">
+                {showAdvanced ? "▾" : "▸"} Thêm tuỳ chọn (Serial, Trạng thái)
+              </span>
+              <span className="text-[10px]">không bắt buộc</span>
+            </button>
+            {showAdvanced && (
+              <>
+                <div className="space-y-2">
+                  <Label>Serial / IMEI</Label>
+                  <Input value={form.serial_number ?? ""} onChange={(e) => setForm((p: any) => ({ ...p, serial_number: e.target.value }))} placeholder="Serial hoặc IMEI" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Trạng thái</Label>
+                  <Select value={form.status ?? "received"} onValueChange={(v) => setForm((p: any) => ({ ...p, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
             <div className="space-y-2 sm:col-span-2">
-              <Label>Ảnh chụp máy</Label>
+              <div className="flex items-center justify-between">
+                <Label>Ảnh chụp máy</Label>
+                <span className="text-[11px] text-muted-foreground">
+                  {allPreviewImages.length > 0 ? `${allPreviewImages.length} ảnh` : "Chưa có ảnh"}
+                </span>
+              </div>
               <div className="flex flex-wrap gap-3">
                 {allPreviewImages.map((url, i) => (
                   <div key={url} className="group relative h-20 w-20 overflow-hidden rounded-lg border bg-muted">
@@ -658,16 +767,44 @@ export default function RepairTicketsPage() {
                     </button>
                   </div>
                 ))}
+                {/* 2 nút tách riêng: chụp nhiều (camera) + chọn từ thư viện */}
                 <button
                   type="button"
-                  className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-lg border border-dashed text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
+                  className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                  onClick={openCamera}
+                  title="Mở camera chụp nhiều ảnh liên tục"
                 >
-                  <Camera className="h-6 w-6" />
+                  <Camera className="h-5 w-5" />
+                  <span className="text-[9px] font-medium">Chụp</span>
+                </button>
+                <button
+                  type="button"
+                  className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                  onClick={openGallery}
+                  title="Chọn ảnh có sẵn từ thư viện"
+                >
+                  <ImageIcon className="h-5 w-5" />
+                  <span className="text-[9px] font-medium">Thư viện</span>
                 </button>
               </div>
+              {captureMode === "camera" && images.length > 0 && (
+                <p className="text-[11px] text-amber-700">
+                  📸 Đang ở chế độ chụp liên tục. Sau khi chụp 1 tấm, camera sẽ tự mở lại. Nhấn <kbd className="rounded border bg-background px-1">X</kbd> trên ảnh không cần, hoặc đóng dialog để dừng.
+                </p>
+              )}
               <input
                 ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                // capture="environment" ép mobile mở camera sau thay vì file picker.
+                // Bị browser bỏ qua trên desktop, nên không ảnh hưởng PC.
+                // Khi muốn mở thư viện, dùng fileInputGalleryRef (không có capture).
+                capture="environment"
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+              <input
+                ref={fileInputGalleryRef}
                 type="file"
                 accept="image/*"
                 multiple
@@ -676,30 +813,49 @@ export default function RepairTicketsPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Chi phí dự kiến</Label>
-              <div className="relative">
-                <Input
-                  inputMode="numeric"
-                  className="pr-10 text-right"
-                  value={groupDigits(form.estimated_cost)}
-                  onChange={(e) => setForm((p: any) => ({ ...p, estimated_cost: parseMoney(e.target.value) }))}
-                  placeholder="0"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">đ</span>
+            {/* Gộp 2 ô chi phí: 1 ô input + Select phân loại */}
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Chi phí</Label>
+              <div className="flex gap-2">
+                <Select value={costType} onValueChange={(v) => setCostType(v as "estimated" | "actual")}>
+                  <SelectTrigger className="w-[140px] shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="estimated">Dự kiến</SelectItem>
+                    <SelectItem value="actual">Thực tế</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1">
+                  <Input
+                    inputMode="numeric"
+                    className="pr-10 text-right"
+                    value={groupDigits(costType === "estimated" ? form.estimated_cost : form.actual_cost)}
+                    onChange={(e) => {
+                      const v = parseMoney(e.target.value);
+                      setForm((p: any) => ({
+                        ...p,
+                        estimated_cost: costType === "estimated" ? v : p.estimated_cost,
+                        actual_cost: costType === "actual" ? v : p.actual_cost,
+                      }));
+                    }}
+                    placeholder="0"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">đ</span>
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Chi phí thực tế</Label>
-              <div className="relative">
-                <Input
-                  inputMode="numeric"
-                  className="pr-10 text-right"
-                  value={groupDigits(form.actual_cost)}
-                  onChange={(e) => setForm((p: any) => ({ ...p, actual_cost: parseMoney(e.target.value) }))}
-                  placeholder="0"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">đ</span>
+              {/* 2 chip nhỏ hiển thị giá trị còn lại nếu đã nhập */}
+              <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                {form.estimated_cost != null && costType !== "estimated" && (
+                  <span className="rounded-full border bg-muted/40 px-2 py-0.5">
+                    Dự kiến: <strong className="text-foreground tabular-nums">{fmtCurrency(form.estimated_cost)}</strong>
+                  </span>
+                )}
+                {form.actual_cost != null && costType !== "actual" && (
+                  <span className="rounded-full border bg-muted/40 px-2 py-0.5">
+                    Thực tế: <strong className="text-foreground tabular-nums">{fmtCurrency(form.actual_cost)}</strong>
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -817,5 +973,275 @@ export default function RepairTicketsPage() {
         }}
       />
     </div>
+  );
+}
+
+// =============================================================
+// MobileRepairCard: hiển thị phiếu sửa dạng card trên mobile (<md)
+// Mỗi card gom đủ thông tin chính: mã, thiết bị, khách, trạng thái
+// (kèm progress), chi phí, lịch sử, action buttons — tối ưu cho 1 tay.
+// =============================================================
+type MobileRepairCardProps = {
+  ticket: RepairTicket;
+  status: { label: string; cls: string; step: number };
+  customerName: string | null;
+  customerPhone: string | null;
+  zaloUrl: string | null;
+  telUrl: string | null;
+  selected: boolean;
+  onToggleSelect: () => void;
+  onView: () => void;
+  onPrint: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onComplete: () => void;
+  onCheckout: () => void;
+  checkoutPending: boolean;
+};
+
+function MobileRepairCard({
+  ticket: t,
+  status: st,
+  customerName,
+  customerPhone,
+  zaloUrl,
+  telUrl,
+  selected,
+  onToggleSelect,
+  onView,
+  onPrint,
+  onEdit,
+  onDelete,
+  onComplete,
+  onCheckout,
+  checkoutPending,
+}: MobileRepairCardProps) {
+  const isDone = t.status === "done";
+  const canComplete = t.status !== "done" && t.status !== "delivered" && t.status !== "cancelled";
+  const showWarranty = !!t.warranty_months;
+  // Tính % progress trên timeline 7 bước (bỏ cancelled)
+  const currentStep = st.step;
+  const totalSteps = TIMELINE_STEPS.length;
+  const progressPct = currentStep === 0 ? 0 : Math.round((currentStep / totalSteps) * 100);
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border bg-card p-3 transition-colors",
+        selected && "ring-2 ring-primary border-primary",
+      )}
+    >
+      {/* Header: checkbox + mã phiếu + status badge */}
+      <div className="flex items-start gap-2.5">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggleSelect}
+          aria-label={`Chọn phiếu ${t.device_name ?? t.id}`}
+          className="mt-0.5"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono font-semibold">
+              {t.ticket_code ?? t.id.slice(0, 8).toUpperCase()}
+            </code>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0", st.cls)}>
+              {st.label}
+            </span>
+          </div>
+          <div className="mt-1.5 text-[15px] font-semibold leading-snug">
+            {t.device_name ?? "—"}
+          </div>
+          {t.serial_number && (
+            <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
+              SN: {t.serial_number}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar trên timeline */}
+      {currentStep > 0 && (
+        <div className="mt-3 space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span>Tiến độ</span>
+            <span>Bước {currentStep}/{totalSteps}</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-500",
+                isDone ? "bg-teal-500" : "bg-primary",
+              )}
+              style={{ width: `${Math.max(progressPct, 8)}%` }}
+            />
+          </div>
+          {/* Current step label */}
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            {(() => {
+              const Step = TIMELINE_STEPS[currentStep - 1];
+              if (!Step) return null;
+              const StepIcon = Step.icon;
+              return (
+                <>
+                  <StepIcon className="h-3 w-3 text-primary" />
+                  <span>Đang ở: <strong className="text-foreground">{Step.label}</strong></span>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Thông tin KH + thời gian */}
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <div className="text-muted-foreground text-[10px] uppercase tracking-wider">Khách</div>
+          <div className="font-medium truncate">{customerName ?? "—"}</div>
+          {customerPhone && (
+            <div className="text-muted-foreground font-mono text-[11px]">{customerPhone}</div>
+          )}
+        </div>
+        <div>
+          <div className="text-muted-foreground text-[10px] uppercase tracking-wider">Tiếp nhận</div>
+          <div className="text-[11px]">{fmtDateTime(t.created_at)}</div>
+        </div>
+      </div>
+
+      {/* Chi phí */}
+      <div className="mt-2.5 flex items-center justify-between rounded-lg bg-muted/50 px-2.5 py-2">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Dự kiến</div>
+          <div className="text-sm font-semibold tabular-nums">{fmtCurrency(t.estimated_cost)}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Thực tế</div>
+          <div className={cn(
+            "text-sm font-bold tabular-nums",
+            t.actual_cost ? "text-emerald-600" : "text-muted-foreground",
+          )}>
+            {fmtCurrency(t.actual_cost)}
+          </div>
+        </div>
+        {showWarranty && (
+          <div className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+            <ShieldCheck className="h-3 w-3" /> BH {t.warranty_months} tháng
+          </div>
+        )}
+      </div>
+
+      {/* Action row 1: Quick contact (Zalo / Phone) + status action */}
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {zaloUrl && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => window.open(zaloUrl, "_blank", "noopener,noreferrer")}
+            className="h-8 flex-1 border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
+          >
+            <MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Zalo
+          </Button>
+        )}
+        {telUrl && (
+          <Button
+            size="sm"
+            variant="outline"
+            asChild
+            className="h-8 flex-1 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+          >
+            <a href={telUrl}>
+              <Phone className="mr-1.5 h-3.5 w-3.5" /> Gọi
+            </a>
+          </Button>
+        )}
+        {!zaloUrl && !telUrl && (
+          <div className="flex-1 text-center text-[11px] text-muted-foreground italic">
+            Khách chưa có SĐT
+          </div>
+        )}
+      </div>
+
+      {/* Action row 2: Primary CTA theo trạng thái */}
+      {isDone ? (
+        <Button
+          size="sm"
+          className="mt-2 w-full h-9 bg-primary text-primary-foreground"
+          onClick={onCheckout}
+          disabled={checkoutPending}
+        >
+          <CircleDollarSignIcon className="mr-1.5 h-4 w-4" /> Tính tiền & thu ngay
+        </Button>
+      ) : canComplete ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onComplete}
+          className="mt-2 w-full h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+        >
+          <CheckCircle2 className="mr-1.5 h-4 w-4" /> Hoàn tất sửa chữa
+        </Button>
+      ) : null}
+
+      {/* Action row 3: Secondary actions */}
+      <div className="mt-2 flex items-center gap-1">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onView}
+          title="Xem chi tiết & bảo hành"
+          className="h-8 w-8"
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onPrint}
+          title="In phiếu biên nhận"
+          className="h-8 w-8"
+        >
+          <Printer className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onEdit}
+          title="Sửa phiếu"
+          className="h-8 w-8"
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onDelete}
+          title="Xoá phiếu"
+          className="h-8 w-8 text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Icon cho nút "Tính tiền" trên mobile (inline, tránh tăng import)
+function CircleDollarSignIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+      <path d="M12 18V6" />
+    </svg>
   );
 }

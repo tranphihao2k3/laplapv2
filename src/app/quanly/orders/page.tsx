@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCrudList } from "@/lib/api/admin-crud";
+import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { httpGet } from "@/lib/api/http";
 import type { Paginated } from "@/lib/api/response";
 
@@ -59,7 +59,6 @@ type DonHang = {
 };
 
 type KhachHang = { id: string; full_name: string | null; phone: string | null };
-type ChiNhanh = { id: string; name: string; code: string | null };
 type NguoiDung = { id: string; full_name: string | null; email: string | null };
 
 const ORDER_STATUSES = [
@@ -187,7 +186,7 @@ export default function OrdersAdminPage() {
     placeholderData: (prev) => prev,
   });
   const khachHangQuery = useCrudList<KhachHang>("customers", { page: 1, pageSize: 500 });
-  const chiNhanhQuery = useCrudList<ChiNhanh>("shops", { page: 1, pageSize: 200 });
+  const chiNhanhQuery = useMyShops();
   const nguoiDungQuery = useCrudList<NguoiDung>("user-profiles", { page: 1, pageSize: 500 });
 
   const allDonHangs = donHangQuery.data?.items ?? [];
@@ -224,9 +223,9 @@ export default function OrdersAdminPage() {
   const tongDon = donHangQuery.data?.total ?? 0;
 
   const khachHangMap = useMemo(() => new Map((khachHangQuery.data?.items ?? []).map((c) => [c.id, c])), [khachHangQuery.data]);
-  const chiNhanhMap = useMemo(() => new Map((chiNhanhQuery.data?.items ?? []).map((s) => [s.id, s])), [chiNhanhQuery.data]);
+  const chiNhanhMap = useMemo(() => new Map((chiNhanhQuery.data ?? []).map((s) => [s.id, s])), [chiNhanhQuery.data]);
   const nguoiDungMap = useMemo(() => new Map((nguoiDungQuery.data?.items ?? []).map((u) => [u.id, u])), [nguoiDungQuery.data]);
-  const chiNhanhs = chiNhanhQuery.data?.items ?? [];
+  const chiNhanhs = chiNhanhQuery.data ?? [];
 
   const huyDon = async (id: string) => {
     try {

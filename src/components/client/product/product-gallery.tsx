@@ -215,7 +215,7 @@ export function ProductGallery({ images, productName }: Props) {
 
       {/* Thumbnail strip */}
       {images.length > 1 && (
-        <div className="mt-3 -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 scrollbar-none sm:mt-4">
+        <div className="mt-3 -mx-4 flex min-w-0 gap-2.5 overflow-x-auto px-4 pb-1 scrollbar-none sm:mx-0 sm:mt-4 sm:px-0">
           {images.map((img, idx) => (
             <button
               key={idx}

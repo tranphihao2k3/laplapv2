@@ -25,13 +25,23 @@
     --input: 214 32% 91%;
     --ring: 222 100% 50%;
     --radius: 0.75rem;
-    
+
     /* Chart colors */
     --chart-1: 222 100% 50%;
     --chart-2: 210 100% 45%;
     --chart-3: 280 65% 55%;
     --chart-4: 0 84% 60%;
     --chart-5: 160 60% 45%;
+
+    /* Sidebar (shadcn/ui Sidebar primitive) — light theme */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 222 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 222 100% 50%;
   }
 
   .dark {
@@ -55,12 +65,22 @@
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 222 100% 60%;
-    
+
     --chart-1: 222 100% 60%;
     --chart-2: 210 100% 55%;
     --chart-3: 280 65% 65%;
     --chart-4: 0 62% 55%;
     --chart-5: 160 60% 55%;
+
+    /* Sidebar — dark theme */
+    --sidebar-background: 222 47% 9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 222 100% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 222 100% 60%;
   }
 }
 
@@ -76,6 +96,7 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    overflow-x: hidden;
   }
 
   /* Smooth transitions */
@@ -577,6 +598,15 @@
 .product-description-preview table,
 .product-description-html table {
   @apply w-full text-sm border-collapse;
+}
+@media (max-width: 768px) {
+  .product-description-preview table,
+  .product-description-html table,
+  .policy-prose table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 .product-description-preview thead,
 .product-description-html thead {

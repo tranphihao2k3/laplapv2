@@ -53,7 +53,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete, useMyShops } from "@/lib/api/admin-crud";
 import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -93,14 +93,6 @@ type Customer = {
   email: string | null;
 };
 
-type Shop = {
-  id: string;
-  name: string;
-  code: string | null;
-  address: string | null;
-  phone: string | null;
-};
-
 type OrderFull = {
   order: {
     id: string;
@@ -136,7 +128,7 @@ type OrderFull = {
     paid_at: string | null;
   }>;
   customer: Customer | null;
-  shop: Shop | null;
+  shop: { id: string; name: string; code: string | null; address: string | null; phone: string | null } | null;
 };
 
 const METHOD_LABEL: Record<string, string> = {
@@ -207,7 +199,7 @@ export default function PaymentsPage() {
 
   const ordersQ = useCrudList<Order>("orders", { page: 1, pageSize: 500 });
   const customersQ = useCrudList<Customer>("customers", { page: 1, pageSize: 500 });
-  const shopsQ = useCrudList<Shop>("shops", { page: 1, pageSize: 500 });
+  const shopsQ = useMyShops();
 
   const orderMap = useMemo(() => new Map((ordersQ.data?.items ?? []).map((o) => [o.id, o])), [ordersQ.data]);
   const customerMap = useMemo(
@@ -215,7 +207,7 @@ export default function PaymentsPage() {
     [customersQ.data],
   );
   const shopMap = useMemo(
-    () => new Map((shopsQ.data?.items ?? []).map((s) => [s.id, s])),
+    () => new Map((shopsQ.data ?? []).map((s) => [s.id, s])),
     [shopsQ.data],
   );
 

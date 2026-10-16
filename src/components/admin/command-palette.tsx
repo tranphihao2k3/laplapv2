@@ -102,7 +102,6 @@ const ADMIN_ITEMS: Item[] = [
   { id: "tools", title: "Công cụ kiểm tra", group: "Hậu mãi", href: "/quanly/tools", icon: CpuIcon },
 
   { id: "organizations", title: "Tổ chức", group: "Hệ thống", href: "/quanly/organizations", icon: Building2Icon },
-  { id: "shops", title: "Cửa hàng", group: "Hệ thống", href: "/quanly/shops", icon: Building2Icon },
   { id: "roles", title: "Vai trò", group: "Hệ thống", href: "/quanly/roles", icon: UserCogIcon },
   { id: "shop-staff", title: "Nhân sự shop", group: "Hệ thống", href: "/quanly/shop-staff", icon: UsersIcon },
   { id: "admin-users", title: "Tạo tài khoản", group: "Hệ thống", href: "/quanly/admin/users", icon: UserPlusIcon },
