@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ShieldCheck, ShieldX, ShieldAlert, Calendar, User, Wrench, Receipt, FileText } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ShieldCheck, ShieldX, ShieldAlert, Calendar, User, Wrench, Receipt, FileText, Camera, ImageIcon, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { httpPatch } from "@/lib/api/http";
+import { toast } from "sonner";
 
 type RepairTicketLite = {
   id: string;
@@ -29,6 +29,7 @@ type RepairTicketLite = {
   completed_at: string | null;
   delivered_at: string | null;
   created_at: string | null;
+  images: string[] | null;
 };
 
 type WarrantyRow = {
@@ -84,6 +85,24 @@ export function RepairTicketDetailDialog({ open, onOpenChange, ticket, customerN
   const [warranty, setWarranty] = useState<WarrantyRow | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // === Local state cho upload ảnh bổ sung ===
+  // Tách riêng 2 ref: 1 cho camera (capture=environment), 1 cho thư viện.
+  const fileCameraRef = useRef<HTMLInputElement>(null);
+  const fileGalleryRef = useRef<HTMLInputElement>(null);
+  const [newImages, setNewImages] = useState<{ file: File; preview: string }[]>([]);
+  const [removedExisting, setRemovedExisting] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [captureMode, setCaptureMode] = useState<"gallery" | "camera">("gallery");
+  const qc = useQueryClient();
+
+  const updateImagesMutation = useMutation({
+    mutationFn: async (input: { id: string; finalImages: string[] }) =>
+      httpPatch(`/v1/repair-tickets/${input.id}`, { images: input.finalImages }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-crud", "repair-tickets"] });
+    },
+  });
+
   useEffect(() => {
     if (!open || !ticket) {
       setWarranty(null);
@@ -102,6 +121,88 @@ export function RepairTicketDetailDialog({ open, onOpenChange, ticket, customerN
         setLoading(false);
       });
   }, [open, ticket]);
+
+  // Khi ticket đổi hoặc dialog đóng → reset state upload.
+  useEffect(() => {
+    if (!open) {
+      newImages.forEach((i) => URL.revokeObjectURL(i.preview));
+      setNewImages([]);
+      setRemovedExisting([]);
+      setCaptureMode("gallery");
+    }
+  }, [open, ticket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const preview = URL.createObjectURL(file);
+      setNewImages((prev) => [...prev, { file, preview }]);
+    }
+    e.target.value = "";
+    if (captureMode === "camera") {
+      setTimeout(() => fileCameraRef.current?.click(), 250);
+    }
+  }
+
+  function removeNewImage(index: number) {
+    setNewImages((prev) => {
+      URL.revokeObjectURL(prev[index].preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
+  function toggleRemoveExisting(url: string) {
+    setRemovedExisting((prev) =>
+      prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]
+    );
+  }
+
+  async function uploadNewImages(): Promise<string[]> {
+    if (newImages.length === 0) return [];
+    const supabase = createClient();
+    const urls: string[] = [];
+    for (const item of newImages) {
+      const fileExt = item.file.name.split(".").pop() ?? "jpg";
+      const fileName = `repairs/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+      const { error } = await supabase.storage
+        .from("product-images")
+        .upload(fileName, item.file, { cacheControl: "3600", upsert: false });
+      if (error) throw new Error(`Lỗi tải ảnh: ${error.message}`);
+      const { data } = supabase.storage.from("product-images").getPublicUrl(fileName);
+      urls.push(data.publicUrl);
+    }
+    return urls;
+  }
+
+  async function saveImages() {
+    if (!ticket) return;
+    if (newImages.length === 0 && removedExisting.length === 0) {
+      toast.info("Không có thay đổi để lưu");
+      return;
+    }
+    setUploadingImages(true);
+    try {
+      const uploadedUrls = await uploadNewImages();
+      const keptExisting = (ticket.images ?? []).filter((u) => !removedExisting.includes(u));
+      const finalImages = [...keptExisting, ...uploadedUrls];
+      await updateImagesMutation.mutateAsync({ id: ticket.id, finalImages });
+      // Reset local state
+      newImages.forEach((i) => URL.revokeObjectURL(i.preview));
+      setNewImages([]);
+      setRemovedExisting([]);
+      toast.success(
+        newImages.length > 0
+          ? `Đã thêm ${uploadedUrls.length} ảnh`
+          : `Đã xoá ${removedExisting.length} ảnh`
+      );
+    } catch (e: any) {
+      toast.error(e?.message ?? "Có lỗi xảy ra");
+    } finally {
+      setUploadingImages(false);
+    }
+  }
 
   if (!ticket) return null;
 
@@ -233,6 +334,128 @@ export function RepairTicketDetailDialog({ open, onOpenChange, ticket, customerN
               <p className="text-sm whitespace-pre-wrap">{ticket.repair_solution}</p>
             </section>
           )}
+
+          {/* === HÌNH ẢNH === */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ImageIcon className="h-3.5 w-3.5" /> Hình ảnh
+                <span className="text-[10px] font-normal text-muted-foreground/70">
+                  ({[...(ticket.images ?? []).filter((u) => !removedExisting.includes(u)), ...newImages].length})
+                </span>
+              </span>
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {/* Ảnh đã có (chưa bị đánh dấu xoá) */}
+              {(ticket.images ?? [])
+                .filter((u) => !removedExisting.includes(u))
+                .map((url) => (
+                  <div key={url} className="group relative h-20 w-20 overflow-hidden rounded-md border bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => toggleRemoveExisting(url)}
+                      className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500/90 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      title="Đánh dấu xoá"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                    <div className="absolute bottom-0.5 left-0.5 rounded bg-black/60 px-1 text-[9px] font-medium text-white">CŨ</div>
+                  </div>
+                ))}
+              {/* Ảnh mới (preview) */}
+              {newImages.map((img, i) => (
+                <div key={img.preview} className="group relative h-20 w-20 overflow-hidden rounded-md border border-emerald-300 bg-muted">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.preview} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeNewImage(i)}
+                    className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white"
+                    title="Bỏ ảnh này"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  <div className="absolute bottom-0.5 left-0.5 rounded bg-emerald-600 px-1 text-[9px] font-medium text-white">MỚI</div>
+                </div>
+              ))}
+              {/* 2 nút upload: camera + thư viện */}
+              <button
+                type="button"
+                className="flex h-20 w-20 flex-col items-center justify-center gap-0.5 rounded-md border border-dashed text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                onClick={() => {
+                  setCaptureMode("camera");
+                  fileCameraRef.current?.click();
+                }}
+                title="Mở camera chụp nhiều ảnh liên tục"
+              >
+                <Camera className="h-5 w-5" />
+                <span className="text-[9px] font-medium">Chụp</span>
+              </button>
+              <button
+                type="button"
+                className="flex h-20 w-20 flex-col items-center justify-center gap-0.5 rounded-md border border-dashed text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                onClick={() => {
+                  setCaptureMode("gallery");
+                  fileGalleryRef.current?.click();
+                }}
+                title="Chọn ảnh từ thư viện"
+              >
+                <ImageIcon className="h-5 w-5" />
+                <span className="text-[9px] font-medium">Thư viện</span>
+              </button>
+            </div>
+            {(newImages.length > 0 || removedExisting.length > 0) && (
+              <div className="mt-2 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    newImages.forEach((i) => URL.revokeObjectURL(i.preview));
+                    setNewImages([]);
+                    setRemovedExisting([]);
+                  }}
+                  disabled={uploadingImages}
+                >
+                  Huỷ thay đổi
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={saveImages}
+                  disabled={uploadingImages || updateImagesMutation.isPending}
+                >
+                  {uploadingImages || updateImagesMutation.isPending
+                    ? "Đang lưu..."
+                    : newImages.length > 0
+                    ? `Lưu ${newImages.length} ảnh mới`
+                    : `Xoá ${removedExisting.length} ảnh`}
+                </Button>
+                {removedExisting.length > 0 && (
+                  <span className="text-[11px] text-amber-700">
+                    ({removedExisting.length} ảnh sẽ bị xoá sau khi lưu)
+                  </span>
+                )}
+              </div>
+            )}
+            {/* Hidden inputs */}
+            <input
+              ref={fileCameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+            <input
+              ref={fileGalleryRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </section>
 
           {/* === CHI PHÍ + THỜI GIAN === */}
           <section>
