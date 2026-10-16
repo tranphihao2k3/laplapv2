@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Minus, Plus, Trash2, ShoppingCart, ArrowLeft, Tag, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -256,6 +257,7 @@ function VoucherSection() {
 }
 
 export default function CartPage() {
+  const router = useRouter();
   const items = useCartStore((s) => s.items);
   const syncStock = useCartStore((s) => s.syncStock);
   const subtotal = useCartStore((s) => s.subtotal());
@@ -264,6 +266,14 @@ export default function CartPage() {
   const totalAfterDiscount = useCartStore((s) => s.totalAfterDiscount());
   const totalItems = useCartStore((s) => s.totalItems());
   const fetched = useRef(false);
+
+  const handleCheckout = () => {
+    if (items.length === 0) {
+      toast.error("Giỏ hàng đang trống");
+      return;
+    }
+    router.push("/checkout");
+  };
 
   useEffect(() => {
     if (fetched.current || items.length === 0) return;
@@ -292,14 +302,14 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="container mx-auto min-h-screen px-4 pb-20">
+      <div className="container mx-auto min-h-screen px-4 pb-24">
         <EmptyCart />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto min-h-screen px-4 pb-20">
+    <div className="container mx-auto min-h-screen px-4 pb-24">
       {/* Header */}
       <div className="flex items-center gap-4 py-6">
         <Button variant="ghost" size="icon" asChild className="shrink-0">
@@ -406,7 +416,11 @@ export default function CartPage() {
               )}
             </CardContent>
             <CardFooter className="flex flex-col gap-3 pt-0">
-              <Button className="w-full rounded-xl text-sm font-semibold" size="lg">
+              <Button
+                className="w-full rounded-xl text-sm font-semibold"
+                size="lg"
+                onClick={handleCheckout}
+              >
                 Tiến hành thanh toán
               </Button>
             </CardFooter>

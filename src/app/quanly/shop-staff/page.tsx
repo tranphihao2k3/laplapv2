@@ -36,7 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete } from "@/lib/api/admin-crud";
+import { useCrudBulkDelete, useCrudList, useCrudCreate, useCrudUpdate, useCrudDelete, useMyShops } from "@/lib/api/admin-crud";
 import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { Search, Plus, Edit, Trash2, Store, User, ShieldCheck, CheckCircle, XCircle } from "lucide-react";
 
@@ -48,7 +48,6 @@ type ShopStaff = {
   is_active: boolean;
 };
 
-type Shop = { id: string; name: string };
 type UserProfile = { id: string; full_name: string | null; phone: string | null };
 type Role = { id: string; name: string; code: string };
 
@@ -66,13 +65,13 @@ export default function ShopStaffAdminPage() {
   const [form, setForm] = useState<Partial<ShopStaff>>(INIT_FORM);
 
   const q = useCrudList<ShopStaff>("shop-staff", { search, page: 1, pageSize: 100 });
-  const shopsQ = useCrudList<Shop>("shops", { page: 1, pageSize: 200 });
+  const shopsQ = useMyShops();
   const usersQ = useCrudList<UserProfile>("user-profiles", { page: 1, pageSize: 200 });
   const rolesQ = useCrudList<Role>("roles", { page: 1, pageSize: 200 });
 
   const shopMap = useMemo(() => {
-    const m = new Map<string, Shop>();
-    (shopsQ.data?.items ?? []).forEach((s) => m.set(s.id, s));
+    const m = new Map<string, { id: string; name: string }>();
+    (shopsQ.data ?? []).forEach((s) => m.set(s.id, { id: s.id, name: s.name }));
     return m;
   }, [shopsQ.data]);
   const userMap = useMemo(() => {
@@ -300,7 +299,7 @@ export default function ShopStaffAdminPage() {
               <Select value={form.shop_id ?? ""} onValueChange={(v) => setForm((p) => ({ ...p, shop_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Chọn cửa hàng" /></SelectTrigger>
                 <SelectContent>
-                  {(shopsQ.data?.items ?? []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  {(shopsQ.data ?? []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

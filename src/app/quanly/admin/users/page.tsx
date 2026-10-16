@@ -19,11 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCrudList } from "@/lib/api/admin-crud";
+import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { httpPost } from "@/lib/api/http";
 import { UserPlus, Store, ShieldCheck, Eye, EyeOff } from "lucide-react";
 
-type Shop = { id: string; name: string };
 type Role = { id: string; name: string; code: string };
 
 export default function AdminCreateUserPage() {
@@ -35,7 +34,7 @@ export default function AdminCreateUserPage() {
   const [roleId, setRoleId] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const shopsQ = useCrudList<Shop>("shops", { page: 1, pageSize: 200 });
+  const shopsQ = useMyShops();
   const rolesQ = useCrudList<Role>("roles", { page: 1, pageSize: 200 });
 
   const reset = () => {
@@ -127,7 +126,7 @@ export default function AdminCreateUserPage() {
                   <SelectValue placeholder="Chọn cửa hàng" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(shopsQ.data?.items ?? []).map((s) => (
+                  {(shopsQ.data ?? []).map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       <span className="flex items-center gap-2">
                         <Store className="h-3.5 w-3.5" />

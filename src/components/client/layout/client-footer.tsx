@@ -3,6 +3,7 @@ import { getStoreInfoForRequest } from "@/lib/request-shop";
 import { getFooterSettings } from "@/lib/footer-settings";
 import { telHref } from "@/lib/shop-info";
 import { TradeBadge } from "@/components/shared/trade-badge";
+import { FooterColumns } from "@/components/client/layout/footer-columns";
 import {
   Facebook,
   Youtube,
@@ -77,18 +78,18 @@ export async function ClientFooter() {
 
   return (
     <footer className="relative z-10 border-t bg-muted/40">
-      <div className="container py-10 sm:py-12">
+      <div className="container py-8 sm:py-12">
         {/* Main grid: 4 cols on desktop (Brand + 3 link groups) */}
-        <div className="grid gap-8 lg:grid-cols-4">
+        <div className="grid gap-6 lg:grid-cols-4 lg:gap-8">
           {/* Brand */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <Link href="/" className="inline-flex items-center gap-2 text-lg font-bold tracking-tight">
               <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">
                 {store.name?.slice(0, 3) || "Web"}
               </span>
               <span>{store.name || "Website"}</span>
             </Link>
-            <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+            <p className="hidden max-w-xs text-sm leading-relaxed text-muted-foreground sm:block">
               {description}
             </p>
             {socialEntries.length > 0 && (
@@ -112,30 +113,12 @@ export async function ClientFooter() {
             )}
           </div>
 
-          {/* Link columns */}
-          {visibleColumns.map((column) => (
-            <div key={column.id} className="space-y-3">
-              <h4 className="text-sm font-semibold tracking-wide">{column.title}</h4>
-              <ul className="space-y-2">
-                {column.links.map((link) => (
-                  <li key={link.id}>
-                    <Link
-                      href={link.href}
-                      target={link.external ? "_blank" : undefined}
-                      rel={link.external ? "noopener noreferrer" : undefined}
-                      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {/* Link columns — accordion trên mobile, expanded list trên desktop. */}
+          <FooterColumns columns={visibleColumns} />
         </div>
 
         {/* Contact strip — 4 mini cells, dense and scan-friendly */}
-        <div className="mt-8 grid grid-cols-2 gap-3 rounded-xl border bg-background/60 p-4 sm:grid-cols-4 sm:gap-4 sm:p-5">
+        <div className="mt-6 grid grid-cols-2 gap-2 rounded-xl border bg-background/60 p-3 sm:mt-8 sm:grid-cols-4 sm:gap-4 sm:p-5">
           <ContactCell
             icon={MapPin}
             label="Địa chỉ"

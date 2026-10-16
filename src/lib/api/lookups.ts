@@ -12,7 +12,6 @@ import { httpGet } from "./http";
  */
 export type EntityKind =
   | "customers"
-  | "shops"
   | "products"
   | "user-profiles"
   | "brands"
@@ -31,7 +30,6 @@ export type LookupEntry = {
 function buildHref(kind: EntityKind, id: string, slug?: string): string {
   const map: Record<EntityKind, string> = {
     customers: "/quanly/customers",
-    shops: "/quanly/shops",
     products: "/quanly/products",
     "user-profiles": "/quanly/admin/users",
     brands: "/quanly/brands",

@@ -121,7 +121,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
   };
 
   return (
-    <div ref={sectionRef} className="space-y-5 sm:space-y-6">
+    <div ref={sectionRef} className="space-y-4 sm:space-y-5 md:space-y-6">
       {/* Top row: status badges */}
       <div
         className={cn(
@@ -143,10 +143,20 @@ export function ProductInfo({ product, consultPhone }: Props) {
             Hết hàng
           </span>
         )}
-        {product.tags?.slice(0, 3).map((tag) => (
+        {/* Chỉ hiện 1 tag trên mobile để tránh wrap */}
+        {product.tags?.slice(0, 1).map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 rounded-full border bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            className="inline-flex items-center gap-1 rounded-full border bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:hidden"
+          >
+            <Tag className="h-3 w-3" />
+            {tag}
+          </span>
+        ))}
+        {product.tags?.slice(0, 3).map((tag) => (
+          <span
+            key={`sm-${tag}`}
+            className="hidden items-center gap-1 rounded-full border bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:inline-flex"
           >
             <Tag className="h-3 w-3" />
             {tag}
@@ -175,18 +185,18 @@ export function ProductInfo({ product, consultPhone }: Props) {
           mounted ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2",
         )}
       >
-        <h1 className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-2xl font-bold leading-[1.15] tracking-tight text-transparent sm:text-[34px] sm:leading-[1.1]">
+        <h1 className="bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-[22px] font-bold leading-[1.2] tracking-tight text-transparent sm:text-[34px] sm:leading-[1.1]">
           {product.name}
         </h1>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground sm:gap-x-4 sm:text-sm">
           {product.brand && (
-            <span className="inline-flex items-center gap-1.5">
-              Thương hiệu:{" "}
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground/70">Thương hiệu</span>
               <span className="font-semibold text-foreground">{product.brand.name}</span>
             </span>
           )}
           {selectedVariant?.sku && (
-            <span className="inline-flex items-center gap-1.5">
+            <span className="hidden items-center gap-1.5 sm:inline-flex">
               <span className="text-muted-foreground/60">SKU:</span>
               <span className="font-mono text-xs font-medium text-foreground">{selectedVariant.sku}</span>
             </span>
@@ -197,37 +207,38 @@ export function ProductInfo({ product, consultPhone }: Props) {
       {/* Price */}
       <div
         className={cn(
-          "relative overflow-hidden rounded-2xl border p-4 transition-all duration-700 delay-150 sm:p-5",
+          "relative overflow-hidden rounded-2xl border p-3.5 transition-all duration-700 delay-150 sm:p-5",
           hasDiscount
-            ? "border-rose-200/80 bg-gradient-to-br from-rose-50/80 via-orange-50/50 to-amber-50/40 shadow-[0_8px_30px_-12px_rgba(244,63,94,0.35)] dark:from-rose-950/40 dark:via-orange-950/30 dark:to-amber-950/30"
+            ? "border-rose-200/80 bg-gradient-to-br from-rose-50/80 via-orange-50/50 to-amber-50/40 dark:from-rose-950/40 dark:via-orange-950/30 dark:to-amber-950/30"
             : "border-border bg-gradient-to-br from-muted/40 via-background to-muted/30",
         )}
       >
-        {/* Subtle gradient sweep */}
+        {/* Subtle gradient sweep — ẩn trên mobile để giảm noise */}
         {hasDiscount && (
-          <div className="pointer-events-none absolute inset-0">
+          <div className="pointer-events-none absolute inset-0 hidden sm:block">
             <div className="absolute -left-1/2 top-0 h-full w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/30 to-transparent blur-2xl" />
           </div>
         )}
 
-        <div className="relative space-y-3">
+        <div className="relative space-y-2.5 sm:space-y-3">
           {hasDiscount && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex animate-pulse-soft items-center gap-1.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 px-3 py-1.5 text-xs font-extrabold text-white shadow-md">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {/* Desktop: full badge cluster. Mobile: chỉ GIẢM% badge, bỏ "Giá sốc" + "Tiết kiệm" để gọn */}
+              <span className="hidden animate-pulse-soft items-center gap-1.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 px-3 py-1.5 text-xs font-extrabold text-white shadow-md sm:inline-flex">
                 <Zap className="h-3 w-3" />
                 Giá sốc
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-100/80 px-2.5 py-1 text-xs font-semibold text-amber-700">
+              <span className="hidden items-center gap-1 rounded-full border border-amber-200 bg-amber-100/80 px-2.5 py-1 text-xs font-semibold text-amber-700 sm:inline-flex">
                 <Sparkles className="h-3 w-3" />
                 Tiết kiệm {formatCurrency(savings)}
               </span>
             </div>
           )}
 
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 sm:gap-x-3">
             <span
               className={cn(
-                "price-shine inline-block text-4xl font-extrabold tracking-tight sm:text-[48px] sm:leading-none",
+                "price-shine inline-block text-[28px] font-extrabold leading-none tracking-tight sm:text-[48px]",
                 hasDiscount
                   ? "bg-gradient-to-br from-rose-600 via-red-600 to-orange-500 bg-clip-text text-transparent"
                   : "text-foreground",
@@ -237,14 +248,20 @@ export function ProductInfo({ product, consultPhone }: Props) {
               {formatCurrency(price)}
             </span>
             {hasDiscount && (
-              <span className="text-xl text-muted-foreground line-through decoration-rose-300 sm:text-2xl">
+              <span className="text-base text-muted-foreground line-through decoration-rose-300 sm:text-2xl">
                 {formatCurrency(originalPrice)}
+              </span>
+            )}
+            {hasDiscount && (
+              <span className="inline-flex items-baseline gap-0.5 rounded-md bg-gradient-to-r from-rose-500 to-orange-500 px-2 py-0.5 text-xs font-extrabold text-white sm:hidden">
+                <span className="text-[9px]">−</span>
+                <span>{discount}%</span>
               </span>
             )}
           </div>
 
           {hasDiscount && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="hidden flex-wrap items-center gap-2 sm:flex">
               <span className="inline-flex items-baseline gap-1 rounded-lg bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 px-3.5 py-1.5 text-base font-extrabold text-white shadow-md sm:text-lg">
                 <span className="text-xs">GIẢM</span>
                 <span>{discount}%</span>
@@ -278,8 +295,9 @@ export function ProductInfo({ product, consultPhone }: Props) {
             </div>
           )}
 
+          {/* "Bạn tiết kiệm được" — chỉ hiện trên sm+ */}
           {hasDiscount && (
-            <div className="flex items-center gap-2 rounded-lg border border-rose-200/80 bg-rose-50/70 p-2.5 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+            <div className="hidden items-center gap-2 rounded-lg border border-rose-200/80 bg-rose-50/70 p-2.5 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300 sm:flex">
               <Sparkles className="h-4 w-4 shrink-0" />
               <span>
                 Bạn tiết kiệm được{" "}
@@ -291,7 +309,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground">Giá đã bao gồm VAT</p>
+          <p className="text-[11px] text-muted-foreground sm:text-xs">Giá đã bao gồm VAT</p>
         </div>
       </div>
 
@@ -307,7 +325,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
         </p>
       )}
 
-      {/* Quick spec highlights */}
+      {/* Quick spec highlights — 2-col grid để text wrap tự nhiên trên mobile */}
       {highlights.length > 0 && (
         <div
           className={cn(
@@ -321,7 +339,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
               <div
                 key={h.key}
                 style={{ animationDelay: `${300 + i * 80}ms` }}
-                className="group/highlight hover-lift flex items-start gap-2.5 rounded-xl border bg-card p-3 transition-all hover:border-primary/40 hover:shadow-sm"
+                className="group/highlight hover-lift flex min-w-0 items-start gap-2 rounded-xl border bg-card p-2.5 transition-all hover:border-primary/40 hover:shadow-sm sm:gap-2.5 sm:p-3"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-fuchsia-500/10 text-primary transition-transform group-hover/highlight:scale-110 group-hover/highlight:rotate-3">
                   <Icon className="h-4 w-4" />
@@ -330,7 +348,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {h.label}
                   </p>
-                  <p className="truncate text-sm font-semibold" title={specs?.[h.key]}>
+                  <p className="break-words text-[12.5px] font-semibold leading-snug sm:text-sm" title={specs?.[h.key]}>
                     {specs?.[h.key]}
                   </p>
                 </div>
@@ -436,7 +454,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
         <Button
           size="lg"
           className={cn(
-            "min-w-[10rem] flex-1 rounded-xl text-base font-bold transition-all duration-300",
+            "hidden min-w-[10rem] flex-1 rounded-xl text-base font-bold transition-all duration-300 lg:flex",
             added
               ? "bg-emerald-500 text-white shadow-[0_10px_30px_-10px_rgba(16,185,129,0.6)]"
               : inStock
@@ -493,23 +511,23 @@ export function ProductInfo({ product, consultPhone }: Props) {
         </a>
       )}
 
-      {/* Trust badges */}
+      {/* Trust badges — 1 cột dọc trên mobile (tránh tràn ngang), grid 3 cột trên sm+ */}
       {trustBadges !== null && trustBadges.length > 0 ? (
-        <div className="grid grid-cols-1 gap-2.5 rounded-xl border bg-muted/20 p-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-1.5 rounded-xl border bg-muted/20 p-2.5 sm:grid-cols-3 sm:gap-2.5 sm:p-3">
           {trustBadges.filter((b) => b.enabled).map((badge) => {
             const Icon = TRUST_BADGE_ICONS[badge.icon] ?? ShieldCheck;
             return (
               <div
                 key={badge.id}
-                className="group/badge flex items-start gap-2.5 rounded-lg p-2 text-sm transition-colors hover:bg-card"
+                className="group/badge flex min-w-0 items-center gap-2 rounded-lg p-2 text-sm transition-colors hover:bg-card"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground ring-1 ring-border transition-all group-hover/badge:text-primary group-hover/badge:ring-primary/30">
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <span className="block font-semibold">{badge.title}</span>
+                  <span className="block truncate text-[13px] font-semibold sm:text-sm">{badge.title}</span>
                   {badge.description && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">{badge.description}</p>
+                    <p className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">{badge.description}</p>
                   )}
                 </div>
               </div>
@@ -517,35 +535,45 @@ export function ProductInfo({ product, consultPhone }: Props) {
           })}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-2.5 rounded-xl border bg-muted/20 p-3 sm:grid-cols-3">
-          <div className="group/badge flex items-center gap-2.5 rounded-lg p-2 text-sm transition-colors hover:bg-card">
+        <div className="grid grid-cols-1 gap-1.5 rounded-xl border bg-muted/20 p-2.5 sm:grid-cols-3 sm:gap-2.5 sm:p-3">
+          <div className="group/badge flex min-w-0 items-center gap-2 rounded-lg p-2 text-sm transition-colors hover:bg-card">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground ring-1 ring-border transition-all group-hover/badge:text-primary group-hover/badge:ring-primary/30">
               <ShieldCheck className="h-4 w-4" />
             </span>
-            <span className="font-semibold">Bảo hành chính hãng</span>
+            <span className="truncate text-[13px] font-semibold sm:text-sm">Bảo hành chính hãng</span>
           </div>
-          <div className="group/badge flex items-center gap-2.5 rounded-lg p-2 text-sm transition-colors hover:bg-card">
+          <div className="group/badge flex min-w-0 items-center gap-2 rounded-lg p-2 text-sm transition-colors hover:bg-card">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground ring-1 ring-border transition-all group-hover/badge:text-primary group-hover/badge:ring-primary/30">
               <Truck className="h-4 w-4" />
             </span>
-            <span className="font-semibold">Miễn phí vận chuyển</span>
+            <span className="truncate text-[13px] font-semibold sm:text-sm">Miễn phí vận chuyển</span>
           </div>
-          <div className="group/badge flex items-center gap-2.5 rounded-lg p-2 text-sm transition-colors hover:bg-card">
+          <div className="group/badge flex min-w-0 items-center gap-2 rounded-lg p-2 text-sm transition-colors hover:bg-card">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground ring-1 ring-border transition-all group-hover/badge:text-primary group-hover/badge:ring-primary/30">
               <RotateCcw className="h-4 w-4" />
             </span>
-            <span className="font-semibold">Đổi trả 15 ngày</span>
+            <span className="truncate text-[13px] font-semibold sm:text-sm">Đổi trả 15 ngày</span>
           </div>
         </div>
       )}
 
-      {/* Sticky mobile bar */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 p-3 shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-lg lg:hidden">
-        <div className="container flex items-center gap-3">
-          <div className="min-w-0 shrink">
+      {/* Sticky mobile bar — chỉ hiện <lg, là CTA duy nhất trên mobile */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-lg lg:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="container flex items-center gap-2.5 px-4 py-2.5 sm:gap-3 sm:p-3">
+          {/* Left: variant label + price (compact) */}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[11px] font-medium text-muted-foreground">
+              {selectedVariant?.name ||
+                (selectedVariant?.attributes
+                  ? Object.values(selectedVariant.attributes as Record<string, string>).join(" / ")
+                  : "Mặc định")}
+            </p>
             <p
               className={cn(
-                "truncate text-lg font-bold leading-tight tracking-tight",
+                "truncate text-[15px] font-extrabold leading-tight tracking-tight sm:text-lg",
                 hasDiscount
                   ? "bg-gradient-to-r from-rose-600 to-orange-500 bg-clip-text text-transparent"
                   : "text-foreground",
@@ -553,30 +581,20 @@ export function ProductInfo({ product, consultPhone }: Props) {
             >
               {formatCurrency(price)}
             </p>
-            {hasDiscount && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs leading-tight text-muted-foreground line-through">
-                  {formatCurrency(originalPrice)}
-                </span>
-                <span className="rounded-full bg-gradient-to-r from-rose-500 to-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                  -{discount}%
-                </span>
-              </div>
-            )}
           </div>
           {telHref && (
             <a
               href={telHref}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-card text-foreground transition-all active:scale-95"
+              className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-card text-foreground transition-all active:scale-95 sm:flex"
               aria-label="Gọi tư vấn"
             >
-              <Phone className="h-5 w-5" />
+              <Phone className="h-4 w-4" />
             </a>
           )}
           <Button
             size="lg"
             className={cn(
-              "flex-1 rounded-xl text-base font-bold",
+              "h-11 shrink-0 rounded-xl px-5 text-sm font-bold sm:flex-1 sm:px-6 sm:text-base",
               added
                 ? "bg-emerald-500 text-white"
                 : "bg-gradient-to-r from-primary to-blue-600 text-white",
@@ -586,12 +604,12 @@ export function ProductInfo({ product, consultPhone }: Props) {
           >
             {added ? (
               <>
-                <Check className="mr-2 h-5 w-5" strokeWidth={3} />
+                <Check className="mr-1.5 h-4 w-4 sm:mr-2 sm:h-5 sm:w-5" strokeWidth={3} />
                 Đã thêm
               </>
             ) : (
               <>
-                <ShoppingCart className="mr-2 h-5 w-5" />
+                <ShoppingCart className="mr-1.5 h-4 w-4 sm:mr-2 sm:h-5 sm:w-5" />
                 Thêm vào giỏ
               </>
             )}

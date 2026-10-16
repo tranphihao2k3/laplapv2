@@ -106,7 +106,6 @@ const documents = [
   { name: "Công cụ kiểm tra", url: "/quanly/tools", icon: Cpu, group: "Hậu mãi" },
 
   { name: "Tổ chức", url: "/quanly/organizations", icon: Building2, group: "Hệ thống" },
-  { name: "Cửa hàng", url: "/quanly/shops", icon: Store, group: "Hệ thống" },
   { name: "Vai trò", url: "/quanly/roles", icon: UserCog, group: "Hệ thống" },
   // "Quyền hạn" (/quanly/permissions) đã ẩn: danh mục quyền khoá cứng trong code
   // (rbac-presets.ts + seed-rbac.mjs). Gán quyền cho vai trò làm ở "Vai trò" / "Phân quyền".

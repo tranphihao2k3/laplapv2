@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCrudCreate, useCrudList, useCrudUpdate } from "@/lib/api/admin-crud";
+import { useCrudCreate, useCrudList, useCrudUpdate, useMyShops } from "@/lib/api/admin-crud";
 import { PERMISSION_PRESETS } from "@/lib/rbac-presets";
 
 type Role = { id: string; name: string; code?: string | null };
@@ -34,7 +34,7 @@ export default function PermissionsAdminPage() {
   const rolePermissionsQuery = useCrudList<RolePermission>("role-permissions", { page: 1, pageSize: 500 });
   const shopStaffQuery = useCrudList<ShopStaff>("shop-staff", { page: 1, pageSize: 500 });
   const usersQuery = useCrudList<UserProfile>("user-profiles", { page: 1, pageSize: 500 });
-  const shopsQuery = useCrudList<Shop>("shops", { page: 1, pageSize: 200 });
+  const shopsQuery = useMyShops();
 
   const createShopStaff = useCrudCreate<ShopStaff, { user_id: string; shop_id: string; role_id: string; is_active: boolean }>("shop-staff");
   const updateShopStaff = useCrudUpdate<ShopStaff, { role_id: string; is_active: boolean }>("shop-staff");
@@ -43,7 +43,7 @@ export default function PermissionsAdminPage() {
   const permissions = permissionsQuery.data?.items ?? [];
   const rolePermissions = rolePermissionsQuery.data?.items ?? [];
   const users = usersQuery.data?.items ?? [];
-  const shops = shopsQuery.data?.items ?? [];
+  const shops = shopsQuery.data ?? [];
   const staffRows = shopStaffQuery.data?.items ?? [];
 
   const rolePermissionMap = useMemo(() => {

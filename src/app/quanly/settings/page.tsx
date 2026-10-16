@@ -49,22 +49,6 @@ import { LegalSettings } from "./_components/legal-settings";
 import type { Paginated } from "@/lib/api/response";
 
 // ====== Types ======
-type Shop = {
-  id: string;
-  organization_id: string | null;
-  name: string;
-  code: string | null;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  timezone: string | null;
-  is_active: boolean | null;
-  /** Domain chính của shop, vd "laptopthanhvo.com". */
-  primary_domain: string | null;
-  /** Domain phụ trỏ về shop này (www, alias, domain cũ). */
-  allowed_domains: string[];
-};
-
 type Organization = {
   id: string;
   name: string;
@@ -89,43 +73,16 @@ type Setting = {
   value: unknown;
   created_at?: string | null;
 };
-
-// ====== Helpers ======
 function getApiErrorMsg(e: unknown) {
   const err = e as { error?: { message?: string } };
   return err?.error?.message ?? "Có lỗi xảy ra";
 }
 
-/**
- * Normalize domain từ input người dùng (form textarea/input):
- *  - lowercase
- *  - bỏ protocol (http://, https://)
- *  - bỏ path / query
- *  - bỏ port
- *  - trim trailing dot
- *
- * Trả về chuỗi rỗng nếu input không hợp lệ. KHÔNG dùng lib/shop-domain ở đây
- * vì file đó dùng cả trong Edge runtime (chỉ regex đơn giản là đủ cho form).
- */
-function normalizeDomainInput(raw: string | null | undefined): string {
-  if (!raw) return "";
-  let s = String(raw).trim().toLowerCase();
-  s = s.replace(/^https?:\/\//, "");
-  s = s.split("/")[0] ?? "";
-  s = s.replace(/:(\d+)$/, "");
-  s = s.replace(/\.+$/, "");
-  // Chỉ cho phép ký tự domain hợp lệ. Trả về rỗng nếu có ký tự lạ — UI sẽ
-  // báo lỗi khi submit.
-  return /^[a-z0-9.\-:]+$/.test(s) ? s : "";
-}
-
-// ====== Page ======
 export default function SettingsPage() {
   return (
-    <Tabs defaultValue="shop" className="space-y-4">
+    <Tabs defaultValue="org" className="space-y-4">
       <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <TabsList className="w-max">
-          <TabsTrigger value="shop">Thông tin cửa hàng</TabsTrigger>
           <TabsTrigger value="org">Tổ chức</TabsTrigger>
           <TabsTrigger value="config">Cấu hình hệ thống</TabsTrigger>
           <TabsTrigger value="trust">Trust Badges</TabsTrigger>
@@ -135,9 +92,6 @@ export default function SettingsPage() {
         </TabsList>
       </div>
 
-      <TabsContent value="shop">
-        <ShopSettings />
-      </TabsContent>
       <TabsContent value="org">
         <OrgSettings />
       </TabsContent>
@@ -157,304 +111,6 @@ export default function SettingsPage() {
         <LegalSettings />
       </TabsContent>
     </Tabs>
-  );
-}
-
-// ====== Shop tab ======
-function ShopSettings() {
-  const qc = useQueryClient();
-  const shopsQ = useQuery({
-    queryKey: ["settings-shops"],
-    queryFn: () => httpGet<Paginated<Shop>>("/v1/shops", { page: 1, pageSize: 50 }),
-  });
-
-  const shops = shopsQ.data?.items ?? [];
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = shops.find((s) => s.id === selectedId) ?? shops[0] ?? null;
-
-  useEffect(() => {
-    if (!selectedId && shops[0]) setSelectedId(shops[0].id);
-  }, [shops, selectedId]);
-
-  const [form, setForm] = useState<Partial<Shop>>({});
-  useEffect(() => {
-    if (selected) setForm({ ...selected });
-  }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const update = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<Shop> }) =>
-      httpPatch<Shop>(`/v1/shops/${id}`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["settings-shops"] });
-      invalidateBrandCache();
-      toast.success("Đã lưu thông tin cửa hàng");
-    },
-    onError: (e) => toast.error(getApiErrorMsg(e)),
-  });
-
-  const create = useMutation({
-    mutationFn: (body: Partial<Shop>) => httpPost<Shop>("/v1/shops", body),
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["settings-shops"] });
-      setSelectedId(data.id);
-      toast.success("Đã thêm cửa hàng");
-    },
-    onError: (e) => toast.error(getApiErrorMsg(e)),
-  });
-
-  const [newOpen, setNewOpen] = useState(false);
-  const [newForm, setNewForm] = useState<Partial<Shop>>({ is_active: true });
-
-  function set<K extends keyof Shop>(k: K, v: Shop[K]) {
-    setForm((prev) => ({ ...prev, [k]: v }));
-  }
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <CardTitle className="text-base">Cửa hàng</CardTitle>
-          <Button size="sm" onClick={() => setNewOpen(true)}>
-            + Thêm
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-1 p-2">
-          {shopsQ.isLoading ? (
-            <div className="p-3 text-sm text-muted-foreground">Đang tải...</div>
-          ) : shops.length === 0 ? (
-            <div className="p-3 text-sm text-muted-foreground">
-              Chưa có cửa hàng nào
-            </div>
-          ) : (
-            shops.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSelectedId(s.id)}
-                className={`flex w-full flex-col items-start rounded-md px-3 py-2 text-left text-sm hover:bg-muted ${
-                  s.id === selected?.id ? "bg-muted font-medium" : ""
-                }`}
-              >
-                <span>{s.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {s.code ?? "—"} · {s.is_active ? "Hoạt động" : "Tạm ngưng"}
-                </span>
-              </button>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Thông tin cửa hàng</CardTitle>
-          <CardDescription>
-            Cập nhật tên, liên hệ, địa chỉ hiển thị trên hoá đơn và phiếu bảo hành.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!selected ? (
-            <p className="text-sm text-muted-foreground">
-              Chọn một cửa hàng để chỉnh sửa.
-            </p>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Tên cửa hàng" required>
-                <Input
-                  value={form.name ?? ""}
-                  onChange={(e) => set("name", e.target.value)}
-                />
-              </Field>
-              <Field label="Mã cửa hàng">
-                <Input
-                  value={form.code ?? ""}
-                  onChange={(e) => set("code", e.target.value || null)}
-                  placeholder="LPL-CT01"
-                />
-              </Field>
-              <Field label="Số điện thoại">
-                <Input
-                  value={form.phone ?? ""}
-                  onChange={(e) => set("phone", e.target.value || null)}
-                  placeholder="0123 456 789"
-                />
-              </Field>
-              <Field label="Email">
-                <Input
-                  type="email"
-                  value={form.email ?? ""}
-                  onChange={(e) => set("email", e.target.value || null)}
-                />
-              </Field>
-              <Field label="Địa chỉ" className="sm:col-span-2">
-                <Input
-                  value={form.address ?? ""}
-                  onChange={(e) => set("address", e.target.value || null)}
-                  placeholder="123 đường ABC, Quận 1, TP.HCM"
-                />
-              </Field>
-              <Field label="Múi giờ">
-                <Input
-                  value={form.timezone ?? ""}
-                  onChange={(e) => set("timezone", e.target.value || null)}
-                  placeholder="Asia/Ho_Chi_Minh"
-                />
-              </Field>
-              <Field label="Trạng thái">
-                <Select
-                  value={String(form.is_active ?? true)}
-                  onValueChange={(v) => set("is_active", v === "true")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Hoạt động</SelectItem>
-                    <SelectItem value="false">Tạm ngưng</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field
-                label="Domain chính"
-                help="VD: laptopthanhvo.com. Middleware sẽ resolve shop từ Host header. Để trống = domain chính chưa khai báo."
-                className="sm:col-span-2"
-              >
-                <Input
-                  value={form.primary_domain ?? ""}
-                  onChange={(e) => set("primary_domain", e.target.value || null)}
-                  placeholder="laptopthanhvo.com"
-                />
-              </Field>
-              <Field
-                label="Domain phụ (mỗi dòng 1 domain)"
-                help="www., alias, domain cũ sau khi rebrand, landing page phụ. KHÔNG cần kèm scheme/port."
-                className="sm:col-span-2"
-              >
-                <Textarea
-                  value={(form.allowed_domains ?? []).join("\n")}
-                  onChange={(e) =>
-                    set(
-                      "allowed_domains",
-                      e.target.value
-                        .split("\n")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    )
-                  }
-                  placeholder={
-                    "www.laptopthanhvo.com\nlaplapcantho.store\ncuahangcu.laptopthanhvo.com"
-                  }
-                  rows={3}
-                />
-              </Field>
-              <div className="sm:col-span-2 flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => selected && setForm({ ...selected })}
-                >
-                  Hoàn tác
-                </Button>
-                <Button
-                  disabled={update.isPending}
-                  onClick={() =>
-                    selected &&
-                    update.mutate({
-                      id: selected.id,
-                      body: {
-                        name: form.name,
-                        code: form.code ?? null,
-                        phone: form.phone ?? null,
-                        email: form.email ?? null,
-                        address: form.address ?? null,
-                        timezone: form.timezone ?? null,
-                        is_active: form.is_active ?? true,
-                        // Domain fields: gửi kể cả khi rỗng/null để admin có
-                        // thể xoá domain chính / clear list nếu muốn rebrand.
-                        primary_domain: normalizeDomainInput(form.primary_domain) || null,
-                        allowed_domains: (form.allowed_domains ?? []).map(normalizeDomainInput).filter(Boolean),
-                      },
-                    })
-                  }
-                >
-                  {update.isPending ? "Đang lưu..." : "Lưu thay đổi"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Thêm cửa hàng</DialogTitle>
-            <DialogDescription>
-              Mã cửa hàng phải duy nhất trong hệ thống.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Tên cửa hàng" required>
-              <Input
-                value={newForm.name ?? ""}
-                onChange={(e) =>
-                  setNewForm((p) => ({ ...p, name: e.target.value }))
-                }
-              />
-            </Field>
-            <Field label="Mã" required>
-              <Input
-                value={newForm.code ?? ""}
-                onChange={(e) =>
-                  setNewForm((p) => ({ ...p, code: e.target.value }))
-                }
-                placeholder="LPL-CT02"
-              />
-            </Field>
-            <Field label="SĐT">
-              <Input
-                value={newForm.phone ?? ""}
-                onChange={(e) =>
-                  setNewForm((p) => ({ ...p, phone: e.target.value || null }))
-                }
-              />
-            </Field>
-            <Field label="Email">
-              <Input
-                value={newForm.email ?? ""}
-                onChange={(e) =>
-                  setNewForm((p) => ({ ...p, email: e.target.value || null }))
-                }
-              />
-            </Field>
-            <Field label="Địa chỉ" className="sm:col-span-2">
-              <Input
-                value={newForm.address ?? ""}
-                onChange={(e) =>
-                  setNewForm((p) => ({ ...p, address: e.target.value || null }))
-                }
-              />
-            </Field>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>
-              Huỷ
-            </Button>
-            <Button
-              disabled={create.isPending || !newForm.name || !newForm.code}
-              onClick={() => {
-                create.mutate(newForm, {
-                  onSuccess: () => {
-                    setNewOpen(false);
-                    setNewForm({ is_active: true });
-                  },
-                });
-              }}
-            >
-              Tạo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
   );
 }
 
@@ -616,23 +272,14 @@ const COMMON_KEYS: Array<{ key: string; label: string; group: string; hint?: str
 
 function SystemSettings() {
   const qc = useQueryClient();
+  // Multi-shop removed: scope luôn là "org" vì chỉ có 1 cửa hàng.
   const [scope, setScope] = useState<"org" | "shop">("org");
-  const [scopeShopId, setScopeShopId] = useState<string | null>(null);
+  const scopeShopId: string | null = null;
+  const setScopeShopId = (_v: string | null) => {};
+  const shops: Array<{ id: string; name: string; code: string | null }> = [];
+  const handleScopeChange = (v: string) => setScope(v as "org" | "shop");
 
-  const shopsQ = useQuery({
-    queryKey: ["settings-shops"],
-    queryFn: () => httpGet<Paginated<Shop>>("/v1/shops", { page: 1, pageSize: 50 }),
-  });
-  const shops = shopsQ.data?.items ?? [];
 
-  function handleScopeChange(v: string) {
-    setScope(v as "org" | "shop");
-    if (v === "shop" && shops.length > 0) {
-      setScopeShopId(shops[0].id);
-    } else {
-      setScopeShopId(null);
-    }
-  }
 
   const settingsFilter = scope === "shop" && scopeShopId ? { shop_id: scopeShopId } : {};
 
@@ -952,7 +599,7 @@ function SystemSettings() {
                       onChange={(e) => setDirtyValues((p) => ({ ...p, [k.key]: e.target.value }))}
                       placeholder={k.hint}
                     />
-                    <Button size="sm" onClick={() => saveCommon(k)} disabled={upsert.isPending || (scope === "shop" && !scopeShopId)}>
+                    <Button size="sm" onClick={() => saveCommon(k)} disabled={upsert.isPending}>
                       Lưu
                     </Button>
                   </div>
@@ -963,7 +610,7 @@ function SystemSettings() {
                       onChange={(e) => setDirtyValues((p) => ({ ...p, [k.key]: e.target.value }))}
                       placeholder={k.hint}
                     />
-                    <Button size="sm" onClick={() => saveCommon(k)} disabled={upsert.isPending || (scope === "shop" && !scopeShopId)}>
+                    <Button size="sm" onClick={() => saveCommon(k)} disabled={upsert.isPending}>
                       Lưu
                     </Button>
                   </div>
@@ -988,7 +635,7 @@ function SystemSettings() {
               Các key/value khác. Giá trị JSON hợp lệ sẽ được parse tự động.
             </CardDescription>
           </div>
-          <Button className="w-full sm:w-auto" onClick={() => setCustomOpen(true)} disabled={scope === "shop" && !scopeShopId}>
+          <Button className="w-full sm:w-auto" onClick={() => setCustomOpen(true)} >
             + Thêm cấu hình
           </Button>
         </CardHeader>
@@ -1101,23 +748,14 @@ function SystemSettings() {
 // ====== Trust Badges section ======
 function TrustBadgesSection() {
   const qc = useQueryClient();
+  // Multi-shop removed: scope luôn là "org" vì chỉ có 1 cửa hàng.
   const [scope, setScope] = useState<"org" | "shop">("org");
-  const [scopeShopId, setScopeShopId] = useState<string | null>(null);
+  const scopeShopId: string | null = null;
+  const setScopeShopId = (_v: string | null) => {};
+  const shops: Array<{ id: string; name: string; code: string | null }> = [];
+  const handleScopeChange = (v: string) => setScope(v as "org" | "shop");
 
-  const shopsQ = useQuery({
-    queryKey: ["settings-shops"],
-    queryFn: () => httpGet<Paginated<Shop>>("/v1/shops", { page: 1, pageSize: 50 }),
-  });
-  const shops = shopsQ.data?.items ?? [];
 
-  function handleScopeChange(v: string) {
-    setScope(v as "org" | "shop");
-    if (v === "shop" && shops.length > 0) {
-      setScopeShopId(shops[0].id);
-    } else {
-      setScopeShopId(null);
-    }
-  }
 
   const settingsFilter = scope === "shop" && scopeShopId ? { shop_id: scopeShopId } : {};
 
@@ -1182,23 +820,14 @@ function TrustBadgesSection() {
 
 // ====== Footer section ======
 function FooterSection() {
+  // Multi-shop removed: scope luôn là "org" vì chỉ có 1 cửa hàng.
   const [scope, setScope] = useState<"org" | "shop">("org");
-  const [scopeShopId, setScopeShopId] = useState<string | null>(null);
+  const scopeShopId: string | null = null;
+  const setScopeShopId = (_v: string | null) => {};
+  const shops: Array<{ id: string; name: string; code: string | null }> = [];
+  const handleScopeChange = (v: string) => setScope(v as "org" | "shop");
 
-  const shopsQ = useQuery({
-    queryKey: ["settings-shops"],
-    queryFn: () => httpGet<Paginated<Shop>>("/v1/shops", { page: 1, pageSize: 50 }),
-  });
-  const shops = shopsQ.data?.items ?? [];
 
-  function handleScopeChange(v: string) {
-    setScope(v as "org" | "shop");
-    if (v === "shop" && shops.length > 0) {
-      setScopeShopId(shops[0].id);
-    } else {
-      setScopeShopId(null);
-    }
-  }
 
   const settingsFilter = scope === "shop" && scopeShopId ? { shop_id: scopeShopId } : {};
 

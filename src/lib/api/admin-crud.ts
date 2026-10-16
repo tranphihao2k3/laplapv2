@@ -56,6 +56,27 @@ export function useCrudList<T extends Record<string, unknown>>(
   });
 }
 
+/** Stub: hệ thống đã chuyển sang single-shop.
+ *  Trả về 1 shop duy nhất lấy từ API `/v1/me/current-shop` (server sẽ tự
+ *  resolve shop duy nhất của org). Caller dùng id này để gắn vào orders,
+ *  pos_sessions, v.v. mà không cần user chọn. */
+export function useMyShops(enabled = true) {
+  return useQuery<MyShop[]>({
+    queryKey: ["me-current-shop"],
+    enabled,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    queryFn: async () => {
+      try {
+        const data = await httpGet<MyShop>("/v1/me/current-shop");
+        return [data];
+      } catch {
+        return [];
+      }
+    },
+  });
+}
+
 export type MyShop = {
   id: string;
   name: string;
@@ -64,16 +85,7 @@ export type MyShop = {
   phone: string | null;
 };
 
-/** Danh sách cửa hàng của user đang đăng nhập (qua /v1/me/shops). */
-export function useMyShops(enabled = true) {
-  return useQuery({
-    queryKey: ["me-shops"],
-    enabled,
-    staleTime: STALE_TIME,
-    gcTime: GC_TIME,
-    queryFn: () => httpGet<MyShop[]>("/v1/me/shops"),
-  });
-}
+
 
 export function useCrudCreate<T extends Record<string, unknown>, TInput extends Record<string, unknown>>(
   entity: string,

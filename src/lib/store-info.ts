@@ -5,18 +5,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Thông tin cửa hàng + thông tin pháp lý đầy đủ (dùng cho trang pháp lý,
  * footer, contact… theo Nghị định 52/2013 + 85/2021 về TMĐT).
  *
- * Nguồn dữ liệu (theo thứ tự ưu tiên, khi có shopId):
- *   1. Bảng `shops` (name/phone/email/address) — theo domain hiện tại.
- *   2. Bảng `settings` (group "store", "legal", "contact") — global fallback.
- *   3. DEFAULTS trong file này — fallback cuối cùng nếu DB lỗi.
+ * Nguồn dữ liệu (single-shop mode):
+ *   1. Bảng `settings` (group "store", "legal", "contact") — đọc qua admin client.
+ *   2. DEFAULTS trong file này — fallback cuối cùng nếu DB lỗi.
  *
- * Khi KHÔNG truyền shopId (vd trang admin global, transactional email):
- *   → chỉ dùng settings + DEFAULTS, không query shops.
+ * Tham số `shopId` được giữ để tương thích ngược với call-site cũ, nhưng
+ * BỊ BỎ QUA. Multi-shop đã được gỡ bỏ (xem migration: 2026-10-15).
  *
  * Cache:
  *   - React `cache()` — trong 1 request nhiều component dùng chung kết quả.
  *   - Next.js `unstable_cache()` (xem store-info-cached.ts) cho cache xuyên
- *     request, tách theo shopId.
+ *     request, tách theo tag.
  *
  * Cache tags (set bởi store-info-cached.ts):
  *   - "store-info", "store-legal", "store-contact"
@@ -25,11 +24,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *   - revalidateTag("store-info")
  *   - revalidateTag("store-legal")
  *   - revalidateTag("store-contact")
- *
- * Để mỗi domain hiển thị brand riêng:
- *   - Middleware resolve shop từ `Host` header → set `x-shop-id`.
- *   - Layout/API đọc `headers().get("x-shop-id")` rồi truyền vào đây.
- *   - Nếu shop có name, sẽ ghi đè settings.name.
  */
 
 // ===== Contact Channels =====
@@ -75,7 +69,7 @@ export type StoreInfo = {
   social_links?: SocialLinks;
   // Thông tin pháp lý (NN 52/2013 + 85/2021)
   legal: LegalInfo;
-  // Multi-shop metadata
+  // Multi-shop metadata — luôn null sau khi gỡ multi-shop, giữ để tương thích type.
   shop_id?: string | null;
 };
 
@@ -168,140 +162,83 @@ function asJson<T>(v: unknown): T | null {
 }
 
 /**
- * Read shop row theo shopId. Trả về null nếu không tìm thấy.
- */
-async function readShopBasic(shopId: string): Promise<{
-  name: string | null;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-} | null> {
-  try {
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("shops")
-      .select("name, phone, email, address")
-      .eq("id", shopId)
-      .maybeSingle();
-    if (!data) return null;
-    return {
-      name: asString(data.name),
-      phone: asString(data.phone),
-      email: asString(data.email),
-      address: asString(data.address),
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Public entry: trả StoreInfo, có thể cache theo shopId qua React `cache()`.
- * Cache ở đây CHỈ scope trong 1 request — cache xuyên request là
- * `getStoreInfoCached` ở store-info-cached.ts.
+ * Public entry: trả StoreInfo.
+ * Tham số `shopId` bị bỏ qua (single-shop mode).
  */
 export const getStoreInfo = cache(
-  async (shopId?: string | null): Promise<StoreInfo> => {
-    return _getStoreInfo(shopId ?? null);
+  async (_shopId?: string | null): Promise<StoreInfo> => {
+    try {
+      const supabase = createAdminClient();
+      const { data } = await supabase
+        .from("settings")
+        .select("key,value,group_name")
+        .in("group_name", ["store", "legal", "contact"]);
+
+      const rows = (data ?? []) as Array<{
+        key: string | null;
+        value: unknown;
+        group_name?: string | null;
+      }>;
+      const map = new Map<string, string>();
+      for (const r of rows) {
+        const val = asString(r.value);
+        if (r.key && val) map.set(r.key, val);
+      }
+
+      const legal: LegalInfo = {
+        business_name: map.get("legal.business_name") ?? DEFAULTS_LEGAL.business_name,
+        tax_id: map.get("legal.tax_id") ?? DEFAULTS_LEGAL.tax_id,
+        business_registration_number:
+          map.get("legal.business_registration_number") ??
+          DEFAULTS_LEGAL.business_registration_number,
+        business_registration_issued_by:
+          map.get("legal.business_registration_issued_by") ??
+          DEFAULTS_LEGAL.business_registration_issued_by,
+        business_registration_issued_date:
+          map.get("legal.business_registration_issued_date") ??
+          DEFAULTS_LEGAL.business_registration_issued_date,
+        legal_representative:
+          map.get("legal.legal_representative") ?? DEFAULTS_LEGAL.legal_representative,
+        legal_representative_title:
+          map.get("legal.legal_representative_title") ??
+          DEFAULTS_LEGAL.legal_representative_title,
+        content_manager_phone:
+          map.get("legal.content_manager_phone") ?? DEFAULTS_LEGAL.content_manager_phone,
+        content_manager_email:
+          map.get("legal.content_manager_email") ?? DEFAULTS_LEGAL.content_manager_email,
+        bo_cong_thuong_url:
+          map.get("legal.bo_cong_thuong_url") ?? DEFAULTS_LEGAL.bo_cong_thuong_url,
+        bo_cong_thuong_notified_at:
+          map.get("legal.bo_cong_thuong_notified_at") ??
+          DEFAULTS_LEGAL.bo_cong_thuong_notified_at,
+      };
+
+      // Parse contact settings (stored as JSON strings)
+      const contact_channels = asJson<ContactChannel[]>(map.get("contact_channels")) ?? DEFAULTS.contact_channels;
+      const opening_hours = asJson<OpeningHours>(map.get("opening_hours")) ?? DEFAULTS.opening_hours;
+      const social_links = asJson<SocialLinks>(map.get("social_links")) ?? DEFAULTS.social_links;
+
+      return {
+        name: map.get("name") ?? DEFAULTS.name,
+        description: map.get("description") ?? DEFAULTS.description,
+        address: map.get("address") ?? DEFAULTS.address,
+        phone: map.get("phone") ?? DEFAULTS.phone,
+        email: map.get("email") ?? DEFAULTS.email,
+        hotline: map.get("hotline") ?? DEFAULTS.hotline,
+        warranty_months: parseInt(map.get("warranty_months") ?? "") || DEFAULTS.warranty_months,
+        return_policy_days: parseInt(map.get("return_policy_days") ?? "") || DEFAULTS.return_policy_days,
+        shipping_info: map.get("shipping_info") ?? DEFAULTS.shipping_info,
+        contact_channels,
+        opening_hours,
+        social_links,
+        legal,
+        shop_id: null, // multi-shop removed
+      };
+    } catch {
+      return { ...DEFAULTS, legal: DEFAULTS_LEGAL, shop_id: null };
+    }
   },
 );
-
-async function _getStoreInfo(shopId: string | null): Promise<StoreInfo> {
-  // 1) Đọc settings (luôn chạy — cung cấp các field legal/social).
-  let baseInfo: StoreInfo;
-  try {
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("settings")
-      .select("key,value,group_name")
-      .in("group_name", ["store", "legal", "contact"]);
-
-    const rows = (data ?? []) as Array<{
-      key: string | null;
-      value: unknown;
-      group_name?: string | null;
-    }>;
-    const map = new Map<string, string>();
-    for (const r of rows) {
-      const val = asString(r.value);
-      if (r.key && val) map.set(r.key, val);
-    }
-
-    const legal: LegalInfo = {
-      business_name: map.get("legal.business_name") ?? DEFAULTS_LEGAL.business_name,
-      tax_id: map.get("legal.tax_id") ?? DEFAULTS_LEGAL.tax_id,
-      business_registration_number:
-        map.get("legal.business_registration_number") ??
-        DEFAULTS_LEGAL.business_registration_number,
-      business_registration_issued_by:
-        map.get("legal.business_registration_issued_by") ??
-        DEFAULTS_LEGAL.business_registration_issued_by,
-      business_registration_issued_date:
-        map.get("legal.business_registration_issued_date") ??
-        DEFAULTS_LEGAL.business_registration_issued_date,
-      legal_representative:
-        map.get("legal.legal_representative") ?? DEFAULTS_LEGAL.legal_representative,
-      legal_representative_title:
-        map.get("legal.legal_representative_title") ??
-        DEFAULTS_LEGAL.legal_representative_title,
-      content_manager_phone:
-        map.get("legal.content_manager_phone") ?? DEFAULTS_LEGAL.content_manager_phone,
-      content_manager_email:
-        map.get("legal.content_manager_email") ?? DEFAULTS_LEGAL.content_manager_email,
-      bo_cong_thuong_url:
-        map.get("legal.bo_cong_thuong_url") ?? DEFAULTS_LEGAL.bo_cong_thuong_url,
-      bo_cong_thuong_notified_at:
-        map.get("legal.bo_cong_thuong_notified_at") ??
-        DEFAULTS_LEGAL.bo_cong_thuong_notified_at,
-    };
-
-    // Parse contact settings (stored as JSON strings)
-    const contact_channels = asJson<ContactChannel[]>(map.get("contact_channels")) ?? DEFAULTS.contact_channels;
-    const opening_hours = asJson<OpeningHours>(map.get("opening_hours")) ?? DEFAULTS.opening_hours;
-    const social_links = asJson<SocialLinks>(map.get("social_links")) ?? DEFAULTS.social_links;
-
-    baseInfo = {
-      name: map.get("name") ?? DEFAULTS.name,
-      description: map.get("description") ?? DEFAULTS.description,
-      address: map.get("address") ?? DEFAULTS.address,
-      phone: map.get("phone") ?? DEFAULTS.phone,
-      email: map.get("email") ?? DEFAULTS.email,
-      hotline: map.get("hotline") ?? DEFAULTS.hotline,
-      warranty_months: parseInt(map.get("warranty_months") ?? "") || DEFAULTS.warranty_months,
-      return_policy_days: parseInt(map.get("return_policy_days") ?? "") || DEFAULTS.return_policy_days,
-      shipping_info: map.get("shipping_info") ?? DEFAULTS.shipping_info,
-      contact_channels,
-      opening_hours,
-      social_links,
-      legal,
-      shop_id: null,
-    };
-  } catch {
-    baseInfo = { ...DEFAULTS, legal: DEFAULTS_LEGAL, shop_id: null };
-  }
-
-  // 2) Nếu có shopId, đọc thêm `shops` row và override name/phone/email/address.
-  if (shopId) {
-    const shop = await readShopBasic(shopId);
-    if (shop) {
-      baseInfo = {
-        ...baseInfo,
-        name: shop.name ?? baseInfo.name,
-        phone: shop.phone ?? baseInfo.phone,
-        email: shop.email ?? baseInfo.email,
-        address: shop.address ?? baseInfo.address,
-        // Hotline: ưu tiên shop.phone, fallback settings.hotline
-        hotline: shop.phone ?? baseInfo.hotline,
-        shop_id: shopId,
-      };
-    } else {
-      // shopId truyền vào nhưng không tìm thấy → vẫn ghi nhận để UI biết
-      baseInfo = { ...baseInfo, shop_id: shopId };
-    }
-  }
-
-  return baseInfo;
-}
 
 /**
  * Lightweight variant — chỉ trả name/phone/email/address (không kèm legal).
@@ -309,8 +246,8 @@ async function _getStoreInfo(shopId: string | null): Promise<StoreInfo> {
  */
 export type StoreContact = Pick<StoreInfo, "name" | "phone" | "email" | "address">;
 
-export async function getStoreContact(shopId?: string | null): Promise<StoreContact> {
-  const info = await getStoreInfo(shopId);
+export async function getStoreContact(_shopId?: string | null): Promise<StoreContact> {
+  const info = await getStoreInfo();
   return {
     name: info.name,
     phone: info.phone,

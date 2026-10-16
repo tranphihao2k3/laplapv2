@@ -4,62 +4,7 @@
  * import service viết tay từ file riêng (xem cuối file).
  */
 import { createCrud, type ListQuery } from "./_crud-factory";
-import { requireOrg } from "@/lib/api/guard";
 import { rangeOf, paginated } from "@/lib/api/response";
-
-/**
- * Cache schema của bảng shops: thử SELECT trực tiếp cột `primary_domain`
- * trên bảng `shops` để xác nhận cột có tồn tại trong PostgREST schema cache
- * hay không. PostgREST reject với PGRST204 nếu cột chưa tồn tại → cache
- * `false`. Nếu SELECT thành công → cache `true`.
- *
- * Cách này đáng tin hơn query information_schema (PostgREST mặc định
- * KHÔNG expose information_schema cho client → query đó luôn fail → trả về
- * null → stripMissingColumns no-op → bug cũ vẫn tái diễn).
- *
- * Cache per-process, TTL 60s. Nếu DB reject query vì lý do khác (network,
- * auth) thì fallback trả về `false` — an toàn hơn `null` vì sẽ strip các
- * field optional thay vì để chúng đi tới Supabase và chắc chắn fail.
- */
-let shopsSupportsDomains: boolean | null = null;
-const SHOPS_COLUMNS_TTL_MS = 60_000;
-let shopsColumnsCheckedAt = 0;
-
-async function shopsSupportsDomainColumns(db: unknown): Promise<boolean> {
-  const now = Date.now();
-  if (shopsSupportsDomains !== null && now - shopsColumnsCheckedAt < SHOPS_COLUMNS_TTL_MS) {
-    return shopsSupportsDomains;
-  }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (db as any)
-      .from("shops")
-      .select("primary_domain,allowed_domains")
-      .limit(1);
-    // PGRST204: column not in schema cache → chưa apply migration
-    const supported = !error || error.code !== "PGRST204";
-    shopsSupportsDomains = supported;
-    shopsColumnsCheckedAt = now;
-    return supported;
-  } catch {
-    shopsSupportsDomains = false;
-    shopsColumnsCheckedAt = now;
-    return false;
-  }
-}
-
-const OPTIONAL_DOMAIN_COLUMNS = new Set(["primary_domain", "allowed_domains"]);
-
-/** Loại bỏ 2 field domain khi DB chưa sẵn sàng (chưa apply migration). */
-function stripOptionalDomainColumns(
-  input: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(input)) {
-    if (!OPTIONAL_DOMAIN_COLUMNS.has(k)) out[k] = v;
-  }
-  return out;
-}
 
 // ===== Organizations & people =====
 export const organizationsService = createCrud({
@@ -71,104 +16,8 @@ export const organizationsService = createCrud({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Convert "Cửa hàng Cần Thơ" → "cuahangcantho" */
-function nameToSlug(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // remove diacritics
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-}
-
-// ── Shops (custom create with auto-code) ──────────────────────────────────────
-type ShopsRow = {
-  id: string;
-  organization_id: string | null;
-  name: string;
-  code: string | null;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  timezone: string | null;
-  is_active: boolean | null;
-  created_at: string | null;
-};
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ShopsDB = any;
-
-export const shopsService = {
-  table: "shops",
-
-  async list(db: ShopsDB, query?: ListQuery) {
-    return createCrud({ table: "shops", searchColumns: ["name", "code", "phone", "email"], allowedSortColumns: ["name", "code", "created_at"], defaultOrder: { column: "created_at", ascending: false }, autoStampOrg: true }).list(db, query);
-  },
-
-  async getById(db: ShopsDB, id: string) {
-    return createCrud({ table: "shops", searchColumns: ["name", "code", "phone", "email"], allowedSortColumns: ["name", "code", "created_at"], defaultOrder: { column: "created_at", ascending: false }, autoStampOrg: true }).getById(db, id);
-  },
-
-  async create(db: ShopsDB, input: Record<string, unknown>): Promise<ShopsRow> {
-    const supportsDomains = await shopsSupportsDomainColumns(db);
-    let code = input.code as string | null | undefined;
-
-    // Auto-generate code from name if not provided
-    if (!code || !String(code).trim()) {
-      const slug = nameToSlug(String(input.name ?? "shop"));
-      // Check how many shops already have a code starting with this slug
-      const { data: existing } = await db
-        .from("shops")
-        .select("code")
-        .ilike("code", `${slug}%`)
-        .not("code", "is", null);
-
-      const taken = new Set((existing ?? []).map((r: { code: string }) => r.code.toLowerCase()));
-
-      if (!taken.has(slug)) {
-        code = slug;
-      } else {
-        // Append numeric suffix: slug-1, slug-2 ...
-        let suffix = 1;
-        while (taken.has(`${slug}-${suffix}`)) suffix++;
-        code = `${slug}-${suffix}`;
-      }
-    }
-
-    const payload = { ...input, code } as Record<string, unknown>;
-
-    // Apply autoStampOrg manually (shopsService uses autoStampOrg)
-    const { orgId } = await requireOrg();
-    if (payload.organization_id == null) payload.organization_id = orgId;
-
-    // Filter: bỏ 2 field domain khi migration chưa apply (tránh PG_PGRST204).
-    const safePayload = (
-      supportsDomains ? payload : (stripOptionalDomainColumns(payload) as typeof payload)
-    );
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (db.from("shops") as any).insert(safePayload).select().single();
-    if (error) throw error;
-    return data as ShopsRow;
-  },
-
-  async update(db: ShopsDB, id: string, input: Record<string, unknown>) {
-    const supportsDomains = await shopsSupportsDomainColumns(db);
-    const filtered = supportsDomains
-      ? { ...input }
-      : stripOptionalDomainColumns({ ...input });
-    return createCrud({ table: "shops", searchColumns: ["name", "code", "phone", "email"], allowedSortColumns: ["name", "code", "created_at"], defaultOrder: { column: "created_at", ascending: false }, autoStampOrg: true }).update(db, id, filtered);
-  },
-
-  async remove(db: ShopsDB, id: string) {
-    return createCrud({ table: "shops", searchColumns: ["name", "code", "phone", "email"], allowedSortColumns: ["name", "code", "created_at"], defaultOrder: { column: "created_at", ascending: false }, autoStampOrg: true }).remove(db, id);
-  },
-
-  async bulkRemove(db: ShopsDB, ids: string[]) {
-    return createCrud({ table: "shops", searchColumns: ["name", "code", "phone", "email"], allowedSortColumns: ["name", "code", "created_at"], defaultOrder: { column: "created_at", ascending: false }, autoStampOrg: true }).bulkRemove(db, ids);
-  },
-};
+// ── Multi-shop removed: shopsService đã bị xoá vì chỉ có 1 cửa hàng. ────────
+// Tất cả entities khác giờ dùng tổ chức để filter (organization_id).
 
 export const warehousesService = createCrud({
   table: "warehouses",

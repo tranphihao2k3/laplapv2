@@ -44,14 +44,14 @@ export function InstallmentCalculator({ price }: { price: number }) {
   return (
     <Link
       href={`/tra-gop?price=${price}`}
-      className="group flex w-full items-center gap-4 rounded-xl border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-md sm:p-5"
+      className="group flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left transition-all hover:border-primary hover:shadow-md sm:gap-4 sm:p-5"
     >
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground transition-colors group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground sm:h-12 sm:w-12">
-        <CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground transition-colors group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground sm:h-12 sm:w-12">
+        <CreditCard className="h-4 w-4 sm:h-6 sm:w-6" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-base font-semibold sm:text-base">Mua trả góp</p>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+        <p className="text-sm font-semibold sm:text-base">Mua trả góp</p>
+        <p className="text-xs text-muted-foreground sm:mt-0.5 sm:text-sm">
           {teaser ? (
             <>
               Chỉ từ{" "}
@@ -65,8 +65,8 @@ export function InstallmentCalculator({ price }: { price: number }) {
           )}
         </p>
       </div>
-      <span className="shrink-0 text-sm font-medium text-muted-foreground transition-colors group-hover:text-primary">
-        Tính thử
+      <span className="shrink-0 text-xs font-medium text-muted-foreground transition-colors group-hover:text-primary sm:text-sm">
+        Tính thử →
       </span>
     </Link>
   );
