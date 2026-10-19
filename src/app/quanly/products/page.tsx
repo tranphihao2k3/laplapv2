@@ -1402,7 +1402,17 @@ export default function ProductsAdminPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex flex-col gap-0 mx-0 w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-5xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden p-0">
+        <DialogContent
+          // Click trên dropdown của SearchableSelect (portal ra body) không tính là "outside"
+          // → không đóng Dialog khi user chọn brand/category/template/specs.
+          onPointerDownOutside={(event) => {
+            const target = event.target as HTMLElement | null;
+            if (target?.closest("[data-searchable-select]")) {
+              event.preventDefault();
+            }
+          }}
+          className="flex flex-col gap-0 mx-0 w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-5xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden p-0"
+        >
           <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-6 sm:py-4">
             <DialogTitle>{editingProduct ? "Chỉnh sửa sản phẩm" : "Thêm mới sản phẩm toàn diện"}</DialogTitle>
             <DialogDescription className="hidden sm:block">

@@ -135,13 +135,22 @@ export function SearchableSelect({
     open && position && mounted ? (
       <div
         ref={dropdownRef}
+        data-searchable-select
+        // Chặn mọi event bubble ra khỏi dropdown để Radix Dialog / các listener
+        // khác (click-outside, focus trap) không tưởng là "outside" / "mất focus".
+        // Cần thiết vì dropdown được portal ra document.body, nằm NGOÀI
+        // DOM tree của DialogContent.
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerDownCapture={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         style={{
           position: "fixed",
           top: position.top,
           left: position.left,
           width: position.width,
         }}
-        className="z-50 rounded-md border bg-popover text-popover-foreground shadow-md"
+        className="z-[100] rounded-md border bg-popover text-popover-foreground shadow-md"
       >
         <div className="flex items-center gap-2 border-b px-2.5 py-2">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -160,7 +169,18 @@ export function SearchableSelect({
             className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
-        <div className="max-h-60 overflow-y-auto p-1">
+        <div
+          // overscroll-contain chặn scroll chaining: khi user cuộn đến mép trong
+          // dropdown thì KHÔNG tiếp tục cuộn form/dialog phía sau.
+          className="max-h-[min(60vh,320px)] overflow-y-auto overscroll-contain p-1"
+          onWheel={(e) => {
+            const el = e.currentTarget as HTMLElement;
+            const atTop = el.scrollTop <= 0 && e.deltaY < 0;
+            const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight && e.deltaY > 0;
+            if (atTop || atBottom) e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
           {filtered.length === 0 ? (
             <div className="px-2 py-4 text-center text-xs text-muted-foreground">{emptyText}</div>
           ) : (
