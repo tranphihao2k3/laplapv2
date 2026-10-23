@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizeRam } from "@/lib/normalize-ram";
 import { NEED_TAGS, NEED_TAG_SLUGS, keepValidNeedTags } from "@/lib/product-collections";
+import { generateJson } from "@/lib/ai/gemini-client";
 
 export const parsedProductSchema = z.object({
   name: z.string().describe("Tên sản phẩm gọn, có thương hiệu và model. VD: 'HP EliteBook 840 G5'"),
@@ -263,11 +264,7 @@ function getUserPrompt(text: string, templates: SpecTemplateForAI[]) {
 async function parseWithGemini(
   text: string,
   templates: SpecTemplateForAI[],
-  apiKey: string,
 ): Promise<MultiParsedProduct> {
-  const model = "gemini-2.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
   // Schema response dạng { products: [...], variant_group: {...} }.
   // specs là free-form object → wrap thành string (specs_json) để Gemini chấp nhận.
   const responseSchema = {
@@ -314,65 +311,67 @@ async function parseWithGemini(
     required: ["products", "variant_group"],
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      contents: [{ role: "user", parts: [{ text: getUserPrompt(text, templates) }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema,
-        temperature: 0.2,
-      },
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Gemini API lỗi ${res.status}: ${body}`);
-  }
-  const json = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  // Dùng generateJson() — chịu trách nhiệm xoay vòng key Gemini, fallback OpenAI.
+  // parse() nhận raw text từ LLM, validate + unpack `specs_json` → MultiParsedProduct.
+  const safeJsonParse = (rawText: string) => {
+    try {
+      return JSON.parse(rawText);
+    } catch (err) {
+      // Gemini đôi khi trả text không phải JSON (HTML error page, lỗi mạng,
+      // hoặc AI malformed output). Hiển thị đoạn text đầu để debug, không throw
+      // kiểu "Unexpected token '!'" khó hiểu nữa.
+      const preview = rawText.slice(0, 200).replace(/\s+/g, " ");
+      throw new Error(
+        `AI trả về response không phải JSON hợp lệ. ` +
+          `Có thể do API key sai/hết quota hoặc response bị cắt. Preview: "${preview}..."`,
+      );
+    }
   };
-  const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) throw new Error("Gemini không trả nội dung");
-  const parsed = unpackSpecsJson(JSON.parse(rawText));
-  return normalizeMulti(normalizeSpecs(parsed));
+
+  return generateJson({
+    provider: "gemini",
+    systemPrompt: SYSTEM_PROMPT,
+    userPrompt: getUserPrompt(text, templates),
+    responseSchema,
+    temperature: 0.2,
+    parse: (rawText) => {
+      const parsed = unpackSpecsJson(safeJsonParse(rawText));
+      return normalizeMulti(normalizeSpecs(parsed));
+    },
+  });
 }
 
 async function parseWithOpenAI(
   text: string,
   templates: SpecTemplateForAI[],
-  apiKey: string,
 ): Promise<MultiParsedProduct> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: getUserPrompt(text, templates) },
-      ],
-    }),
+  return generateJson({
+    provider: "openai",
+    systemPrompt: SYSTEM_PROMPT,
+    userPrompt: getUserPrompt(text, templates),
+    temperature: 0.2,
+    parse: safeParseAndUnpack,
   });
+}
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`OpenAI API lỗi ${res.status}: ${body}`);
+/**
+ * Parse + unpack + validate raw text từ LLM.
+ * - Bọc JSON.parse trong try/catch để LLM trả text "lạ" (HTML error page, lỗi
+ *   mạng, response bị cắt) → error message có ích thay vì "Unexpected token".
+ * - Dùng chung cho cả Gemini và OpenAI provider.
+ */
+function safeParseAndUnpack(rawText: string): MultiParsedProduct {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(rawText);
+  } catch {
+    const preview = rawText.slice(0, 200).replace(/\s+/g, " ");
+    throw new Error(
+      `AI trả về response không phải JSON hợp lệ. ` +
+        `Có thể do API key sai/hết quota hoặc response bị cắt. Preview: "${preview}..."`,
+    );
   }
-  const json = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const rawText = json.choices?.[0]?.message?.content;
-  if (!rawText) throw new Error("OpenAI không trả nội dung");
-  const parsed = unpackSpecsJson(JSON.parse(rawText));
+  const parsed = unpackSpecsJson(raw);
   return normalizeMulti(normalizeSpecs(parsed));
 }
 
@@ -483,76 +482,21 @@ function slugifyGroupId(name: string): string {
 /**
  * Gọi Gemini/OpenAI với fallback key. Trả về MultiParsedProduct.
  * Internal helper — callers nên dùng parseProductsText().
+ *
+ * Logic xoay vòng key + fallback provider được delegate cho `generateJson()`
+ * trong `gemini-client.ts`. Ở đây chỉ cần gọi đúng provider, fallback tự xử lý.
  */
 async function tryProviders(
   text: string,
   provider: AIProvider,
   templates: SpecTemplateForAI[],
 ): Promise<MultiParsedProduct> {
-  const geminiKeys = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY_3,
-    process.env.GEMINI_API_KEY_4,
-  ].filter((k): k is string => !!k);
-
-  const openaiKey = process.env.OPENAI_API_KEY;
-  const errors: string[] = [];
-
-  const tryGemini = async (): Promise<MultiParsedProduct> => {
-    if (geminiKeys.length === 0) {
-      throw new Error("Chưa cấu hình bất kỳ GEMINI_API_KEY nào");
-    }
-    for (let i = 0; i < geminiKeys.length; i++) {
-      try {
-        return await parseWithGemini(text, templates, geminiKeys[i]);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push(`Gemini Key ${i + 1} thất bại: ${msg}`);
-      }
-    }
-    throw new Error("Tất cả key Gemini đều thất bại");
-  };
-
-  const tryOpenAI = async (): Promise<MultiParsedProduct> => {
-    if (!openaiKey) {
-      throw new Error("Chưa cấu hình OPENAI_API_KEY");
-    }
-    try {
-      return await parseWithOpenAI(text, templates, openaiKey);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`OpenAI thất bại: ${msg}`);
-      throw err;
-    }
-  };
-
-  if (provider === "gemini") {
-    try {
-      return await tryGemini();
-    } catch {
-      if (openaiKey) {
-        try {
-          return await tryOpenAI();
-        } catch {
-          throw new Error(`Gemini & OpenAI fallback đều thất bại. Chi tiết lỗi:\n${errors.join("\n")}`);
-        }
-      }
-      throw new Error(`Tất cả key Gemini đều thất bại và không có OpenAI key dự phòng. Chi tiết lỗi:\n${errors.join("\n")}`);
-    }
+  // generateJson() đã tự xử lý thứ tự thử key Gemini → fallback OpenAI.
+  // Nếu provider="openai" mà không có key, nó sẽ thử Gemini trước khi fail.
+  if (provider === "openai") {
+    return parseWithOpenAI(text, templates);
   }
-  try {
-    return await tryOpenAI();
-  } catch {
-    if (geminiKeys.length > 0) {
-      try {
-        return await tryGemini();
-      } catch {
-        throw new Error(`OpenAI & Gemini fallback đều thất bại. Chi tiết lỗi:\n${errors.join("\n")}`);
-      }
-    }
-    throw new Error(`OpenAI thất bại và không có Gemini key dự phòng. Chi tiết lỗi:\n${errors.join("\n")}`);
-  }
+  return parseWithGemini(text, templates);
 }
 
 /**

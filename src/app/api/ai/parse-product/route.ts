@@ -200,6 +200,46 @@ export async function POST(req: Request) {
     }
     const { text, provider } = parsed.data;
 
+    // Fast-fail với thông điệp rõ ràng khi dev quên set API keys — tránh
+    // để AI provider trả về error khó hiểu ("Unexpected token '!'" do JSON.parse
+    // trên raw text không phải JSON khi Gemini gặp lỗi key).
+    const geminiKeys = [
+      process.env.GEMINI_API_KEY,
+      process.env.GEMINI_API_KEY_2,
+      process.env.GEMINI_API_KEY_3,
+      process.env.GEMINI_API_KEY_4,
+    ].filter(Boolean);
+    const openaiKey = process.env.OPENAI_API_KEY;
+
+    if (provider === "gemini" && geminiKeys.length === 0 && !openaiKey) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            message:
+              "Chưa cấu hình AI key nào. Thêm GEMINI_API_KEY hoặc OPENAI_API_KEY vào file .env.local, " +
+              "sau đó restart dev server. Xem .env.local.example để biết chi tiết.",
+            code: "NO_AI_KEYS_CONFIGURED",
+          },
+        },
+        { status: 503 },
+      );
+    }
+    if (provider === "openai" && !openaiKey) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            message:
+              "Chưa cấu hình OPENAI_API_KEY. Thêm vào .env.local rồi restart dev server. " +
+              "Hoặc chuyển sang provider='gemini' nếu đã có GEMINI_API_KEY.",
+            code: "NO_OPENAI_KEY",
+          },
+        },
+        { status: 503 },
+      );
+    }
+
     // Resolve brand/category/gifts/templates từ Supabase
     const supabase = await createClient();
     const [brandsRes, categoriesRes, productsRes, templatesRes] = await Promise.all([
