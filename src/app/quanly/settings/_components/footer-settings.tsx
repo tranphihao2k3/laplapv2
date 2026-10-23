@@ -17,7 +17,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { ArrowUp, ArrowDown, Plus, Trash2, GripVertical } from "lucide-react";
-import { httpPost, httpPatch } from "@/lib/api/http";
+import { httpGet, httpPost, httpPatch } from "@/lib/api/http";
+import { invalidateBrandCache } from "@/lib/brand-cache-invalidation";
 import type { FooterColumn, FooterLink, FooterSettings } from "@/lib/footer-settings";
 import { DEFAULT_FOOTER_SETTINGS } from "@/lib/footer-settings";
 
@@ -43,6 +44,11 @@ export function FooterSettings({
   shopId,
 }: Props) {
   const qc = useQueryClient();
+
+  // Parse initial value — server lưu dưới group "footer", key "footer_columns"
+  // (xem lib/footer-settings.ts → _getFooterSettings đọc map.get("footer_columns")).
+  // Tuy nhiên, để back-compat với cài đặt cũ đã lỡ lưu dưới group "store"
+  // + key "footer_settings" thì vẫn fallback về `raw` ở dưới.
 
   // Parse initial value
   const initial: FooterSettings = (() => {
@@ -79,19 +85,63 @@ export function FooterSettings({
 
   const upsertMutation = useMutation({
     mutationFn: async (value: FooterSettings) => {
-      const payload: Record<string, unknown> = {
-        value,
-        group_name: group,
-        key: keyName,
-      };
-      if (scope === "shop" && shopId) payload.shop_id = shopId;
-      if (settingId) {
-        return httpPatch(`/v1/settings/${settingId}`, payload);
-      }
-      return httpPost("/v1/settings", payload);
+      // Lưu cả 3 keys mà server `getFooterSettings` đọc:
+      //   - footer_columns     (FooterColumn[] — cấu trúc cột + link)
+      //   - footer_description (string)
+      //   - footer_payment_methods (string[])
+      // Đặt vào group "footer" để khớp với logic đọc.
+      const items: Array<{ value: unknown; key: string }> = [
+        { key: "footer_columns", value: value.columns ?? [] },
+        { key: "footer_description", value: value.description ?? "" },
+        { key: "footer_payment_methods", value: value.payment_methods ?? [] },
+      ];
+
+      // Upsert từng key song song.
+      const results: Array<{ key: string; id?: string }> = await Promise.all(
+        items.map(async (it) => {
+          const payload: Record<string, unknown> = {
+            value: it.value,
+            group_name: "footer",
+            key: it.key,
+          };
+          if (scope === "shop" && shopId) payload.shop_id = shopId;
+          // Tìm setting hiện có theo (group, key, shop_id)
+          try {
+            const found = await httpGet<{ items?: Array<{ id: string; key: string; group_name: string | null }> }>(
+              "/v1/settings",
+              { page: 1, pageSize: 1, group_name: "footer", key: it.key },
+            );
+            const existing = found.items?.[0];
+            if (existing) {
+              return { key: it.key, id: existing.id };
+            }
+          } catch {
+            // ignore — tạo mới
+          }
+          return { key: it.key };
+        }),
+      );
+
+      // Sau khi biết id (nếu có), PATCH từng cái. Nếu chưa có id thì POST.
+      await Promise.all(
+        results.map((r, idx) => {
+          const payload: Record<string, unknown> = {
+            value: items[idx].value,
+            group_name: "footer",
+            key: items[idx].key,
+          };
+          if (scope === "shop" && shopId) payload.shop_id = shopId;
+          if (r.id) {
+            return httpPatch(`/v1/settings/${r.id}`, payload);
+          }
+          return httpPost("/v1/settings", payload);
+        }),
+      );
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings-config-footer"] });
+      // Bắn cả 2 event: store-info (để header/footer cập nhật) + footer riêng.
+      invalidateBrandCache();
       toast.success("Đã lưu cấu hình footer");
     },
     onError: () => toast.error("Lưu thất bại"),

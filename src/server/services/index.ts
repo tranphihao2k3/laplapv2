@@ -333,13 +333,18 @@ export const repairServicesService = createCrud({
 });
 
 // ===== Misc =====
-export const settingsService = createCrud({
-  table: "settings",
-  searchColumns: ["key", "group_name"],
-  allowedSortColumns: ["key"],
-  defaultOrder: { column: "key", ascending: true },
-  autoStampOrg: true,
-});
+/**
+ * `settingsService` ở đây dùng bản custom (xem ./settings-service.ts) thay vì
+ * `createCrud` thuần, để khi admin thay đổi setting thuộc nhóm `store` /
+ * `legal` / `contact` / `footer` thì server-side cache của
+ * `/api/public/store-info` + `/api/public/footer` tự động bị invalidate
+ * thông qua `revalidateTag(...)`.
+ *
+ * Nếu dùng `createCrud` thuần thì setting đã đổi nhưng cache vẫn cũ
+ * (Next.js `unstable_cache` TTL 1 giờ), dẫn đến header / footer / trang
+ * liên hệ hiển thị sai cho đến khi cache hết hạn.
+ */
+export { settingsService } from "./settings-service";
 
 export const auditLogsService = createCrud({
   table: "audit_logs",
