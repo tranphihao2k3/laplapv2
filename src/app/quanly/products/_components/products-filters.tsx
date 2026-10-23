@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
+import { OptionsSelect, type SelectOption } from "@/components/ui/options-select";
 import { cn } from "@/lib/utils";
 
 export type ProductFilterValue = {
@@ -43,8 +43,8 @@ export const EMPTY_FILTER: ProductFilterValue = {
 type Props = {
   value: ProductFilterValue;
   onChange: (next: ProductFilterValue) => void;
-  brandOptions: SearchableOption[];
-  categoryOptions: SearchableOption[];
+  brandOptions: SelectOption[];
+  categoryOptions: SelectOption[];
   totalLabel?: string;
   filteredLabel?: string;
 };
@@ -192,13 +192,11 @@ export function ProductFilters({
               <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Layers className="h-3 w-3" /> Thương hiệu
               </Label>
-              <SearchableSelect
+              <OptionsSelect
                 options={brandOptions}
                 value={value.brandId}
                 onValueChange={(v) => update({ brandId: v })}
                 placeholder="Tất cả thương hiệu"
-                searchPlaceholder="Tìm thương hiệu..."
-                emptyText="Không tìm thấy thương hiệu"
               />
             </div>
 
@@ -207,13 +205,11 @@ export function ProductFilters({
               <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Filter className="h-3 w-3" /> Danh mục
               </Label>
-              <SearchableSelect
+              <OptionsSelect
                 options={categoryOptions}
                 value={value.categoryId}
                 onValueChange={(v) => update({ categoryId: v })}
                 placeholder="Tất cả danh mục"
-                searchPlaceholder="Tìm danh mục..."
-                emptyText="Không tìm thấy danh mục"
               />
             </div>
 

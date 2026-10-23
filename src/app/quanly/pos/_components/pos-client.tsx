@@ -31,7 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { httpPost } from "@/lib/api/http";
 import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { useUser } from "@/hooks/use-user";
-import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
+import { OptionsSelect, type SelectOption } from "@/components/ui/options-select";
 import { ProductSearch, type PosSearchHit } from "./product-search";
 import { CustomerPicker } from "./customer-picker";
 import { RepairTicketPicker, type RepairTicket } from "./repair-ticket-picker";
@@ -134,7 +134,7 @@ function PosClientInner() {
   const userQuery = useUser();
 
   const shops = useMemo(() => shopsQuery.data ?? [], [shopsQuery.data]);
-  const shopOptions = useMemo<SearchableOption[]>(
+  const shopOptions = useMemo<SelectOption[]>(
     () => shops.map((s) => ({ value: s.id, label: s.name, keywords: s.code ?? "" })),
     [shops],
   );
@@ -676,13 +676,12 @@ function PosClientInner() {
               <Store className="mr-1 inline h-3 w-3" />
               Cửa hàng
             </Label>
-            <SearchableSelect
+            <OptionsSelect
               className="h-10"
               options={shopOptions}
               value={shopId}
               onValueChange={setShopId}
               placeholder="Chọn cửa hàng"
-              searchPlaceholder="Tìm cửa hàng..."
               disabled={shops.length === 0}
             />
             {!shopsQuery.isLoading && shops.length === 0 && (

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
-import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
+import { OptionsSelect, type SelectOption } from "@/components/ui/options-select";
 import { InventoryHelpSection } from "@/app/quanly/inventory/_components/inventory-help";
 import { Package, AlertTriangle, XCircle, CheckCircle2, TrendingDown, Warehouse, ShoppingCart, ArrowRight } from "lucide-react";
 
@@ -104,15 +104,15 @@ export default function StockLevelsAdminPage() {
     return groups;
   }, [rows, warehouseMap]);
 
-  const shopOptions = useMemo<SearchableOption[]>(
+  const shopOptions = useMemo<SelectOption[]>(
     () => myShops.map((s) => ({ value: s.id, label: s.name, keywords: s.code ?? "" })),
     [myShops],
   );
-  const warehouseOptions = useMemo<SearchableOption[]>(
+  const warehouseOptions = useMemo<SelectOption[]>(
     () => warehouses.map((w) => ({ value: w.id, label: w.name, keywords: w.code ?? "" })),
     [warehouses],
   );
-  const variantOptions = useMemo<SearchableOption[]>(
+  const variantOptions = useMemo<SelectOption[]>(
     () => variants.map((v) => ({ 
       value: v.id, 
       label: v.product?.name ? `${v.product.name} - ${v.name}` : (v.name ?? v.id),
@@ -287,7 +287,7 @@ export default function StockLevelsAdminPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 items-end">
             <div className="space-y-2">
               <label className="text-xs font-semibold">Cửa hàng</label>
-              <SearchableSelect
+              <OptionsSelect
                 options={shopOptions}
                 value={selectedShopId}
                 onValueChange={(v) => {
@@ -295,29 +295,26 @@ export default function StockLevelsAdminPage() {
                   setSelectedWarehouseId("");
                 }}
                 placeholder="Chọn cửa hàng..."
-                searchPlaceholder="Tìm cửa hàng..."
                 disabled={myShops.length === 0}
               />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold">Kho hàng</label>
-              <SearchableSelect
+              <OptionsSelect
                 options={warehouseOptions}
                 value={selectedWarehouseId}
                 onValueChange={setSelectedWarehouseId}
                 placeholder="Chọn kho..."
-                searchPlaceholder="Tìm kho..."
                 disabled={warehouses.length === 0}
               />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold">Sản phẩm (biến thể)</label>
-              <SearchableSelect
+              <OptionsSelect
                 options={variantOptions}
                 value={selectedVariantId}
                 onValueChange={setSelectedVariantId}
-                placeholder="Tìm sản phẩm..."
-                searchPlaceholder="Tìm theo tên / SKU..."
+                placeholder="Chọn sản phẩm..."
               />
             </div>
             <div className="space-y-2">
