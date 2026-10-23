@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
+import { OptionsSelect, type SelectOption } from "@/components/ui/options-select";
 import { useCrudBulkDelete, useCrudCreate, useCrudDelete, useCrudList, useCrudUpdate, useMyShops } from "@/lib/api/admin-crud";
 import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
 import { createClient } from "@/lib/supabase/client";
@@ -61,6 +61,13 @@ type VariantInput = {
   weight?: number;
   is_active: boolean;
   initial_stock?: number;
+  /**
+   * Tồn kho hiện tại đọc từ stock_levels (theo kho đang chọn).
+   * Chỉ dùng khi EDIT — để hiển thị & chỉnh sửa số lượng tồn của biến thể đã có.
+   */
+  stock_qty?: number;
+  /** Tồn kho gốc lúc load — dùng để biết user có thực sự đổi số lượng hay không. */
+  stock_original?: number;
 };
 
 type VariantRow = {
@@ -225,6 +232,8 @@ export default function ProductsAdminPage() {
 
   // Variants in current form
   const [variants, setVariants] = useState<VariantInput[]>([]);
+  // Đang tải tồn kho của các biến thể (để disable ô nhập trong lúc chờ)
+  const [stockLoading, setStockLoading] = useState(false);
   const [newSku, setNewSku] = useState("");
   const [newVarName, setNewVarName] = useState("");
   const [newSellingPrice, setNewSellingPrice] = useState(0);
@@ -437,24 +446,24 @@ export default function ProductsAdminPage() {
   // Cây danh mục để dropdown có thụt lề cha-con
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
 
-  // Options cho các SearchableSelect (danh mục / thương hiệu / spec template)
-  const categoryOptions = useMemo<SearchableOption[]>(
+  // Options cho các OptionsSelect (danh mục / thương hiệu / spec template)
+  const categoryOptions = useMemo<SelectOption[]>(
     () => categoryTree.map((c) => ({ value: c.id, label: c.name, depth: c.depth })),
     [categoryTree],
   );
-  const brandOptions = useMemo<SearchableOption[]>(
+  const brandOptions = useMemo<SelectOption[]>(
     () => brands.map((b) => ({ value: b.id, label: b.name })),
     [brands],
   );
-  const specTemplateOptions = useMemo<SearchableOption[]>(
+  const specTemplateOptions = useMemo<SelectOption[]>(
     () => specTemplates.map((t) => ({ value: t.id, label: t.name })),
     [specTemplates],
   );
-  const shopOptions = useMemo<SearchableOption[]>(
+  const shopOptions = useMemo<SelectOption[]>(
     () => myShops.map((s) => ({ value: s.id, label: s.name, keywords: s.code ?? "" })),
     [myShops],
   );
-  const warehouseOptions = useMemo<SearchableOption[]>(
+  const warehouseOptions = useMemo<SelectOption[]>(
     () => warehouses.map((w) => ({ value: w.id, label: w.name, keywords: w.code ?? "" })),
     [warehouses],
   );
@@ -488,6 +497,23 @@ export default function ProductsAdminPage() {
     if (inherited) setSpecTemplateId(inherited.id);
   }, [open, categoryId, specTemplateId, specTemplates, categories]);
 
+  // Biến thể hiện tại (ref) — để effect nạp tồn kho luôn đọc được danh sách mới nhất
+  // mà không cần đưa `variants` vào deps (tránh nạp lại mỗi lần user sửa 1 ô).
+  const variantsRef = useRef<VariantInput[]>([]);
+  useEffect(() => {
+    variantsRef.current = variants;
+  }, [variants]);
+
+  // Khi đang EDIT và user đổi kho → nạp lại tồn kho của các biến thể trong kho mới,
+  // để số liệu hiển thị khớp với kho đang thao tác.
+  useEffect(() => {
+    if (!open || !editingProduct || !warehouseId) return;
+    const ids = variantsRef.current.map((v) => v.id).filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+    void loadVariantStock(ids, warehouseId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editingProduct, warehouseId]);
+
   // Đường dẫn category cha → con (chuỗi "Laptop / Laptop Gaming") để hiển thị gợi ý kế thừa
   const inheritedFromName = useMemo(() => {
     if (!inheritedTemplate || !inheritedTemplate.category_id || !categoryId) return null;
@@ -503,6 +529,79 @@ export default function ProductsAdminPage() {
       ...selectedFiles.map((item) => item.localUrl),
     ]),
   );
+
+  /**
+   * Đọc tồn kho hiện tại của các biến thể trong 1 kho.
+   * Ghi kết quả vào state `variants` (stock_qty + stock_original) để so sánh
+   * xem user có thực sự thay đổi số lượng hay không.
+   */
+  const loadVariantStock = async (variantIds: string[], whId: string) => {
+    if (variantIds.length === 0 || !whId) return;
+    setStockLoading(true);
+    try {
+      const res = await fetch(
+        `/api/v1/stock-levels?warehouse_id=${encodeURIComponent(whId)}&product_variant_id__in=${encodeURIComponent(variantIds.join(","))}`,
+      );
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error?.message ?? "Không đọc được tồn kho");
+      const rows = (json.data?.items ?? []) as { product_variant_id: string; available_qty: number | null }[];
+      const map = new Map<string, number>();
+      for (const r of rows) map.set(r.product_variant_id, Number(r.available_qty ?? 0));
+      setVariants((prev) =>
+        prev.map((v) => {
+          if (!v.id) return v;
+          const qty = map.get(v.id) ?? 0;
+          return { ...v, stock_qty: qty, stock_original: qty };
+        }),
+      );
+    } catch {
+      // Không đọc được tồn kho → để các ô nhập ở trạng thái 0, vẫn ghi được khi lưu.
+      setVariants((prev) =>
+        prev.map((v) => (v.id ? { ...v, stock_qty: v.stock_qty ?? 0, stock_original: v.stock_original ?? 0 } : v)),
+      );
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
+  /**
+   * Ghi tồn kho của các biến thể đã tồn tại (chỉ ghi những cái thực sự thay đổi).
+   * Dùng endpoint adjust vì nó upsert theo (warehouse_id, product_variant_id).
+   */
+  const saveVariantStock = async (
+    list: { id?: string; sku: string; stock_qty?: number; stock_original?: number }[],
+    whId: string,
+  ): Promise<string[]> => {
+    if (!whId) return [];
+    const targets = list.filter(
+      (v) => v.id && v.stock_qty !== undefined && v.stock_qty !== v.stock_original,
+    );
+    if (targets.length === 0) return [];
+
+    const errors: string[] = [];
+    await Promise.all(
+      targets.map(async (v) => {
+        try {
+          const res = await fetch("/api/v1/stock-levels/adjust", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              warehouse_id: whId,
+              product_variant_id: v.id,
+              available_qty: Math.max(0, Number(v.stock_qty) || 0),
+            }),
+          });
+          if (!res.ok) {
+            const payload = await res.json().catch(() => null);
+            throw new Error(payload?.error?.message ?? `Không ghi được tồn kho cho ${v.sku}`);
+          }
+        } catch (e) {
+          errors.push(e instanceof Error ? e.message : `Không ghi được tồn kho cho ${v.sku}`);
+        }
+      }),
+    );
+    return errors;
+  };
 
   // Populate form for Editing
   const startEdit = async (prod: Product) => {
@@ -542,7 +641,8 @@ export default function ProductsAdminPage() {
     setSlugTouched(true); // khi edit, slug đã có sẵn → không auto-overwrite từ name
     setQuickPrice("");
     setQuickStock("");
-    setWarehouseId("");
+    // Giữ kho đang chọn để đọc/ghi tồn kho của biến thể (nếu chưa chọn thì lấy kho đầu tiên).
+    if (!warehouseId && warehouses.length > 0) setWarehouseId(warehouses[0].id);
 
     // Fetch existing variants of this product
     try {
@@ -558,6 +658,7 @@ export default function ProductsAdminPage() {
           is_active: v.is_active ?? true,
         }));
         setVariants(mapped);
+        // Tồn kho được nạp bởi effect (đọc stock_levels theo kho đang chọn).
         const firstSpecs = resData.data.items.find((v) => v.specs && typeof v.specs === "object")?.specs;
         if (firstSpecs && typeof firstSpecs === "object") {
           const normalized = Object.fromEntries(
@@ -600,8 +701,8 @@ export default function ProductsAdminPage() {
     setVariants([]);
 
     // ── Default khi tạo mới: prefill "Laptop" + template kế thừa ──
-    // Section "Thông số kỹ thuật" sẽ tự mở (vì defaultOpen phụ thuộc specTemplateId)
-    // nên admin vào thẳng phần specs để điền ngay, không phải click mở.
+    // Tất cả Section trong dialog đều mở sẵn (defaultOpen) để admin điền
+    // thẳng, không phải click mở từng mục.
     const laptopCat = findLaptopCategory(categories);
     if (laptopCat) {
       setCategoryId(laptopCat.id);
@@ -914,11 +1015,16 @@ export default function ProductsAdminPage() {
         }),
       );
 
-      // Ghi tồn kho ban đầu cho các variant mới (chỉ khi đang tạo product mới + có chọn kho + qty > 0).
-      // Khi edit, người dùng nên dùng trang "Tồn kho" riêng để tránh ghi đè nhầm.
-      if (!editingProduct && warehouseId) {
-        const stockTasks = variantResults
+      // Ghi tồn kho:
+      //  - Tạo mới: ghi `initial_stock` của các variant mới vào kho đã chọn.
+      //  - Edit: ghi `stock_qty` của các variant ĐÃ tồn tại nếu số lượng thực sự thay đổi.
+      if (warehouseId) {
+        const stockErrors: string[] = [];
+
+        // (1) Variant mới — chỉ có khi đang tạo product (chưa có id trong DB).
+        const newVariantTasks = variantResults
           .map(({ variant, saved }) => {
+            if (variant.id) return null; // đã tồn tại → xử lý ở nhánh (2)
             const qty = Number(variant.initial_stock) || 0;
             if (qty <= 0) return null;
             const savedRecord = saved as Record<string, unknown> | undefined;
@@ -941,13 +1047,32 @@ export default function ProductsAdminPage() {
           })
           .filter(Boolean) as Promise<void>[];
 
-        if (stockTasks.length > 0) {
+        if (newVariantTasks.length > 0) {
           try {
-            await Promise.all(stockTasks);
-            toast.success(`Đã ghi tồn kho ban đầu cho ${stockTasks.length} biến thể`);
+            await Promise.all(newVariantTasks);
+            toast.success(`Đã ghi tồn kho ban đầu cho ${newVariantTasks.length} biến thể`);
           } catch (stockErr) {
-            toast.error(getErrorMessage(stockErr));
+            stockErrors.push(getErrorMessage(stockErr));
           }
+        }
+
+        // (2) Variant đã tồn tại — ghi khi user chỉnh số lượng tồn trong bảng.
+        const existingStockErrors = await saveVariantStock(
+          variantsToSave.filter((v) => Boolean(v.id)),
+          warehouseId,
+        );
+        stockErrors.push(...existingStockErrors);
+        if (existingStockErrors.length === 0) {
+          const changedCount = variantsToSave.filter(
+            (v) => v.id && v.stock_qty !== undefined && v.stock_qty !== v.stock_original,
+          ).length;
+          if (changedCount > 0) {
+            toast.success(`Đã cập nhật tồn kho cho ${changedCount} biến thể`);
+          }
+        }
+
+        if (stockErrors.length > 0) {
+          toast.error(stockErrors[0]);
         }
       }
 
@@ -1403,14 +1528,6 @@ export default function ProductsAdminPage() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          // Click trên dropdown của SearchableSelect (portal ra body) không tính là "outside"
-          // → không đóng Dialog khi user chọn brand/category/template/specs.
-          onPointerDownOutside={(event) => {
-            const target = event.target as HTMLElement | null;
-            if (target?.closest("[data-searchable-select]")) {
-              event.preventDefault();
-            }
-          }}
           className="flex flex-col gap-0 mx-0 w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-5xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden p-0"
         >
           <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-6 sm:py-4">
@@ -1464,7 +1581,7 @@ export default function ProductsAdminPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Danh mục</Label>
-                  <SearchableSelect
+                  <OptionsSelect
                     options={categoryOptions}
                     value={categoryId}
                     onValueChange={(v) => {
@@ -1475,7 +1592,6 @@ export default function ProductsAdminPage() {
                       }, 0);
                     }}
                     placeholder="Chọn danh mục..."
-                    searchPlaceholder="Tìm danh mục..."
                   />
                   {categoryId && (
                     <p className="text-xs text-muted-foreground">
@@ -1488,12 +1604,11 @@ export default function ProductsAdminPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Thương hiệu</Label>
-                  <SearchableSelect
+                  <OptionsSelect
                     options={brandOptions}
                     value={brandId}
                     onValueChange={setBrandId}
                     placeholder="Chọn (tuỳ chọn)..."
-                    searchPlaceholder="Tìm thương hiệu..."
                   />
                 </div>
                 <div className="space-y-2">
@@ -1639,7 +1754,7 @@ export default function ProductsAdminPage() {
 
                   <div className="space-y-2">
                     <Label className="whitespace-nowrap">Cửa hàng</Label>
-                    <SearchableSelect
+                    <OptionsSelect
                       options={shopOptions}
                       value={shopId}
                       onValueChange={(v) => {
@@ -1647,7 +1762,6 @@ export default function ProductsAdminPage() {
                         setWarehouseId(""); // reset để effect chọn lại kho đầu của cửa hàng mới
                       }}
                       placeholder="Chọn cửa hàng..."
-                      searchPlaceholder="Tìm cửa hàng..."
                       disabled={myShops.length === 0}
                     />
                     {myShopsQuery.isLoading ? (
@@ -1659,12 +1773,11 @@ export default function ProductsAdminPage() {
 
                   <div className="space-y-2">
                     <Label className="whitespace-nowrap">Kho hàng</Label>
-                    <SearchableSelect
+                    <OptionsSelect
                       options={warehouseOptions}
                       value={warehouseId}
                       onValueChange={setWarehouseId}
                       placeholder="Chọn kho..."
-                      searchPlaceholder="Tìm kho..."
                       disabled={warehouses.length === 0}
                     />
                     {warehouses.length === 0 && (
@@ -1681,11 +1794,12 @@ export default function ProductsAdminPage() {
                 MÔ TẢ & TỪ KHÓA — collapsible
                ============================================================ */}
             <Section
+              key={`desc-${dialogOpenNonce}-${editingProduct?.id ?? "new"}`}
               title="Mô tả & Từ khóa"
               description="Mô tả ngắn, mô tả chi tiết, tags"
               icon={<FileText className="h-4 w-4 text-muted-foreground" />}
               badge={[shortDesc, description, tagsInput].filter(Boolean).length || null}
-              defaultOpen={Boolean(editingProduct && (shortDesc || description || tagsInput))}
+              defaultOpen
             >
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -1824,17 +1938,16 @@ export default function ProductsAdminPage() {
               description="Chỉ cần điền cho laptop / linh kiện. Sản phẩm đơn giản có thể bỏ qua."
               icon={<Cpu className="h-4 w-4 text-muted-foreground" />}
               badge={Object.values(specValues).filter(Boolean).length || null}
-              defaultOpen={Boolean(specTemplateId)}
+              defaultOpen
             >
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Mẫu thông số (Spec template)</Label>
-                  <SearchableSelect
+                  <OptionsSelect
                     options={specTemplateOptions}
                     value={specTemplateId}
                     onValueChange={setSpecTemplateId}
                     placeholder="Chọn mẫu specs..."
-                    searchPlaceholder="Tìm mẫu thông số..."
                   />
                   {inheritedTemplate && !specTemplateId && (
                     <p className="text-xs text-muted-foreground">
@@ -1881,11 +1994,12 @@ export default function ProductsAdminPage() {
                 QUÀ TẶNG KÈM — collapsible
                ============================================================ */}
             <Section
+              key={`gifts-${dialogOpenNonce}-${editingProduct?.id ?? "new"}`}
               title="Quà tặng kèm"
               description="Chọn sản phẩm khác làm quà tặng khi bán sản phẩm này"
               icon={<Gift className="h-4 w-4 text-muted-foreground" />}
               badge={selectedGifts.length || null}
-              defaultOpen={selectedGifts.length > 0}
+              defaultOpen
             >
               <GiftProductPicker
                 excludeProductId={editingProduct?.id}
@@ -1898,42 +2012,43 @@ export default function ProductsAdminPage() {
                 BIẾN THỂ NHIỀU CẤU HÌNH — collapsible, override quick price
                ============================================================ */}
             <Section
+              key={`variants-${dialogOpenNonce}-${editingProduct?.id ?? "new"}`}
               title="Biến thể nhiều cấu hình"
               description="Cần khi sản phẩm có nhiều phiên bản (i5/i7, 16GB/32GB...). Bỏ qua nếu sản phẩm đơn giản."
               icon={<Layers3 className="h-4 w-4 text-muted-foreground" />}
               badge={variants.length || null}
-              defaultOpen={variants.length > 0}
+              defaultOpen
             >
               <div className="space-y-3">
-                {!editingProduct && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Cửa hàng</Label>
-                      <SearchableSelect
-                        options={shopOptions}
-                        value={shopId}
-                        onValueChange={(v) => {
-                          setShopId(v);
-                          setWarehouseId("");
-                        }}
-                        placeholder="Chọn cửa hàng..."
-                        searchPlaceholder="Tìm cửa hàng..."
-                        disabled={myShops.length === 0}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Kho hàng (nhập tồn ban đầu cho biến thể)</Label>
-                      <SearchableSelect
-                        options={warehouseOptions}
-                        value={warehouseId}
-                        onValueChange={setWarehouseId}
-                        placeholder="Chọn kho..."
-                        searchPlaceholder="Tìm kho..."
-                        disabled={warehouses.length === 0}
-                      />
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cửa hàng</Label>
+                    <OptionsSelect
+                      options={shopOptions}
+                      value={shopId}
+                      onValueChange={(v) => {
+                        setShopId(v);
+                        setWarehouseId("");
+                      }}
+                      placeholder="Chọn cửa hàng..."
+                      disabled={myShops.length === 0}
+                    />
                   </div>
-                )}
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      {editingProduct
+                        ? "Kho hàng (nơi áp dụng tồn kho)"
+                        : "Kho hàng (nhập tồn ban đầu cho biến thể)"}
+                    </Label>
+                    <OptionsSelect
+                      options={warehouseOptions}
+                      value={warehouseId}
+                      onValueChange={setWarehouseId}
+                      placeholder="Chọn kho..."
+                      disabled={warehouses.length === 0}
+                    />
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end bg-muted/40 p-3 rounded-lg border">
                   <div className="space-y-1">
                     <Label className="text-xs">SKU</Label>
@@ -1970,11 +2085,13 @@ export default function ProductsAdminPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>Tên cấu hình</TableHead>
-                        <TableHead>Giá bán</TableHead>
-                        <TableHead>Giá vốn</TableHead>
-                        <TableHead>Tồn ban đầu</TableHead>
+                        <TableHead className="min-w-[150px]">SKU</TableHead>
+                        <TableHead className="min-w-[160px]">Tên cấu hình</TableHead>
+                        <TableHead className="min-w-[120px]">Giá bán</TableHead>
+                        <TableHead className="min-w-[120px]">Giá vốn</TableHead>
+                        <TableHead className="min-w-[110px]">
+                          {editingProduct ? "Tồn kho" : "Tồn ban đầu"}
+                        </TableHead>
                         <TableHead className="text-right">Xoá</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1987,14 +2104,71 @@ export default function ProductsAdminPage() {
                         </TableRow>
                       ) : (
                         variants.map((v, i) => (
-                          <TableRow key={v.sku + i}>
-                            <TableCell className="font-mono text-xs">{v.sku}</TableCell>
-                            <TableCell>{v.name}</TableCell>
-                            <TableCell className="text-sm font-semibold">{v.selling_price.toLocaleString()}đ</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{v.cost_price.toLocaleString()}đ</TableCell>
+                          <TableRow key={v.id ?? `new-${v.sku}-${i}`}>
                             <TableCell>
-                              {editingProduct ? (
-                                <span className="text-xs text-muted-foreground">—</span>
+                              <Input
+                                value={v.sku}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, sku: val } : row)));
+                                }}
+                                className="h-8 font-mono text-xs"
+                                aria-label={`SKU biến thể ${i + 1}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={v.name}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, name: val } : row)));
+                                }}
+                                className="h-8 text-sm"
+                                aria-label={`Tên biến thể ${i + 1}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={v.selling_price}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value) || 0;
+                                  setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, selling_price: val } : row)));
+                                }}
+                                className="h-8 text-sm font-semibold"
+                                aria-label={`Giá bán biến thể ${i + 1}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={v.cost_price}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value) || 0;
+                                  setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, cost_price: val } : row)));
+                                }}
+                                className="h-8 text-sm"
+                                aria-label={`Giá vốn biến thể ${i + 1}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {/* Biến thể ĐÃ tồn tại → sửa tồn hiện tại của kho đang chọn.
+                                  Biến thể MỚI (chưa có id) → nhập tồn ban đầu sẽ tạo. */}
+                              {v.id ? (
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  disabled={stockLoading}
+                                  value={v.stock_qty ?? 0}
+                                  onChange={(e) => {
+                                    const qty = Number(e.target.value) || 0;
+                                    setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, stock_qty: qty } : row)));
+                                  }}
+                                  className="h-8 w-24"
+                                  aria-label={`Tồn kho biến thể ${i + 1}`}
+                                />
                               ) : (
                                 <Input
                                   type="number"
@@ -2004,7 +2178,8 @@ export default function ProductsAdminPage() {
                                     const qty = Number(e.target.value) || 0;
                                     setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, initial_stock: qty } : row)));
                                   }}
-                                  className="h-8 w-20"
+                                  className="h-8 w-24"
+                                  aria-label={`Tồn ban đầu biến thể ${i + 1}`}
                                 />
                               )}
                             </TableCell>
