@@ -46,6 +46,7 @@ import { TrustBadgesSettings } from "./_components/trust-badges-settings";
 import { ContactSettings } from "./_components/contact-settings";
 import { FooterSettings } from "./_components/footer-settings";
 import { LegalSettings } from "./_components/legal-settings";
+import { StoreInfoSettings } from "./_components/store-info-settings";
 import type { Paginated } from "@/lib/api/response";
 
 // ====== Types ======
@@ -80,9 +81,10 @@ function getApiErrorMsg(e: unknown) {
 
 export default function SettingsPage() {
   return (
-    <Tabs defaultValue="org" className="space-y-4">
+    <Tabs defaultValue="store" className="space-y-4">
       <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <TabsList className="w-max">
+          <TabsTrigger value="store">Thông tin cửa hàng</TabsTrigger>
           <TabsTrigger value="org">Tổ chức</TabsTrigger>
           <TabsTrigger value="config">Cấu hình hệ thống</TabsTrigger>
           <TabsTrigger value="trust">Trust Badges</TabsTrigger>
@@ -92,6 +94,9 @@ export default function SettingsPage() {
         </TabsList>
       </div>
 
+      <TabsContent value="store">
+        <StoreInfoSettings />
+      </TabsContent>
       <TabsContent value="org">
         <OrgSettings />
       </TabsContent>

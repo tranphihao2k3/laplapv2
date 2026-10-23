@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { httpGet, httpPatch, httpPost } from "@/lib/api/http";
+import { invalidateBrandCache } from "@/lib/brand-cache-invalidation";
 import type { Paginated } from "@/lib/api/response";
 
 // ====== Types =====
@@ -152,6 +153,10 @@ export function ContactSettings() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings-contact"] });
+      // Bắn event để các tab client đang mở (header/footer) refresh.
+      // Server cache cho store-info/store-contact sẽ được revalidate tự
+      // động bởi settings-service mới (xem server/services/settings-service.ts).
+      invalidateBrandCache();
       toast.success("Đã lưu cấu hình liên hệ");
     },
     onError: (e) => toast.error(getApiErrorMsg(e)),

@@ -10,9 +10,11 @@ import { useStoreSettings } from "@/components/client/layout/use-store-settings"
  *
  * Đây là entry point duy nhất mọi client component nên dùng để hiển thị
  * tên thương hiệu. KHÔNG hard-code "LapLap" trong component.
+ * 
+ * ⚠️ fetchOnMount: true để tự động load khi mount lần đầu
  */
 export function useBrandName(): string {
-  const { settings } = useStoreSettings({ fetchOnMount: false });
+  const { settings } = useStoreSettings({ fetchOnMount: true });
   return useMemo(() => {
     const v = settings?.name?.trim();
     return v && v.length > 0 ? v : "LapLap";
@@ -24,7 +26,7 @@ export function useBrandName(): string {
  * Trả về { email, phone, hotline, address } với fallback an toàn.
  */
 export function useBrandContact() {
-  const { settings } = useStoreSettings({ fetchOnMount: false });
+  const { settings } = useStoreSettings({ fetchOnMount: true });
   return useMemo(() => {
     return {
       email: settings?.email?.trim() || "info@laplap.vn",
@@ -41,7 +43,7 @@ export function useBrandContact() {
  */
 export function useBrand() {
   const { settings, isLoading, refresh, clearCache } = useStoreSettings({
-    fetchOnMount: false,
+    fetchOnMount: true,
   });
   return { settings, isLoading, refresh, clearCache };
 }
