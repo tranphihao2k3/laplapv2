@@ -42,6 +42,16 @@
     --sidebar-accent-foreground: 222 47% 11%;
     --sidebar-border: 214 32% 91%;
     --sidebar-ring: 222 100% 50%;
+
+    /* === Thứ tự lớp (z-index) ===
+       Các lớp nổi (select, dropdown, tooltip) PHẢI cao hơn Dialog/Sheet,
+       vì Radix render chúng qua portal ra document.body — cùng z-index sẽ bị
+       lớp mở sau đè lên (click rơi xuống Dialog thay vì vào dropdown). */
+    --z-base: 10;
+    --z-header: 40;
+    --z-overlay: 50;  /* Dialog / AlertDialog / Sheet / Drawer: nền + panel */
+    --z-floating: 70; /* Select / DropdownMenu / Tooltip / Popover: nằm trên overlay */
+    --z-toast: 80;    /* Toast thông báo */
   }
 
   .dark {
