@@ -93,10 +93,17 @@ export function StoreInfoSettings() {
         ...payload,
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["settings-store-info"] });
       // Invalidate brand cache so header/footer update
       invalidateBrandCache();
+      // Xoá cache server-side (store-info/footer/contact) để tên mới hiện ngay
+      // thay vì đợi TTL 1h. Best-effort — lỗi mạng không chặn lưu.
+      try {
+        await fetch("/api/admin/revalidate-store", { method: "POST" });
+      } catch {
+        // ignore — cache vẫn tự hết hạn sau 1h
+      }
       toast.success("Đã cập nhật thông tin cửa hàng");
     },
     onError: (e) => toast.error(getApiErrorMsg(e)),

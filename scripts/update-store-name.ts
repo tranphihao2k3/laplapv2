@@ -5,6 +5,11 @@
  * Lưu ý: cần SUPABASE_SERVICE_ROLE_KEY hợp lệ (key trong .env.local có thể đã
  * bị rotate — lấy key mới từ dashboard Supabase hoặc từ máy deploy:
  *   flyctl ssh console -a laplapv2 -C "printenv SUPABASE_SERVICE_ROLE_KEY"
+ *
+ * Script ghi thẳng bảng `settings` nên KHÔNG trigger `revalidateTag` của
+ * `settingsService`. Vì vậy sau khi update, script gọi
+ * `POST /api/admin/revalidate-store` (Bearer CRON_SECRET) để xoá cache
+ * server-side — nếu không, tên mới chỉ hiện sau khi TTL 1h hết hạn.
  */
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
@@ -65,6 +70,36 @@ async function main() {
   }
 
   console.log(`✅ Đã đổi tên store thành '${STORE_NAME}'`);
+
+  // Xoá cache server-side để tên mới hiện ngay (không đợi TTL 1h).
+  await revalidateStoreCache();
+}
+
+/**
+ * Gọi endpoint revalidate của production để xoá cache store-info.
+ * Best-effort: nếu thiếu CRON_SECRET hoặc endpoint lỗi thì chỉ cảnh báo,
+ * cache vẫn tự hết hạn sau 1h.
+ */
+async function revalidateStoreCache() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const secret = process.env.CRON_SECRET;
+  if (!appUrl || !secret) {
+    console.warn("⚠️  Thiếu NEXT_PUBLIC_APP_URL hoặc CRON_SECRET — bỏ qua revalidate cache.");
+    return;
+  }
+  try {
+    const res = await fetch(`${appUrl.replace(/\/$/, "")}/api/admin/revalidate-store`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${secret}` },
+    });
+    if (res.ok) {
+      console.log("✅ Đã revalidate cache store-info trên production.");
+    } else {
+      console.warn(`⚠️  Revalidate cache thất bại (HTTP ${res.status}).`);
+    }
+  } catch (err) {
+    console.warn("⚠️  Không gọi được revalidate cache:", (err as Error).message);
+  }
 }
 
 main();
