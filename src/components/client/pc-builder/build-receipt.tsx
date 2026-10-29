@@ -101,7 +101,7 @@ export function BuildReceipt({ build, title, note, shareUrl }: Props) {
               <Cpu className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-base font-bold">LapLap Cần Thơ</p>
+              <p className="text-base font-bold">Laptop Thành Võ Cần Thơ</p>
               <p className="text-[11px] text-slate-500">lap-lap.com.vn</p>
             </div>
           </div>
@@ -186,7 +186,7 @@ export function BuildReceipt({ build, title, note, shareUrl }: Props) {
 
         <Separator className="my-4" />
         <p className="text-center text-[10px] text-slate-400">
-          Phiếu được tạo bởi công cụ Xây dựng cấu hình PC của LapLap.
+          Phiếu được tạo bởi công cụ Xây dựng cấu hình PC của Laptop Thành Võ.
         </p>
       </div>
     </div>

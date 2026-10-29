@@ -71,7 +71,7 @@ export function CompareBar() {
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center text-[9px] font-semibold text-slate-300">
-                        LapLap
+                        Laptop
                       </div>
                     )}
                   </div>

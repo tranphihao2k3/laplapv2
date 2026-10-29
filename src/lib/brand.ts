@@ -5,7 +5,7 @@
  * Tham số `shopId` được giữ để tương thích ngược với call-site cũ nhưng bị bỏ
  * qua. Resolution order:
  *   1. `settings` table (group "store", key "name" | "email")
- *   2. process.env.NEXT_PUBLIC_APP_NAME | "LapLap" (fallback cuối)
+ *   2. process.env.NEXT_PUBLIC_APP_NAME | "Laptop Thành Võ" (fallback cuối)
  *
  * (Trước đây từng lookup `shops.name` / `shops.email` theo shopId để mỗi
  * domain có brand riêng. Tính năng này đã được tắt vì không ổn định trong triển
@@ -16,7 +16,7 @@ import { cache } from "react";
 import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const FALLBACK_BRAND = "LapLap";
+const FALLBACK_BRAND = "Laptop Thành Võ";
 const FALLBACK_EMAIL = "info@laplap.vn";
 
 function safeEnvName(): string {

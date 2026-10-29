@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Trash2, GripVertical, Save } from "lucide-react";
@@ -113,25 +113,28 @@ export function ContactSettings() {
   });
 
   // Update local state when server data loads
-  useMemo(() => {
+  useEffect(() => {
     const raw = contactChannelsSetting?.value;
     if (Array.isArray(raw) && JSON.stringify(raw) !== JSON.stringify(channels)) {
       setChannels(raw as ContactChannel[]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactChannelsSetting?.value]);
 
-  useMemo(() => {
+  useEffect(() => {
     const raw = openingHoursSetting?.value;
     if (raw && typeof raw === "object" && JSON.stringify(raw) !== JSON.stringify(hours)) {
       setHours(raw as OpeningHours);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingHoursSetting?.value]);
 
-  useMemo(() => {
+  useEffect(() => {
     const raw = socialLinksSetting?.value;
     if (raw && typeof raw === "object" && JSON.stringify(raw) !== JSON.stringify(socials)) {
       setSocials(raw as SocialLinks);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socialLinksSetting?.value]);
 
   const upsert = useMutation({

@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { CreditCard } from "lucide-react";
 import { env } from "@/lib/env";
 import { getStoreInfoForRequest } from "@/lib/request-shop";
@@ -22,7 +22,7 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          LapLap hỗ trợ đa dạng phương thức thanh toán để khách hàng thuận tiện lựa chọn:
+          Laptop Thành Võ hỗ trợ đa dạng phương thức thanh toán để khách hàng thuận tiện lựa chọn:
         </p>
         <table>
           <thead>
@@ -79,7 +79,7 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          Mọi giao dịch thanh toán tại LapLap đều được bảo vệ bởi các tiêu chuẩn bảo mật quốc
+          Mọi giao dịch thanh toán tại Laptop Thành Võ đều được bảo vệ bởi các tiêu chuẩn bảo mật quốc
           tế:
         </p>
         <ul>
@@ -98,7 +98,7 @@ const sections: PolicySection[] = [
           </li>
         </ul>
         <p>
-          LapLap <strong>không bao giờ</strong> lưu trữ thông tin thẻ tín dụng của khách hàng.
+          Laptop Thành Võ <strong>không bao giờ</strong> lưu trữ thông tin thẻ tín dụng của khách hàng.
           Mọi giao dịch thẻ đều do cổng thanh toán xử lý và tuân thủ quy chuẩn bảo mật của
           ngân hàng.
         </p>
@@ -137,7 +137,7 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          LapLap hỗ trợ xuất <strong>hoá đơn điện tử VAT</strong> cho khách hàng là doanh nghiệp
+          Laptop Thành Võ hỗ trợ xuất <strong>hoá đơn điện tử VAT</strong> cho khách hàng là doanh nghiệp
           hoặc cá nhân có nhu cầu.
         </p>
         <ul>
@@ -163,7 +163,7 @@ const sections: PolicySection[] = [
           Trường hợp cần hoàn tiền (đổi trả, huỷ đơn, sai giá…), quy trình hoàn tiền:
         </p>
         <ol>
-          <li>LapLap duyệt yêu cầu hoàn tiền trong 24 giờ.</li>
+          <li>Laptop Thành Võ duyệt yêu cầu hoàn tiền trong 24 giờ.</li>
           <li>Tiến hành hoàn qua đúng phương thức thanh toán ban đầu.</li>
           <li>Thời gian nhận tiền: 3 - 7 ngày làm việc (tuỳ ngân hàng).</li>
         </ol>

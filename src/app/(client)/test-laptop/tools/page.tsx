@@ -107,7 +107,7 @@ export default function ToolsPage() {
             Tải công cụ kiểm tra
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-zinc-500">
-            Bộ phần mềm kiểm tra laptop phổ biến, lưu trữ trên R2 của LapLap.
+            Bộ phần mềm kiểm tra laptop phổ biến, lưu trữ trên R2 của Laptop Thành Võ.
             Sau khi quét xong, bạn có thể mở tool tự động từ trang kết quả scan.
           </p>
         </div>

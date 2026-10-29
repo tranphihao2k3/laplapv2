@@ -85,7 +85,7 @@ export function CompareTable({ result, onlyDiff, onRemove }: Props) {
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-200">
-                          LapLap
+                          Laptop
                         </div>
                       )}
                     </div>

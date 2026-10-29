@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 // Template PowerShell duoc nhung inline trong bundle (`scanner-template.ts`)
 // nen deploy Cloudflare Worker cung chay duoc.
 //
-// Token va API base duoc chen vao template, dong goi cung LapLap-Scanner.bat
+// Token va API base duoc chen vao template, dong goi cung LaptopThanhVo-Scanner.bat
 // + README.txt -> tra ve 1 file zip cho user tai ve va chay.
 
 type ZipEntry = {
@@ -114,18 +114,18 @@ function makeZip(entries: ZipEntry[]) {
 }
 
 function readme(apiBase: string, token: string) {
-  return `LapLap Toolcheck (mini)
+  return `Laptop Thành Võ Toolcheck (mini)
 =======================
 
 1. Giai nen file zip nay ra mot thu muc rieng.
-2. Chay file LapLap-Scanner.bat (chi can DOUBLE-CLICK).
+2. Chay file LaptopThanhVo-Scanner.bat (chi can DOUBLE-CLICK).
 3. Cu so PowerShell se mo va scanner se:
    a. Download smartctl.exe (chi lan dau, ~5MB) tu server.
    b. Quet CPU, GPU, RAM, o cung (SMART chi tiet), pin, man hinh, WiFi.
    c. Gui ket qua ve trinh duyet.
 4. Neu muon doc SMART chi tiet (wear level, reallocated sectors, NVMe health),
    phai chay voi quyen ADMIN:
-   - Chuot phai vao "LapLap-Scanner.bat" -> "Run as administrator"
+   - Chuot phai vao "LaptopThanhVo-Scanner.bat" -> "Run as administrator"
    - BAM YES tren UAC popup.
    - PS1 se tu phat hien admin va chay smartctl.exe.
 5. Neu khong muon admin, scanner van chay binh thuong (chi thieu SMART chi tiet).
@@ -135,7 +135,7 @@ Token : ${token}
 
 Luu y:
 - Lan dau smartctl se download tu server (~5MB), cache tai
-  %LOCALAPPDATA%\\LapLap\\smartctl\\ (cac lan sau dung cache).
+  %LOCALAPPDATA%\\LaptopThanhVo\\smartctl\\ (cac lan sau dung cache).
 - smartctl chi chay duoi quyen admin nen can "Run as administrator".
 - Neu gap canh bao "execution of scripts is disabled", nhan "Run once"
   hoac chay truc tiep lenh:
@@ -158,7 +158,7 @@ export async function GET(req: NextRequest) {
 
     const entries: ZipEntry[] = [
       {
-        name: "LapLap-Scanner.bat",
+        name: "LaptopThanhVo-Scanner.bat",
         data: Buffer.from(SCANNER_BAT, "utf8"),
         mtime: new Date(),
       },

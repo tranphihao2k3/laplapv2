@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Truck } from "lucide-react";
 import { env } from "@/lib/env";
 import { getStoreInfoForRequest } from "@/lib/request-shop";
@@ -22,7 +22,7 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          LapLap giao hàng trên phạm vi toàn quốc. Thời gian và phí vận chuyển được tính theo
+          Laptop Thành Võ giao hàng trên phạm vi toàn quốc. Thời gian và phí vận chuyển được tính theo
           khu vực:
         </p>
         <table>
@@ -87,7 +87,7 @@ const sections: PolicySection[] = [
           </li>
         </ul>
         <p>
-          Trường hợp giao hàng chậm so với cam kết (trừ bất khả kháng), LapLap sẽ miễn phí vận
+          Trường hợp giao hàng chậm so với cam kết (trừ bất khả kháng), Laptop Thành Võ sẽ miễn phí vận
           chuyển cho đơn hàng đó như một lời xin lỗi.
         </p>
       </>
@@ -125,7 +125,7 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          LapLap hợp tác với các đơn vị vận chuyển uy tín để đảm bảo giao hàng nhanh và an toàn:
+          Laptop Thành Võ hợp tác với các đơn vị vận chuyển uy tín để đảm bảo giao hàng nhanh và an toàn:
         </p>
         <ul>
           <li>
@@ -137,7 +137,7 @@ const sections: PolicySection[] = [
         </ul>
         <p>
           Khách hàng có thể yêu cầu đơn vị vận chuyển cụ thể khi đặt hàng. Trường hợp đơn vị
-          vận chuyển làm hư hỏng sản phẩm, LapLap chịu trách nhiệm đổi mới 100%.
+          vận chuyển làm hư hỏng sản phẩm, Laptop Thành Võ chịu trách nhiệm đổi mới 100%.
         </p>
       </>
     ),
@@ -153,7 +153,7 @@ const sections: PolicySection[] = [
         <ol>
           <li>Khách đặt hàng, chọn hình thức COD.</li>
           <li>
-            LapLap xác nhận đơn và gửi hàng. Khách chỉ thanh toán khi nhận được hàng và kiểm
+            Laptop Thành Võ xác nhận đơn và gửi hàng. Khách chỉ thanh toán khi nhận được hàng và kiểm
             tra xong.
           </li>
           <li>Đơn từ 30 triệu: yêu cầu đặt cọc tối thiểu 10% để giữ hàng.</li>

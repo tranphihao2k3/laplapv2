@@ -408,7 +408,7 @@ export default function BrandsAdminPage() {
                 id="brand-name"
                 value={form.name}
                 onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Ví dụ: LapLap"
+                placeholder="Ví dụ: Laptop Thành Võ"
               />
             </div>
             <div className="space-y-2">
@@ -417,7 +417,7 @@ export default function BrandsAdminPage() {
                 id="brand-slug"
                 value={form.slug}
                 onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="Ví dụ: laplap"
+                placeholder="Ví dụ: laptop-thanh-vo"
               />
             </div>
             <div className="space-y-2">

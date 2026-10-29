@@ -4,7 +4,7 @@
 //   - SCANNER_BAT: trigger don gian, khong self-elevate phuc tap
 //
 // Trong route /api/v1/system-scan/download, token va api base duoc chen vao
-// template bang replaceAll, dong goi vao file zip cung LapLap-Scanner.bat
+// template bang replaceAll, dong goi vao file zip cung LaptopThanhVo-Scanner.bat
 // + README.txt -> tra ve 1 file zip cho user tai ve va chay.
 //
 // BAT rat don gian: chi goi powershell -File laplap-toolcheck.ps1.
@@ -175,7 +175,7 @@ function Expand-Zip {
 
 # Ham chinh: xu ly command "launch-tool" tu server.
 # Buoc:
-#   1. Download tool tu downloadUrl -> %LOCALAPPDATA%\LapLap\Tools\$toolId\
+#   1. Download tool tu downloadUrl -> %LOCALAPPDATA%\LaptopThanhVo\Tools\$toolId\
 #   2. Neu co sha256 -> verify SHA256, mismatch -> error
 #   3. Neu extract=true -> giai nen zip
 #   4. Launch exec_name voi args
@@ -194,13 +194,13 @@ function Invoke-ToolCommand {
     # Neu tool can admin ma scanner khong co quyen -> canh bao
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if ($requiresAdmin -and -not $isAdmin) {
-        Send-Progress -ToolId $toolId -Stage "error" -Percent 0 -Message "Can quyen Admin. Hay dong cua so va chay lai LapLap-Scanner.bat voi 'Run as administrator'."
+        Send-Progress -ToolId $toolId -Stage "error" -Percent 0 -Message "Can quyen Admin. Hay dong cua so va chay lai LaptopThanhVo-Scanner.bat voi 'Run as administrator'."
         Write-Fail "Tool yeu cau quyen Admin. Scanner hien khong co quyen."
         return
     }
 
-    # Thu muc cache: %LOCALAPPDATA%\LapLap\Tools\$toolId\
-    $toolDir = Join-Path $env:LOCALAPPDATA "LapLap\Tools\$toolId"
+    # Thu muc cache: %LOCALAPPDATA%\LaptopThanhVo\Tools\$toolId\
+    $toolDir = Join-Path $env:LOCALAPPDATA "LaptopThanhVo\Tools\$toolId"
     if (-not (Test-Path $toolDir)) { New-Item -ItemType Directory -Path $toolDir -Force | Out-Null }
 
     # Neu da co file extract san -> skip download
@@ -408,7 +408,7 @@ try {
 
     # === Smartctl setup ===
     # Luong:
-    #   1. Check $LocalAppData\LapLap\smartctl\smartctl.exe (cache tu lan truoc).
+    #   1. Check $LocalAppData\LaptopThanhVo\smartctl\smartctl.exe (cache tu lan truoc).
     #   2. Neu chua co -> download smartctl.exe TRUC TIEP tu R2 (khong qua ZIP).
     #   3. Neu download fail -> skip smartctl, chi dung WMI.
     #   4. Neu smartctl chay (admin) -> them SMART chi tiet (wear, reallocated, ...).
@@ -416,7 +416,7 @@ try {
     $smartctlPath = $null
     $smartctlAvail = $false
     try {
-        $cacheDir = Join-Path $env:LOCALAPPDATA "LapLap\smartctl"
+        $cacheDir = Join-Path $env:LOCALAPPDATA "LaptopThanhVo\smartctl"
         $cachedExe = Join-Path $cacheDir "smartctl.exe"
         if (Test-Path $cachedExe) {
             $smartctlPath = $cachedExe

@@ -73,7 +73,7 @@ export default async function AccountOverviewPage() {
     <div className="space-y-6">
       <AccountPageHeader
         title={`Xin chào, ${me.fullName?.split(" ").slice(-1)[0] ?? "bạn"}`}
-        description="Tóm tắt hoạt động gần đây của bạn trên LapLap."
+        description="Tóm tắt hoạt động gần đây của bạn trên Laptop Thành Võ."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link href="/products">

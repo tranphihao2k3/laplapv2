@@ -50,7 +50,7 @@ async function fetchWithUA(url: string, userAgent?: string): Promise<Response> {
   return fetch(url, {
     redirect: "follow",
     headers: {
-      "User-Agent": userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 LapLapScanner/1.0",
+      "User-Agent": userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 LaptopThanhVoScanner/1.0",
       "Accept": "*/*",
     },
   });

@@ -97,8 +97,8 @@ function setNumberFormat(col: ExcelJS.Column, format?: ExcelColumnFormat) {
 /** Tạo workbook từ data + metadata, trả về Buffer. */
 export async function buildWorkbook<T>(opts: BuildWorkbookOpts<T>): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "LapLap Admin";
-  wb.lastModifiedBy = "LapLap Admin";
+  wb.creator = "Laptop Thành Võ Admin";
+  wb.lastModifiedBy = "Laptop Thành Võ Admin";
   wb.created = new Date();
   wb.modified = new Date();
 

@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Gavel } from "lucide-react";
 import { env } from "@/lib/env";
 import { getStoreInfoForRequest } from "@/lib/request-shop";
@@ -23,7 +23,7 @@ const sections: PolicySection[] = [
       <>
         <p>
           Khiếu nại là phản ánh của khách hàng về sản phẩm/dịch vụ không đúng cam kết, có lỗi kỹ
-          thuật, sai mô tả, hoặc chất lượng không như mong đợi. LapLap cam kết tiếp nhận và
+          thuật, sai mô tả, hoặc chất lượng không như mong đợi. Laptop Thành Võ cam kết tiếp nhận và
           phản hồi mọi khiếu nại một cách công bằng, minh bạch.
         </p>
       </>
@@ -89,7 +89,7 @@ const sections: PolicySection[] = [
             <tr>
               <td>1. Tiếp nhận</td>
               <td>Ngay khi nhận được</td>
-              <td>LapLap gửi mã khiếu nại + xác nhận đã tiếp nhận qua email/SĐT</td>
+              <td>Laptop Thành Võ gửi mã khiếu nại + xác nhận đã tiếp nhận qua email/SĐT</td>
             </tr>
             <tr>
               <td>2. Xác minh</td>
@@ -125,7 +125,7 @@ const sections: PolicySection[] = [
     title: "Phương án giải quyết",
     content: (
       <>
-        <p>Tuỳ theo tính chất vụ việc, LapLap có thể áp dụng:</p>
+        <p>Tuỳ theo tính chất vụ việc, Laptop Thành Võ có thể áp dụng:</p>
         <ul>
           <li>
             <strong>Đổi mới 100%</strong> — khi sản phẩm có lỗi từ nhà sản xuất.
@@ -138,7 +138,7 @@ const sections: PolicySection[] = [
             <strong>Sửa chữa miễn phí</strong> — đối với lỗi kỹ thuật trong bảo hành.
           </li>
           <li>
-            <strong>Bồi thường thỏa đáng</strong> — khi sai sót do LapLap, bằng voucher/phiếu
+            <strong>Bồi thường thỏa đáng</strong> — khi sai sót do Laptop Thành Võ, bằng voucher/phiếu
             mua hàng hoặc hoàn tiền một phần.
           </li>
         </ul>

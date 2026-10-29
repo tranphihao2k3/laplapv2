@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
@@ -48,7 +48,7 @@ export function StoreInfoSettings() {
       }),
   });
 
-  const items = settingsQ.data?.items ?? [];
+  const items = useMemo(() => settingsQ.data?.items ?? [], [settingsQ.data]);
 
   const byKey = useMemo(() => {
     const m = new Map<string, Setting>();
@@ -56,27 +56,25 @@ export function StoreInfoSettings() {
     return m;
   }, [items]);
 
-  // Local form state
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    address: "",
-    phone: "",
-    hotline: "",
-    email: "",
-  });
-
-  // Sync from server data
-  useMemo(() => {
-    setForm({
+  const formFromServer = useMemo(
+    () => ({
       name: (byKey.get("name")?.value as string) || "",
       description: (byKey.get("description")?.value as string) || "",
       address: (byKey.get("address")?.value as string) || "",
       phone: (byKey.get("phone")?.value as string) || "",
       hotline: (byKey.get("hotline")?.value as string) || "",
       email: (byKey.get("email")?.value as string) || "",
-    });
-  }, [byKey]);
+    }),
+    [byKey]
+  );
+
+  // Local form state
+  const [form, setForm] = useState(formFromServer);
+
+  // Sync from server data
+  useEffect(() => {
+    setForm(formFromServer);
+  }, [formFromServer]);
 
   const upsert = useMutation({
     mutationFn: async (input: { key: string; value: unknown }) => {
@@ -148,7 +146,7 @@ export function StoreInfoSettings() {
                 id="store-name"
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="VD: LapLap, TechStore"
+                placeholder="VD: Laptop Thành Võ, TechStore"
               />
               <p className="text-xs text-muted-foreground">
                 Hiển thị trên Header, Footer, trang Liên hệ
@@ -218,16 +216,7 @@ export function StoreInfoSettings() {
           <div className="mt-6 flex justify-end gap-2">
             <Button
               variant="outline"
-              onClick={() => {
-                setForm({
-                  name: (byKey.get("name")?.value as string) || "",
-                  description: (byKey.get("description")?.value as string) || "",
-                  address: (byKey.get("address")?.value as string) || "",
-                  phone: (byKey.get("phone")?.value as string) || "",
-                  hotline: (byKey.get("hotline")?.value as string) || "",
-                  email: (byKey.get("email")?.value as string) || "",
-                });
-              }}
+              onClick={() => setForm(formFromServer)}
               disabled={!isModified}
             >
               Hoàn tác

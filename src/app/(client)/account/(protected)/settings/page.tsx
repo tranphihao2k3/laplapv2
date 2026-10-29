@@ -41,7 +41,7 @@ export default async function SettingsPage() {
             Bản tin email
           </CardTitle>
           <CardDescription>
-            Nhận thông báo sản phẩm mới, khuyến mãi và tin tức từ LapLap qua email.
+            Nhận thông báo sản phẩm mới, khuyến mãi và tin tức từ Laptop Thành Võ qua email.
           </CardDescription>
         </CardHeader>
         <CardContent>

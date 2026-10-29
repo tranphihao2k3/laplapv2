@@ -98,7 +98,7 @@ const BUILTIN_SONGS: Song[] = [
   {
     id: "test-tone-440",
     title: "Test Tone 440 Hz",
-    artist: "LapLap Test",
+    artist: "Laptop Thành Võ Test",
     file_url: "/api/v1/test-audio/440",
     duration_seconds: 3,
     source: "builtin",
@@ -106,7 +106,7 @@ const BUILTIN_SONGS: Song[] = [
   {
     id: "test-tone-880",
     title: "Test Tone 880 Hz",
-    artist: "LapLap Test",
+    artist: "Laptop Thành Võ Test",
     file_url: "/api/v1/test-audio/880",
     duration_seconds: 3,
     source: "builtin",
@@ -114,7 +114,7 @@ const BUILTIN_SONGS: Song[] = [
   {
     id: "test-tone-1000",
     title: "Test Tone 1 kHz",
-    artist: "LapLap Test",
+    artist: "Laptop Thành Võ Test",
     file_url: "/api/v1/test-audio/1000",
     duration_seconds: 3,
     source: "builtin",
@@ -122,7 +122,7 @@ const BUILTIN_SONGS: Song[] = [
   {
     id: "test-chirp",
     title: "Chirp 20 Hz → 20 kHz",
-    artist: "LapLap Test",
+    artist: "Laptop Thành Võ Test",
     file_url: "/api/v1/test-audio/chirp",
     duration_seconds: 5,
     source: "builtin",

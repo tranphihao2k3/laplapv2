@@ -197,6 +197,8 @@ export function ProductFilters({
                 value={value.brandId}
                 onValueChange={(v) => update({ brandId: v })}
                 placeholder="Tất cả thương hiệu"
+                searchable
+                searchPlaceholder="Tìm thương hiệu..."
               />
             </div>
 

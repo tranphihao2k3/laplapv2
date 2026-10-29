@@ -201,7 +201,7 @@ export function ComponentPicker({
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-[10px] font-semibold text-slate-300">
-                          LapLap
+                          Laptop
                         </div>
                       )}
                       {isSelected ? (

@@ -147,13 +147,13 @@ function getStaleCache(): StoreSettings | null {
 
 /** Default fallback settings */
 const DEFAULT_SETTINGS: StoreSettings = {
-  name: "LapLap",
-  description: "Hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ",
+  name: "Laptop Thành Võ",
+  description: "Laptop Thành Võ — hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ",
   address: "123 Nguyễn Văn Cừ, Ninh Kiều, Cần Thơ",
   phone: "1900 1234",
   email: "info@laplap.vn",
   legal: {
-    business_name: "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPLAP",
+    business_name: "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPTOP THÀNH VÕ",
     tax_id: "1800123456",
     business_registration_number: "1800123456",
     business_registration_issued_by: "Sở Kế hoạch và Đầu tư thành phố Cần Thơ",

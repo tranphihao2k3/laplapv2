@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata: Metadata = {
-  title: "Xác nhận email | Tài khoản LapLap",
+  title: "Xác nhận email | Tài khoản Laptop Thành Võ",
 };
 
 type Props = {

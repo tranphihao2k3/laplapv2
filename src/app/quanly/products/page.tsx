@@ -28,6 +28,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ProductCard, ProductCardSkeleton, type ProductCardData } from "./_components/product-card";
+import { useVariantDraft } from "./_components/use-variant-draft";
 import { ProductFilters, EMPTY_FILTER, type ProductFilterValue } from "./_components/products-filters";
 import { ProductFilterChips } from "./_components/product-filter-chips";
 import { ProductStatsCards } from "./_components/product-stats-cards";
@@ -234,11 +235,39 @@ export default function ProductsAdminPage() {
   const [variants, setVariants] = useState<VariantInput[]>([]);
   // Đang tải tồn kho của các biến thể (để disable ô nhập trong lúc chờ)
   const [stockLoading, setStockLoading] = useState(false);
-  const [newSku, setNewSku] = useState("");
-  const [newVarName, setNewVarName] = useState("");
-  const [newSellingPrice, setNewSellingPrice] = useState(0);
-  const [newCostPrice, setNewCostPrice] = useState(0);
-  const [newInitialStock, setNewInitialStock] = useState(0);
+
+  // Dòng nhập biến thể mới — tự động điền từ thông tin đã nhập ở phần trên
+  // (tên sản phẩm, giá bán nhanh, tồn kho nhanh) và từ biến thể vừa thêm.
+  // Memo danh sách biến thể để `derived` trong hook không đổi identity mỗi
+  // render (tránh effect sync chạy vô tận).
+  const existingVariantsForDraft = useMemo(
+    () =>
+      variants.map((v) => ({
+        sku: v.sku,
+        name: v.name,
+        selling_price: Number(v.selling_price) || 0,
+        cost_price: Number(v.cost_price) || 0,
+        initial_stock: Number(v.initial_stock) || 0,
+      })),
+    [variants],
+  );
+  const variantDraft = useVariantDraft({
+    productName: name,
+    productSlug: slug,
+    quickPrice,
+    quickStock,
+    existingVariants: existingVariantsForDraft,
+  });
+  const newSku = variantDraft.draft.sku;
+  const newVarName = variantDraft.draft.name;
+  const newSellingPrice = variantDraft.draft.sellingPrice;
+  const newCostPrice = variantDraft.draft.costPrice;
+  const newInitialStock = variantDraft.draft.initialStock;
+  const setNewSku = (v: string) => variantDraft.setField("sku", v);
+  const setNewVarName = (v: string) => variantDraft.setField("name", v);
+  const setNewSellingPrice = (v: number) => variantDraft.setField("sellingPrice", v);
+  const setNewCostPrice = (v: number) => variantDraft.setField("costPrice", v);
+  const setNewInitialStock = (v: number) => variantDraft.setField("initialStock", v);
 
   // Queries & Mutations
   // Categories + Brands cần có sẵn TRƯỚC khi build filterParams, vì filter có thể
@@ -837,11 +866,9 @@ export default function ProductsAdminPage() {
         initial_stock: Number(newInitialStock) || 0,
       },
     ]);
-    setNewSku("");
-    setNewVarName("");
-    setNewSellingPrice(0);
-    setNewCostPrice(0);
-    setNewInitialStock(0);
+    // Reset dòng nhập: SKU kế tiếp + giá vốn/tồn kho kế thừa biến thể vừa thêm,
+    // để thêm biến thể tiếp theo chỉ cần sửa phần phân biệt.
+    variantDraft.reset();
   };
 
   const setAsThumbnail = (url: string) => {
@@ -901,6 +928,8 @@ export default function ProductsAdminPage() {
     setQuickStock(1);
     // Kho giữ nguyên, chỉ reset variants
     setVariants([]);
+    // Bỏ dấu vết chỉnh sửa tay để dòng nhập biến thể được tự động điền lại
+    variantDraft.clearManualEdits();
     // Reset mô tả tab về preview
     setDescriptionTab("preview");
     // Revoke any remaining preview URLs
@@ -1609,6 +1638,8 @@ export default function ProductsAdminPage() {
                     value={brandId}
                     onValueChange={setBrandId}
                     placeholder="Chọn (tuỳ chọn)..."
+                    searchable
+                    searchPlaceholder="Tìm thương hiệu..."
                   />
                 </div>
                 <div className="space-y-2">
@@ -2074,6 +2105,11 @@ export default function ProductsAdminPage() {
                     <Plus className="h-4 w-4 mr-1" /> Thêm biến thể
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Ô nhập được tự động điền theo thông tin phía trên (tên sản phẩm, giá bán nhanh, tồn kho nhanh).
+                  Sau khi thêm một biến thể, dòng này tự chuyển sang biến thể tiếp theo (SKU kế tiếp, giá vốn &amp; tồn kho kế thừa).
+                  Ô nào bạn tự gõ sẽ không bị tự động điền đè.
+                </p>
 
                 {variants.length > 0 && quickPrice !== "" && !editingProduct && (
                   <p className="text-xs text-amber-600 dark:text-amber-400">

@@ -11,7 +11,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getShopInfoForRequest } from "@/lib/request-shop";
+import { getShopInfoForRequest, getBrandNameForRequest } from "@/lib/request-shop";
 import { env } from "@/lib/env";
 import { Breadcrumb } from "@/components/client/product/breadcrumb";
 import { ProductGallery } from "@/components/client/product/product-gallery";
@@ -174,10 +174,12 @@ export async function generateMetadata({
     return { title: "Không tìm thấy sản phẩm" };
   }
 
+  const brandName = await getBrandNameForRequest();
+
   const description =
     product.short_description?.trim() ||
     (product.description ? product.description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) : "") ||
-    `Mua ${product.name} chính hãng tại LapLap - Laptop Cần Thơ. Giá tốt, bảo hành uy tín.`;
+    `Mua ${product.name} chính hãng tại ${brandName} - Laptop Cần Thơ. Giá tốt, bảo hành uy tín.`;
 
   const ogImages = product.images.length > 0 ? product.images.map((i) => i.url) : undefined;
   const canonical = `/products/${product.slug}`;
@@ -187,7 +189,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical },
     openGraph: {
-      title: `${product.name} | LapLap`,
+      title: `${product.name} | ${brandName}`,
       description,
       url: canonical,
       type: "website",
@@ -242,7 +244,7 @@ export default async function ProductDetailPage({
             priceCurrency: "VND",
             price: product.price,
             availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-            seller: { "@type": "Organization", name: "LapLap" },
+            seller: { "@type": "Organization", name: shop.name },
           },
         }
       : {}),

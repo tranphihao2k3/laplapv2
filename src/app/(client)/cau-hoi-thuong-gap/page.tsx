@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   HelpCircle,
@@ -33,12 +33,12 @@ const GROUPS: FaqGroup[] = [
     icon: <ShoppingCart className="h-5 w-5" />,
     items: [
       {
-        q: "Làm sao để đặt mua laptop trên website LapLap?",
+        q: "Làm sao để đặt mua laptop trên website Laptop Thành Võ?",
         a: "Bạn có thể đặt mua theo 3 cách: (1) Đặt trực tuyến trên website — chọn sản phẩm, thêm vào giỏ hàng và thanh toán; (2) Gọi hotline 1900 1234 để được tư vấn và đặt hàng qua điện thoại; (3) Đến trực tiếp showroom tại 123 Nguyễn Văn Cừ, Ninh Kiều, Cần Thơ để xem máy và mua tại cửa hàng.",
       },
       {
         q: "Sản phẩm trên website có phải chính hãng 100% không?",
-        a: "Cam kết 100% chính hãng. Mọi sản phẩm đều có hoá đơn VAT, phiếu bảo hành chính hãng từ hãng. Chúng tôi nói không với hàng nhập lậu, hàng refurbished bán như mới. Nếu phát hiện hàng không chính hãng, LapLap hoàn tiền 200% giá trị đơn hàng.",
+        a: "Cam kết 100% chính hãng. Mọi sản phẩm đều có hoá đơn VAT, phiếu bảo hành chính hãng từ hãng. Chúng tôi nói không với hàng nhập lậu, hàng refurbished bán như mới. Nếu phát hiện hàng không chính hãng, Laptop Thành Võ hoàn tiền 200% giá trị đơn hàng.",
       },
       {
         q: "Tôi có thể đặt hàng nhưng chưa muốn thanh toán ngay được không?",
@@ -60,7 +60,7 @@ const GROUPS: FaqGroup[] = [
         a: "Giá hiển thị đã bao gồm VAT (10%). Xuất hoá đơn VAT điện tử cho doanh nghiệp hoàn toàn miễn phí. Bạn chỉ cần cung cấp thông tin công ty khi đặt hàng.",
       },
       {
-        q: "LapLap có hỗ trợ trả góp 0% không?",
+        q: "Laptop Thành Võ có hỗ trợ trả góp 0% không?",
         a: "Có. Hỗ trợ trả góp 0% lãi suất qua thẻ tín dụng (Visa/Master/JCB) cho đơn từ 5 triệu, kỳ hạn 3-12 tháng tuỳ ngân hàng. Ngoài ra còn hỗ trợ trả góp qua Home Credit, FE Credit với thủ tục nhanh gọn qua CCCD.",
       },
       {
@@ -103,7 +103,7 @@ const GROUPS: FaqGroup[] = [
       },
       {
         q: "Máy bị lỗi trong 30 ngày đầu xử lý thế nào?",
-        a: "Bạn có 3 lựa chọn: (1) Đổi mới 100% sang sản phẩm cùng model; (2) Hoàn tiền 100% không cần lý do; (3) Sửa chữa miễn phí. LapLap hỗ trợ đổi trả tận nơi, miễn phí vận chuyển 2 chiều.",
+        a: "Bạn có 3 lựa chọn: (1) Đổi mới 100% sang sản phẩm cùng model; (2) Hoàn tiền 100% không cần lý do; (3) Sửa chữa miễn phí. Laptop Thành Võ hỗ trợ đổi trả tận nơi, miễn phí vận chuyển 2 chiều.",
       },
       {
         q: "Pin laptop bị chai có được bảo hành không?",
@@ -111,7 +111,7 @@ const GROUPS: FaqGroup[] = [
       },
       {
         q: "Sửa laptop ở đâu là chính hãng?",
-        a: "Sản phẩm bảo hành được sửa tại trung tâm uỷ quyền của hãng (Apple Authorized, Dell Service Center…). LapLap là cầu nối tiếp nhận và chuyển máy đi, đồng thời hỗ trợ kỹ thuật nhanh các lỗi phần mềm/thường gặp ngay tại showroom.",
+        a: "Sản phẩm bảo hành được sửa tại trung tâm uỷ quyền của hãng (Apple Authorized, Dell Service Center…). Laptop Thành Võ là cầu nối tiếp nhận và chuyển máy đi, đồng thời hỗ trợ kỹ thuật nhanh các lỗi phần mềm/thường gặp ngay tại showroom.",
       },
     ],
   },
@@ -149,7 +149,7 @@ const GROUPS: FaqGroup[] = [
       },
       {
         q: "Thông tin cá nhân của tôi có được bảo mật không?",
-        a: "Cam kết bảo mật theo Nghị định 13/2023/NĐ-CP. Mật khẩu hash bcrypt, thanh toán qua cổng PCI DSS, dữ liệu truyền mã hoá SSL/TLS. LapLap không bán thông tin khách hàng cho bên thứ ba.",
+        a: "Cam kết bảo mật theo Nghị định 13/2023/NĐ-CP. Mật khẩu hash bcrypt, thanh toán qua cổng PCI DSS, dữ liệu truyền mã hoá SSL/TLS. Laptop Thành Võ không bán thông tin khách hàng cho bên thứ ba.",
       },
     ],
   },

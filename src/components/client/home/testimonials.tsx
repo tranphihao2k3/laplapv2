@@ -11,7 +11,7 @@ const REVIEWS = [
     role: "Kỹ sư phần mềm",
     avatar: "NM",
     rating: 5,
-    text: "Mua MacBook Pro M3 tại LapLap, giá tốt hơn nơi khác 2 triệu mà hàng chính hãng 100%. Nhân viên tư vấn nhiệt tình, giao hàng đúng hẹn.",
+    text: "Mua MacBook Pro M3 tại Laptop Thành Võ, giá tốt hơn nơi khác 2 triệu mà hàng chính hãng 100%. Nhân viên tư vấn nhiệt tình, giao hàng đúng hẹn.",
     product: "MacBook Pro M3",
   },
   {

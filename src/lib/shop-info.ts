@@ -21,7 +21,7 @@ export type ShopInfo = {
 
 const FALLBACK: ShopInfo = {
   shop_id: null,
-  name: "LapLap",
+  name: "Laptop Thành Võ",
   phone: null,
   email: null,
   address: null,

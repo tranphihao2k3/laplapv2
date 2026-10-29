@@ -157,7 +157,7 @@ function PosClientInner() {
   const shopDisplayName = useMemo(() => {
     const found = shopSettings.find((s) => s.key === "receipt.shop_name");
     if (typeof found?.value === "string" && found.value.trim()) return found.value.trim();
-    return currentShop?.name ?? "LapLap";
+    return currentShop?.name ?? "Laptop Thành Võ";
   }, [shopSettings, currentShop]);
 
   const shopStampText = useMemo(() => {
