@@ -77,14 +77,26 @@ async function main() {
 
 /**
  * Gọi endpoint revalidate của production để xoá cache store-info.
+ *
+ * Target URL lấy theo thứ tự:
+ *   1. `STORE_REVALIDATE_URL` (biến môi trường, ví dụ trong CI).
+ *   2. `NEXT_PUBLIC_APP_URL` — nhưng file .env.local CỦA MÁY DEV trỏ về
+ *      http://localhost:3000, nên sẽ bỏ qua nếu là localhost.
+ *   3. Fallback cố định về domain production.
+ *
  * Best-effort: nếu thiếu CRON_SECRET hoặc endpoint lỗi thì chỉ cảnh báo,
  * cache vẫn tự hết hạn sau 1h.
  */
 async function revalidateStoreCache() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
   const secret = process.env.CRON_SECRET;
-  if (!appUrl || !secret) {
-    console.warn("⚠️  Thiếu NEXT_PUBLIC_APP_URL hoặc CRON_SECRET — bỏ qua revalidate cache.");
+  const fallback = "https://laplapcantho.store";
+  const configured = (process.env.STORE_REVALIDATE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
+  const appUrl = configured && !/^https?:\/\/(localhost|127\.0\.0\.1)/i.test(configured)
+    ? configured
+    : fallback;
+
+  if (!secret) {
+    console.warn("⚠️  Thiếu CRON_SECRET — bỏ qua revalidate cache.");
     return;
   }
   try {
@@ -93,9 +105,9 @@ async function revalidateStoreCache() {
       headers: { Authorization: `Bearer ${secret}` },
     });
     if (res.ok) {
-      console.log("✅ Đã revalidate cache store-info trên production.");
+      console.log(`✅ Đã revalidate cache store-info tại ${appUrl}.`);
     } else {
-      console.warn(`⚠️  Revalidate cache thất bại (HTTP ${res.status}).`);
+      console.warn(`⚠️  Revalidate cache thất bại (HTTP ${res.status}) tại ${appUrl}.`);
     }
   } catch (err) {
     console.warn("⚠️  Không gọi được revalidate cache:", (err as Error).message);
