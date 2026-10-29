@@ -99,7 +99,7 @@ export type LegalInfo = {
 };
 
 const DEFAULTS_LEGAL: LegalInfo = {
-  business_name: "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPLAP",
+  business_name: "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPTOP THÀNH VÕ",
   tax_id: "1800123456",
   business_registration_number: "1800123456",
   business_registration_issued_by: "Sở Kế hoạch và Đầu tư thành phố Cần Thơ",
@@ -113,9 +113,9 @@ const DEFAULTS_LEGAL: LegalInfo = {
 };
 
 const DEFAULTS: Omit<StoreInfo, "legal"> = {
-  name: "LapLap",
+  name: "Laptop Thành Võ",
   description:
-    "LapLap là hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cung cấp laptop Apple, Dell, ASUS, Lenovo, HP… chính hãng 100%, giá tốt, trả góp 0%, bảo hành và sửa chữa uy tín.",
+    "Laptop Thành Võ là hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cung cấp laptop Apple, Dell, ASUS, Lenovo, HP… chính hãng 100%, giá tốt, trả góp 0%, bảo hành và sửa chữa uy tín.",
   address: "123 Nguyễn Văn Cừ, Ninh Kiều, Cần Thơ",
   phone: "1900 1234",
   email: "info@laplap.vn",

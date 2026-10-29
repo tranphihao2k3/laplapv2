@@ -51,7 +51,7 @@ export type FooterSettings = {
 
 export const DEFAULT_FOOTER_SETTINGS: FooterSettings = {
   description:
-    "Hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cam kết sản phẩm chính hãng, giá tốt nhất.",
+    "Laptop Thành Võ — hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cam kết sản phẩm chính hãng, giá tốt nhất.",
   copyright: undefined, // Uses dynamic year + store name
   payment_methods: ["Visa", "MasterCard", "COD", "MoMo", "VNPay", "Trả góp 0%"],
   columns: [

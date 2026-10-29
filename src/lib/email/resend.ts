@@ -13,7 +13,7 @@
  *   Authorization: Bearer <RESEND_API_KEY>
  *   Content-Type: application/json
  *   {
- *     from: "LapLap <noreply@laplapcantho.store>",
+ *     from: "Laptop Thành Võ <noreply@laplapcantho.store>",
  *     to: ["user@example.com"],
  *     subject: "...",
  *     html: "...",
@@ -31,7 +31,7 @@
  *
  * Cấu hình:
  *   RESEND_API_KEY=re_xxxx        (https://resend.com/api-keys)
- *   RESEND_FROM_EMAIL=LapLap <noreply@laplapcantho.store>
+ *   RESEND_FROM_EMAIL=Laptop Thành Võ <noreply@laplapcantho.store>
  *
  * Nếu thiếu env -> sendEmail throw với message rõ ràng. Caller (newsletter dispatch)
  * sẽ catch và log + retry sau. KHÔNG silent fail.
@@ -62,7 +62,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const from = process.env.RESEND_FROM_EMAIL;
   if (!from) {
     throw new Error(
-      "RESEND_FROM_EMAIL chưa cấu hình. VD: 'LapLap <noreply@laplapcantho.store>'.",
+      "RESEND_FROM_EMAIL chưa cấu hình. VD: 'Laptop Thành Võ <noreply@laplapcantho.store>'.",
     );
   }
 

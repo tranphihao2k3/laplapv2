@@ -7,7 +7,7 @@
  */
 import { env } from "@/lib/env";
 
-const FALLBACK_BRAND_NAME = env.NEXT_PUBLIC_APP_NAME || "LapLap - Laptop Cần Thơ";
+const FALLBACK_BRAND_NAME = env.NEXT_PUBLIC_APP_NAME || "Laptop Thành Võ - Laptop Cần Thơ";
 const BRAND_COLOR = "#0f172a";
 
 function escapeHtml(s: string): string {

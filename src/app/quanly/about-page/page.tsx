@@ -616,7 +616,7 @@ function HeroForm({
         <Input
           value={(data.title as string) ?? ""}
           onChange={(e) => onChange({ ...data, title: e.target.value })}
-          placeholder='VD: "LapLap"'
+          placeholder='VD: "Laptop Thành Võ"'
         />
       </Field>
       <Field label="Phụ đề (xuống dòng, chữ mờ)">
@@ -673,7 +673,7 @@ function RichTextForm({
         <Input
           value={(data.heading as string) ?? ""}
           onChange={(e) => onChange({ ...data, heading: e.target.value })}
-          placeholder='VD: "Câu chuyện của LapLap"'
+          placeholder='VD: "Câu chuyện của Laptop Thành Võ"'
         />
       </Field>
       <Field label="Căn chỉnh">

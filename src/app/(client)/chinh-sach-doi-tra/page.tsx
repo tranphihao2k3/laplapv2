@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { RefreshCw } from "lucide-react";
 import { env } from "@/lib/env";
 import { getStoreInfoForRequest } from "@/lib/request-shop";
@@ -22,7 +22,7 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          Áp dụng cho sản phẩm laptop chính hãng mới mua tại <strong>LapLap</strong>. Khách hàng
+          Áp dụng cho sản phẩm laptop chính hãng mới mua tại <strong>Laptop Thành Võ</strong>. Khách hàng
           có quyền đổi sản phẩm mới trong vòng <strong>30 ngày</strong> kể từ ngày mua nếu đáp
           ứng đồng thời các điều kiện:
         </p>

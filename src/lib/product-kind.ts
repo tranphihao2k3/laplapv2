@@ -60,8 +60,8 @@ export const KIND_LABEL_SHORT: Record<ProductKind, string> = {
 
 /** Mô tả SEO mặc định cho trang listing theo kind. */
 export const KIND_DESCRIPTION: Record<ProductKind, string> = {
-  laptop: "Danh sách laptop chính hãng tại LapLap Cần Thơ — lọc theo cấu hình, giá và thương hiệu.",
-  pc_component: "Danh sách linh kiện PC chính hãng tại LapLap Cần Thơ — CPU, RAM, VGA, SSD, nguồn, case và phụ kiện.",
+  laptop: "Danh sách laptop chính hãng tại Laptop Thành Võ Cần Thơ — lọc theo cấu hình, giá và thương hiệu.",
+  pc_component: "Danh sách linh kiện PC chính hãng tại Laptop Thành Võ Cần Thơ — CPU, RAM, VGA, SSD, nguồn, case và phụ kiện.",
 };
 
 /** Parse + validate `kind` từ query param. Trả về `null` nếu không hợp lệ / rỗng. */

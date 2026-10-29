@@ -6,10 +6,10 @@ import { useStoreSettings } from "@/components/client/layout/use-store-settings"
 /**
  * Hook lấy brand name từ store settings, ưu tiên:
  *   1. Settings từ DB (đã cache localStorage trong useStoreSettings)
- *   2. Fallback cuối cùng: "LapLap"
+ *   2. Fallback cuối cùng: "Laptop Thành Võ"
  *
  * Đây là entry point duy nhất mọi client component nên dùng để hiển thị
- * tên thương hiệu. KHÔNG hard-code "LapLap" trong component.
+ * tên thương hiệu. KHÔNG hard-code "Laptop Thành Võ" trong component.
  * 
  * ⚠️ fetchOnMount: true để tự động load khi mount lần đầu
  */
@@ -17,7 +17,7 @@ export function useBrandName(): string {
   const { settings } = useStoreSettings({ fetchOnMount: true });
   return useMemo(() => {
     const v = settings?.name?.trim();
-    return v && v.length > 0 ? v : "LapLap";
+    return v && v.length > 0 ? v : "Laptop Thành Võ";
   }, [settings?.name]);
 }
 

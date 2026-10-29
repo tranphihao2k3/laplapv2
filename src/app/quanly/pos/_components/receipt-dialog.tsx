@@ -122,7 +122,7 @@ export function ReceiptDialog({
 
   const handleShare = async () => {
     if (!orderNumber) return;
-    const text = `LapLap - Hóa đơn ${orderNumber}\n${formatVND(total)}\nCảm ơn quý khách!`;
+    const text = `Laptop Thành Võ - Hóa đơn ${orderNumber}\n${formatVND(total)}\nCảm ơn quý khách!`;
     if (navigator.share) {
       try {
         await navigator.share({ title: `Hóa đơn ${orderNumber}`, text });

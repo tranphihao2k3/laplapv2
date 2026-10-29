@@ -9,7 +9,7 @@
  * - Tổng cộng
  * - Nút: "In phiếu cấu hình" (window.print), "Xuất PDF" (cũng window.print — user
  *   chọn Save as PDF trong dialog của trình duyệt). Tạm thời không cần lib PDF.
- * - Component BuildReceipt: layout A4 (logo LapLap, tiêu đề, bảng, tổng, footer)
+ * - Component BuildReceipt: layout A4 (logo thương hiệu, tiêu đề, bảng, tổng, footer)
  * - Nút "Xoá build" → confirm dialog
  *
  * CSS in ấn: globals.css có rule `[data-pc-builder-no-print]` bị display:none khi
@@ -108,7 +108,7 @@ export function PcBuildDetail({ initialBuild }: { initialBuild: InitialPayload }
 
   const { build, items, user } = initialBuild;
 
-  // Lấy thông tin cửa hàng để render phiếu in (thay vì hardcode "LapLap Laptop").
+  // Lấy thông tin cửa hàng để render phiếu in (thay vì hardcode tên brand).
   // Không fetch on mount vì trang này chỉ cần data khi in.
   const { settings: storeSettings } = useStoreSettings({ fetchOnMount: false });
   const brandName = storeSettings?.name?.trim() || "Website";
@@ -283,7 +283,7 @@ function BuildReceipt({
         <div className="hidden print:block mb-4">
           <div className="flex items-center justify-between border-b border-black/40 pb-3">
             <div className="flex items-center gap-3">
-              {/* Logo LapLap — dùng text vì không có file logo bundled sẵn */}
+              {/* Logo thương hiệu — dùng text vì không có file logo bundled sẵn */}
               <div className="flex h-12 w-12 items-center justify-center rounded bg-black text-white font-bold text-xl">
                 L
               </div>

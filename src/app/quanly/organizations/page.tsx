@@ -419,7 +419,7 @@ export default function OrganizationsAdminPage() {
                 id="org-name"
                 value={form.name}
                 onChange={(e) => setField("name", e.target.value)}
-                placeholder="Ví dụ: LapLap Group"
+                placeholder="Ví dụ: Nhóm Laptop Thành Võ"
               />
             </div>
             <div className="space-y-2">

@@ -1,11 +1,17 @@
 /**
  * Script update tên store trong settings table
  * Chạy: npx tsx scripts/update-store-name.ts
+ *
+ * Lưu ý: cần SUPABASE_SERVICE_ROLE_KEY hợp lệ (key trong .env.local có thể đã
+ * bị rotate — lấy key mới từ dashboard Supabase hoặc từ máy deploy:
+ *   flyctl ssh console -a laplapv2 -C "printenv SUPABASE_SERVICE_ROLE_KEY"
  */
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+
+const STORE_NAME = "Laptop Thành Võ";
 
 // Load env
 dotenv.config({ path: path.join(process.cwd(), ".env.local") });
@@ -35,7 +41,7 @@ async function main() {
     // Update existing
     const { error } = await supabase
       .from("settings")
-      .update({ value: "Thành Võ" })
+      .update({ value: STORE_NAME })
       .eq("id", existing.id);
 
     if (error) {
@@ -49,7 +55,7 @@ async function main() {
       .insert({
         group_name: "store",
         key: "name",
-        value: "Thành Võ",
+        value: STORE_NAME,
       });
 
     if (error) {
@@ -58,7 +64,7 @@ async function main() {
     }
   }
 
-  console.log("✅ Đã đổi tên store thành 'Thành Võ'");
+  console.log(`✅ Đã đổi tên store thành '${STORE_NAME}'`);
 }
 
 main();

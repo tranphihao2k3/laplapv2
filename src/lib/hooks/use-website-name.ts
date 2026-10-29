@@ -4,7 +4,7 @@
  * Quy ước:
  *  - SSG/SSR: đọc từ env (NEXT_PUBLIC_APP_NAME) trong server components.
  *  - Client: đọc từ localStorage("laplap.website.name") với fallback
- *    từ useBrandName() (settings table cache) → cuối cùng là "LapLap".
+ *    từ useBrandName() (settings table cache) → cuối cùng là "Laptop Thành Võ".
  *
  * Cho phép admin/customer set nhanh tên hiển thị trong 1 phiên (vd đang test
  * brand mới) mà không cần đợi settings sync từ server.
@@ -48,7 +48,7 @@ export function clearStoredWebsiteName() {
  * Ưu tiên:
  *  1. localStorage (nếu có)
  *  2. brand từ settings table (useBrandName)
- *  3. fallback cuối cùng "LapLap"
+ *  3. fallback cuối cùng "Laptop Thành Võ"
  */
 export function useWebsiteName() {
   const brand = useBrandName();

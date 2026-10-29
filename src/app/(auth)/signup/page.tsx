@@ -6,7 +6,7 @@ export default function SignupPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-semibold">Tạo tài khoản</h1>
-          <p className="text-sm text-muted-foreground">Đăng ký để bắt đầu dùng LapLap</p>
+          <p className="text-sm text-muted-foreground">Đăng ký để bắt đầu dùng Laptop Thành Võ</p>
         </div>
         <SignupForm />
       </div>

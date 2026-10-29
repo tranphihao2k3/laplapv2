@@ -433,11 +433,13 @@ export function ClientHeader() {
   );
 }
 
-/** Logo: render brand name lấy từ settings, chia 2 phần (primary highlight + còn lại). */
+/** Logo: render brand name lấy từ settings, highlight từ đầu (primary) + phần còn lại. */
 function Logo() {
   const brand = useBrandName();
-  const highlight = brand.slice(0, 3) || "Web";
-  const rest = brand.slice(3) || "";
+  // Tách theo từ để "Laptop Thành Võ" → highlight "Laptop", phần còn lại " Thành Võ".
+  const firstSpace = brand.indexOf(" ");
+  const highlight = firstSpace === -1 ? brand || "Web" : brand.slice(0, firstSpace);
+  const rest = firstSpace === -1 ? "" : brand.slice(firstSpace);
   return (
     <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
       <span className="text-primary">{highlight}</span>

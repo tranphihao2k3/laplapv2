@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   MapPin,
@@ -106,7 +106,7 @@ export default async function ContactPage() {
               </Reveal>
               <Reveal variant="fade-up" delay={350}>
                 <p className="mx-auto mt-6 max-w-2xl text-base font-medium leading-relaxed text-slate-300 md:text-lg">
-                  Mọi thắc mắc về sản phẩm, đơn hàng, bảo hành — đội ngũ LapLap phản hồi trong
+                  Mọi thắc mắc về sản phẩm, đơn hàng, bảo hành — đội ngũ Laptop Thành Võ phản hồi trong
                   vòng 24 giờ làm việc.
                 </p>
               </Reveal>

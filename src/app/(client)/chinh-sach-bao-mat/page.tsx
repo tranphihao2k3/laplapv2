@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Lock } from "lucide-react";
 import { env } from "@/lib/env";
 import { getBrandNameForRequest } from "@/lib/request-shop";
@@ -22,7 +22,7 @@ const sections: PolicySection[] = [
     content: (
       <>
         <p>
-          Để cung cấp dịch vụ tốt nhất, LapLap thu thập các loại thông tin sau:
+          Để cung cấp dịch vụ tốt nhất, Laptop Thành Võ thu thập các loại thông tin sau:
         </p>
         <h3>1. Thông tin khách hàng cung cấp</h3>
         <ul>
@@ -54,7 +54,7 @@ const sections: PolicySection[] = [
           <li>Tuân thủ nghĩa vụ pháp luật (thuế, kế toán, phòng chống gian lận).</li>
         </ul>
         <blockquote>
-          <strong>Cam kết:</strong> LapLap không bán, trao đổi hoặc cho thuê thông tin cá nhân
+          <strong>Cam kết:</strong> Laptop Thành Võ không bán, trao đổi hoặc cho thuê thông tin cá nhân
           của khách hàng cho bên thứ ba vì mục đích thương mại.
         </blockquote>
       </>

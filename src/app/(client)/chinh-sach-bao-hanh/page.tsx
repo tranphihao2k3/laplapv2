@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { ShieldCheck } from "lucide-react";
 import { env } from "@/lib/env";
 import { getStoreInfoForRequest } from "@/lib/request-shop";
@@ -68,7 +68,7 @@ const sections: PolicySection[] = [
             <tr>
               <td>Laptop refurbished</td>
               <td>6 - 12 tháng</td>
-              <td>Tại LapLap</td>
+              <td>Tại Laptop Thành Võ</td>
             </tr>
             <tr>
               <td>Phụ kiện (sạc, cáp, chuột, balo)</td>
@@ -152,7 +152,7 @@ const sections: PolicySection[] = [
   },
   {
     id: "cam-ket",
-    title: "Cam kết của LapLap",
+    title: "Cam kết của Laptop Thành Võ",
     content: (
       <>
         <p>Chúng tôi cam kết:</p>

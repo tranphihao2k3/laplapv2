@@ -84,8 +84,9 @@ export async function ClientFooter() {
           {/* Brand */}
           <div className="space-y-3 sm:space-y-4">
             <Link href="/" className="inline-flex items-center gap-2 text-lg font-bold tracking-tight">
+              {/* Monogram: chữ đầu của tên thương hiệu (tránh lặp tên bên cạnh) */}
               <span className="rounded-md bg-primary px-1.5 py-0.5 text-primary-foreground">
-                {store.name?.slice(0, 3) || "Web"}
+                {(store.name?.trim().charAt(0) || "W").toUpperCase()}
               </span>
               <span>{store.name || "Website"}</span>
             </Link>

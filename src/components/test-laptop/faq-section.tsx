@@ -12,7 +12,7 @@ import {
 const FAQ = [
   {
     q: "Mini Tool có an toàn không?",
-    a: "Tool chỉ thu thập thông số phần cứng + điểm FurMark rồi gửi về server của LapLap (laplapcantho.store). Không thu thập file cá nhân, không cài service chạy nền, không thay đổi registry. Source PowerShell nằm ở public/scripts/laplap-mini-tool.ps1 — bạn có thể đọc trước khi chạy.",
+    a: "Tool chỉ thu thập thông số phần cứng + điểm FurMark rồi gửi về server của Laptop Thành Võ (laplapcantho.store). Không thu thập file cá nhân, không cài service chạy nền, không thay đổi registry. Source PowerShell nằm ở public/scripts/laplap-mini-tool.ps1 — bạn có thể đọc trước khi chạy.",
   },
   {
     q: "Điểm GPU của tôi ở đâu trên bảng?",
@@ -28,7 +28,7 @@ const FAQ = [
   },
   {
     q: "Tôi có thể xóa kết quả benchmark của mình không?",
-    a: "Hiện tại chưa có self-service delete. Liên hệ admin qua fanpage LapLap hoặc Zalo 0909-xxx-xxx để được gỡ. Tính năng này sẽ được thêm vào /account/settings trong bản cập nhật sau.",
+    a: "Hiện tại chưa có self-service delete. Liên hệ admin qua fanpage Laptop Thành Võ hoặc Zalo 0909-xxx-xxx để được gỡ. Tính năng này sẽ được thêm vào /account/settings trong bản cập nhật sau.",
   },
 ];
 

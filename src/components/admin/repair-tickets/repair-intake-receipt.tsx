@@ -124,7 +124,7 @@ export const RepairIntakeReceipt = forwardRef<HTMLDivElement, Props>(function Re
             <div className="rpt-shop">
               <div className="rpt-logo">[LOGO]</div>
               <div className="rpt-shop-info">
-                <div className="rpt-shop-name">{data.shopName ?? "LapLap Service Center"}</div>
+                <div className="rpt-shop-name">{data.shopName ?? "Laptop Thành Võ Service Center"}</div>
                 {data.shopAddress ? (
                   <div className="rpt-shop-line"><MapPin className="ic" />{data.shopAddress}</div>
                 ) : null}

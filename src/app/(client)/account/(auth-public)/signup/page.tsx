@@ -6,7 +6,7 @@ import { AccountSignupForm } from "@/components/client/account/auth/signup-form"
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export const metadata: Metadata = {
-  title: "Đăng ký tài khoản | LapLap",
+  title: "Đăng ký tài khoản | Laptop Thành Võ",
   description:
     "Tạo tài khoản để tích điểm, theo dõi đơn hàng, tra cứu bảo hành và nhận ưu đãi riêng.",
 };

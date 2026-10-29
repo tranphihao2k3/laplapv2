@@ -321,7 +321,7 @@ export default function SystemScanPage() {
 
     setStatus("waiting");
     addLog(`Đã tải trình quét: laplap-toolcheck-${scanToken}.zip`);
-    addLog("Giải nén zip rồi chạy LapLap-Scanner.bat để bắt đầu quét.");
+    addLog("Giải nén zip rồi chạy LaptopThanhVo-Scanner.bat để bắt đầu quét.");
     toast.success("Đã tải trình quét!");
     startPolling(scanToken);
     return;
@@ -590,7 +590,7 @@ exit
       case "downloading":
         return { color: "text-blue-600", icon: Loader2, label: "Đang tạo trình quét...", spin: true };
       case "waiting":
-        return { color: "text-amber-600", icon: FileDown, label: "Chờ chạy LapLap-Scanner.bat...", spin: false };
+        return { color: "text-amber-600", icon: FileDown, label: "Chờ chạy LaptopThanhVo-Scanner.bat...", spin: false };
       case "connected":
         return { color: "text-purple-600", icon: LinkIcon, label: "Đã kết nối! Đang quét...", spin: false };
       case "scanning":
@@ -690,7 +690,7 @@ exit
                 <div className="flex-1">
                   <p className={`font-semibold ${statusInfo.color}`}>{statusInfo.label}</p>
                   <p className="text-xs text-zinc-500">
-                    {status === "waiting" && "Giải nén zip vừa tải rồi chạy LapLap-Scanner.bat để bắt đầu quét"}
+                    {status === "waiting" && "Giải nén zip vừa tải rồi chạy LaptopThanhVo-Scanner.bat để bắt đầu quét"}
                     {status === "connected" && "File scanner đang thu thập thông tin máy tính..."}
                     {status === "scanning" && "Đang đọc CPU, GPU, RAM, ổ cứng (WMI SMART), pin, màn hình..."}
                     {status === "complete" && "Tất cả dữ liệu đã được tải lên thành công"}
@@ -776,7 +776,7 @@ exit
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs text-white">2</span>
                   <div>
-                    <p className="font-medium">Giải nén và chạy LapLap-Scanner.bat</p>
+                    <p className="font-medium">Giải nén và chạy LaptopThanhVo-Scanner.bat</p>
                     <p className="text-zinc-500">
                       Cửa sổ PowerShell sẽ hiện và tự quét CPU/GPU/RAM/ổ
                       cứng/pin/màn hình, gửi kết quả về trang này.
@@ -1609,7 +1609,7 @@ function ToolsPanel({ token }: { token: string }) {
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
             Nhan tool de tai ve may va mo tu dong. File luu tai{" "}
-            <code className="rounded bg-zinc-100 px-1 py-0.5 text-[11px]">%LOCALAPPDATA%\LapLap\Tools\</code>{" "}
+            <code className="rounded bg-zinc-100 px-1 py-0.5 text-[11px]">%LOCALAPPDATA%\LaptopThanhVo\Tools\</code>{" "}
             - lan sau khong can tai lai.
           </p>
         </div>
@@ -1791,7 +1791,7 @@ function ToolsPanel({ token }: { token: string }) {
 
       <p className="mt-4 text-[11px] text-zinc-400">
         Scanner (PowerShell) phai dang chay de nhan lenh. Neu cua so PowerShell da dong,
-        hay chay lai LapLap-Scanner.bat va scan lai.
+        hay chay lai LaptopThanhVo-Scanner.bat va scan lai.
       </p>
     </div>
   );

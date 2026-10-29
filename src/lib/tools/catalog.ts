@@ -3,7 +3,7 @@
  *
  * Mỗi tool có 2 URL chính:
  * - `cdnUrl`: URL gốc từ nhà cung cấp (dùng làm nguồn chính, không cần upload lên R2)
- * - `r2Url` (optional): URL trên R2 của LapLap (nếu admin đã upload lên R2 thì dùng)
+ * - `r2Url` (optional): URL trên R2 của Laptop Thành Võ (nếu admin đã upload lên R2 thì dùng)
  *
  * Khi client tải tool:
  * - Server API /tools/download sẽ proxy: thử R2 trước, fallback CDN.
@@ -26,7 +26,7 @@ export interface ToolEntry {
   sha256: string;
   /** URL gốc từ nhà cung cấp (primary). */
   cdnUrl: string;
-  /** URL R2 của LapLap (fallback nếu admin đã upload). */
+  /** URL R2 của Laptop Thành Võ (fallback nếu admin đã upload). */
   r2Url: string | null;
   /** Là ZIP cần extract hay EXE chạy trực tiếp? */
   extract: boolean;
@@ -133,7 +133,7 @@ export const TOOL_CATALOG: ToolEntry[] = [
   },
   {
     id: "laplap-mini-tool",
-    name: "LapLap Mini Tool (All-in-One)",
+    name: "Laptop Thành Võ Mini Tool (All-in-One)",
     description:
       "Quét cấu hình + Benchmark FurMark + Auto-upload lên bảng xếp hạng. 1 file ZIP duy nhất: giai nen, double-click .bat, không cần cài.",
     category: "utility",

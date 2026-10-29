@@ -4,7 +4,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
-  NEXT_PUBLIC_APP_NAME: z.string().default("LapLap"),
+  NEXT_PUBLIC_APP_NAME: z.string().default("Laptop Thành Võ"),
 });
 
 const serverEnvSchema = envSchema.extend({
@@ -25,7 +25,7 @@ const FALLBACK: Env = {
   NEXT_PUBLIC_APP_URL: "http://localhost:3000",
   // Fallback cuối cùng khi DB trống. Lưu ý: brand name THẬT nên được set
   // qua /quanly/settings → Cấu hình hệ thống → key "name", group "store".
-  NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME || "LapLap",
+  NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME || "Laptop Thành Võ",
 };
 
 const raw = {

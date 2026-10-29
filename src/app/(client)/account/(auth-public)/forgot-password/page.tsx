@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { KeyRound } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Quên mật khẩu | Tài khoản LapLap",
+  title: "Quên mật khẩu | Tài khoản Laptop Thành Võ",
 };
 
 export default function ForgotPasswordPage() {

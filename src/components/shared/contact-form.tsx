@@ -78,7 +78,7 @@ export function ContactForm() {
         <CheckCircle2 className="mb-4 h-12 w-12 text-emerald-600 dark:text-emerald-400" />
         <h3 className="text-xl font-bold text-emerald-900 dark:text-emerald-100">Đã gửi thành công!</h3>
         <p className="mt-2 max-w-md text-sm text-emerald-800 dark:text-emerald-200/80">
-          Cảm ơn bạn đã liên hệ. Đội ngũ LapLap sẽ phản hồi trong vòng 24 giờ làm việc (trừ
+          Cảm ơn bạn đã liên hệ. Đội ngũ Laptop Thành Võ sẽ phản hồi trong vòng 24 giờ làm việc (trừ
           Chủ nhật & ngày lễ).
         </p>
         <Button

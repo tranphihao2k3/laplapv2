@@ -22,7 +22,7 @@ type Row = { group_name: string; key: string; value: unknown };
 
 const rows: Row[] = [
   // ===== STORE (basic) =====
-  { group_name: "store", key: "name", value: "Thành Võ" },
+  { group_name: "store", key: "name", value: "Laptop Thành Võ" },
   { group_name: "store", key: "description", value: "Hệ thống bán lẻ laptop chính hãng hàng đầu tại Cần Thơ. Cam kết sản phẩm chính hãng, giá tốt nhất." },
   { group_name: "store", key: "address", value: "123 Nguyễn Văn Cừ, Ninh Kiều, Cần Thơ" },
   { group_name: "store", key: "phone", value: "1900 1234" },
@@ -78,7 +78,7 @@ const rows: Row[] = [
   {
     group_name: "legal",
     key: "legal.business_name",
-    value: "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPLAP",
+    value: "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LAPTOP THÀNH VÕ",
   },
   { group_name: "legal", key: "legal.tax_id", value: "1800123456" },
   {

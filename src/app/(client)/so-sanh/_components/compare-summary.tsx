@@ -99,7 +99,7 @@ export function CompareSummary({ result }: { result: CompareResult }) {
                   <Image src={p.image} alt="" fill sizes="56px" className="object-contain p-1" />
                 ) : (
                   <span className="flex h-full items-center justify-center text-[10px] font-semibold text-slate-200">
-                    LapLap
+                    Laptop
                   </span>
                 )}
               </Link>

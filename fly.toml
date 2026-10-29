@@ -12,6 +12,8 @@ primary_region = 'sin'
     NEXT_PUBLIC_APP_URL = "https://laplapcantho.store"
     NEXT_PUBLIC_SUPABASE_URL = "https://bmvgnhgxbkrhixydsqjh.supabase.co"
     NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_2FmsuicKIKS6liLNmng90A_JYhdm3v_"
+    # NEXT_PUBLIC_* được inline lúc `next build` → phải truyền qua build args.
+    NEXT_PUBLIC_APP_NAME = "Laptop Thành Võ"
 
 [deploy]
   release_command = "node -e \"console.log('Release OK')\""
@@ -20,7 +22,7 @@ primary_region = 'sin'
 # Env vars NON-SECRET
 [env]
   HOSTNAME = "0.0.0.0"
-  NEXT_PUBLIC_APP_NAME = "LapLap"
+  NEXT_PUBLIC_APP_NAME = "Laptop Thành Võ"
   NEXT_PUBLIC_APP_URL = "https://laplapcantho.store"
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_ENV = "production"

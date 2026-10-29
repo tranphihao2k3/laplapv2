@@ -293,7 +293,7 @@ function SystemSettings() {
     queryFn: () =>
       httpGet<Paginated<Setting>>("/v1/settings", { page: 1, pageSize: 100, ...settingsFilter }),
   });
-  const items = settingsQ.data?.items ?? [];
+  const items = useMemo(() => settingsQ.data?.items ?? [], [settingsQ.data]);
 
   const byKey = useMemo(() => {
     const m = new Map<string, Setting>();
@@ -715,7 +715,7 @@ function SystemSettings() {
               <Input
                 value={customForm.value}
                 onChange={(e) => setCustomForm((p) => ({ ...p, value: e.target.value }))}
-                placeholder='Ví dụ: "LapLap Cần Thơ" hoặc 12 hoặc {"a":1}'
+                placeholder='Ví dụ: "Laptop Thành Võ Cần Thơ" hoặc 12 hoặc {"a":1}'
               />
             </Field>
           </div>
