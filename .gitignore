@@ -49,6 +49,12 @@ tmp_decode_*.py
 tmp_decode_*.ps1
 dev-error.txt
 dev-output.txt
+# Log dev server / script quét tạm sinh ra trong quá trình debug
+dev-log*.txt
+dev-log*.err.txt
+dev-*.err.txt
+scan*.out
+debug-settings.txt
 public/scripts/FurMark_win64
 # File bundle tam cua script verify
 scripts/.verify-compare.cjs
