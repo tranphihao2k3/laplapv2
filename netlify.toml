@@ -1,0 +1,22 @@
+# Netlify build config — repo này deploy Next.js 15 (App Router) + @netlify/plugin-nextjs.
+# Docs: https://docs.netlify.com/build/configure-builds/file-based-configuration/
+
+[build]
+  # Dùng pnpm để khớp với packageManager pin trong package.json (pnpm@10.30.3).
+  command = "pnpm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "24"
+  # Netlify secret scanning chặn build khi giá trị của 1 env var bị tìm thấy trong
+  # repo hoặc build output. Các biến dưới đây là giá trị CÔNG KHAI (bắt buộc phải
+  # nhúng vào client bundle), nên việc chúng xuất hiện trong source là bình thường.
+  # KHÔNG thêm SUPABASE_SERVICE_ROLE_KEY / GEMINI_API_KEY / OPENAI_API_KEY /
+  # RESEND_API_KEY / CRON_SECRET / MINI_TOOL_SHARED_SECRET / FLY_API_TOKEN vào đây.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_APP_NAME,NEXT_PUBLIC_APP_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,TOOLCHECK_BASE_URL,RESEND_FROM_EMAIL"
+
+# Netlify dùng file này làm nguồn cấu hình build. Env vars (SUPABASE_SERVICE_ROLE_KEY,
+# GEMINI_API_KEY, ...) vẫn phải set trong Netlify UI -> Site configuration -> Environment.

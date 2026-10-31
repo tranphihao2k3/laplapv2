@@ -1,7 +1,13 @@
 @echo off
 setlocal
 set "URL=https://bmvgnhgxbkrhixydsqjh.supabase.co/rest/v1/shops"
-set "KEY=SUPABASE_SERVICE_ROLE_KEY_REDACTED"
+REM Service role key KHONG hardcode trong repo. Set truoc khi chay:
+REM   set "SUPABASE_SERVICE_ROLE_KEY=..."
+if "%SUPABASE_SERVICE_ROLE_KEY%"=="" (
+  echo ERROR: thieu bien moi truong SUPABASE_SERVICE_ROLE_KEY
+  exit /b 1
+)
+set "KEY=%SUPABASE_SERVICE_ROLE_KEY%"
 
 echo === Get org_id from existing shop ===
 for /f "delims=" %%i in ('curl -s "%URL%?select=organization_id&limit=1" -H "apikey: %KEY%" -H "Authorization: Bearer %KEY%"') do set "RAW=%%i"

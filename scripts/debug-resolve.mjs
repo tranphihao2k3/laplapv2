@@ -1,6 +1,10 @@
 // Debug: verify shop data
 const URL = "https://bmvgnhgxbkrhixydsqjh.supabase.co/rest/v1/shops";
-const KEY = "SUPABASE_SERVICE_ROLE_KEY_REDACTED";
+// Service role key lấy từ biến môi trường, không hardcode trong repo.
+const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!KEY) {
+  throw new Error("Thiếu biến môi trường SUPABASE_SERVICE_ROLE_KEY");
+}
 
 const res = await fetch(`${URL}?select=id,name,primary_domain,allowed_domains`, {
   headers: { apikey: KEY, Authorization: `Bearer ${KEY}` },

@@ -169,7 +169,8 @@ export async function GET(
         product_id: string | null;
         selling_price: number | null;
       }>) {
-        if (!v.product_id || v.selling_price == null) continue;
+        // Bỏ qua giá <= 0 — variant chưa nhập giá không được kéo min-price về 0.
+        if (!v.product_id || v.selling_price == null || v.selling_price <= 0) continue;
         const cur = priceMap.get(v.product_id) ?? Infinity;
         if (v.selling_price < cur) priceMap.set(v.product_id, v.selling_price);
       }

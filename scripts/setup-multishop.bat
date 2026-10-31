@@ -1,7 +1,13 @@
 @echo off
 setlocal
 set "URL=https://bmvgnhgxbkrhixydsqjh.supabase.co/rest/v1/shops"
-set "KEY=SUPABASE_SERVICE_ROLE_KEY_REDACTED"
+REM Service role key KHONG hardcode trong repo. Set truoc khi chay:
+REM   set "SUPABASE_SERVICE_ROLE_KEY=..."
+if "%SUPABASE_SERVICE_ROLE_KEY%"=="" (
+  echo ERROR: thieu bien moi truong SUPABASE_SERVICE_ROLE_KEY
+  exit /b 1
+)
+set "KEY=%SUPABASE_SERVICE_ROLE_KEY%"
 
 echo === Updating shop 1 (laplapcantho.store) ===
 curl -s -X PATCH "%URL%?id=eq.eb676ce1-9af7-4c40-bb54-3833d7e30d10" ^

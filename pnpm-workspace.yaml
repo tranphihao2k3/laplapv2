@@ -1,8 +1,19 @@
+packages:
+  - "."
+
+# Cho phép chạy postinstall script của các package cần build native
+# (core-js, esbuild, unrs-resolver). Bắt buộc cho `next build` vì
+# unrs-resolver cần binary tương thích với nền tảng CI.
 strictDepBuilds: false
 onlyBuiltDependencies:
   - core-js
   - esbuild
   - unrs-resolver
+
+# pnpm 11 đọc `allowBuilds` (thay cho onlyBuiltDependencies) và coi giá trị
+# thiếu/không phải boolean là "không được build" -> ERR_PNPM_IGNORED_BUILDS.
+# Phải khai báo boolean thật ở cả hai khoá để chạy được trên pnpm 9, 10 và 11.
 allowBuilds:
-  core-js: set this to true or false
-  unrs-resolver: set this to true or false
+  core-js: true
+  esbuild: true
+  unrs-resolver: true

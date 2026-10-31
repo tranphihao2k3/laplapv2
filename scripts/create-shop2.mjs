@@ -1,6 +1,11 @@
 // Create shop 2 for laptopthanhvo.com
 const URL = "https://bmvgnhgxbkrhixydsqjh.supabase.co/rest/v1/shops";
-const KEY = "SUPABASE_SERVICE_ROLE_KEY_REDACTED";
+// Service role key KHÔNG được hardcode trong repo. Lấy từ biến môi trường:
+//   PowerShell: $env:SUPABASE_SERVICE_ROLE_KEY="..."; node scripts/create-shop2.mjs
+const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!KEY) {
+  throw new Error("Thiếu biến môi trường SUPABASE_SERVICE_ROLE_KEY");
+}
 
 const body = {
   organization_id: "337d6225-7c41-4ebc-bbcc-e66b205e3050",

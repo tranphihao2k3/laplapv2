@@ -102,7 +102,7 @@ export default async function RepairTicketDetailPage({
                 {new Date(data.created_at).toLocaleString("vi-VN")}
               </p>
             </div>
-            {data.actual_cost && (
+            {data.actual_cost != null && (
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Chi phí thực tế</p>
                 <p className="text-2xl font-bold text-primary">
@@ -235,7 +235,7 @@ export default async function RepairTicketDetailPage({
               {data.serial_number && (
                 <Row icon={Hash} label="Serial" value={data.serial_number} />
               )}
-              {data.estimated_cost && (
+              {data.estimated_cost != null && (
                 <Row
                   icon={Receipt}
                   label="Phí dự kiến"

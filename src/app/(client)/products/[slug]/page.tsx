@@ -83,9 +83,16 @@ async function getProductBySlug(slug: string): Promise<ProductWithVariants | nul
     alt: idx === 0 ? product.name : `${product.name} - Ảnh ${idx + 1}`,
   }));
 
+  // Giá thấp nhất trong các variant active. Bỏ qua giá <= 0 (placeholder trong DB)
+  // để product.price không bị kéo về 0 → khối giá hiện "Liên hệ" thay vì "0 ₫".
   const price =
     activeVariants.length > 0
-      ? Math.min(...activeVariants.map((v: { selling_price?: number | null }) => v.selling_price ?? Infinity))
+      ? Math.min(
+          ...activeVariants
+            .map((v: { selling_price?: number | null }) =>
+              v.selling_price != null && v.selling_price > 0 ? v.selling_price : Infinity,
+            ),
+        )
       : null;
 
   return {
@@ -148,9 +155,11 @@ async function getRelatedProducts(
   const allVariants: any[] = rawAllVariants ?? [];
   const priceMap = new Map<string, number>();
   for (const v of allVariants) {
+    // Bỏ qua giá <= 0 — variant chưa nhập giá không được kéo min-price về 0.
+    if (v.selling_price == null || v.selling_price <= 0) continue;
     const current = priceMap.get(v.product_id) ?? Infinity;
-    if ((v.selling_price ?? Infinity) < current) {
-      priceMap.set(v.product_id, v.selling_price ?? 0);
+    if (v.selling_price < current) {
+      priceMap.set(v.product_id, v.selling_price);
     }
   }
 

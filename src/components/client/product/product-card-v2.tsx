@@ -99,7 +99,7 @@ export function ProductCardV2({
   const [busy, setBusy] = useState(false);
 
   const computedDiscount =
-    product.originalPrice && product.originalPrice > product.price
+    product.originalPrice != null && product.originalPrice > 0 && product.originalPrice > product.price
       ? Math.round((1 - product.price / product.originalPrice) * 100)
       : 0;
   const discount =
@@ -269,7 +269,7 @@ export function ProductCardV2({
           <span className="text-base font-bold">
             {product.price > 0 ? formatCurrency(product.price) : "Liên hệ"}
           </span>
-          {product.originalPrice && product.originalPrice > product.price && (
+          {product.originalPrice != null && product.originalPrice > 0 && product.originalPrice > product.price && (
             <span className="text-xs text-muted-foreground line-through">
               {formatCurrency(product.originalPrice)}
             </span>

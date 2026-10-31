@@ -82,9 +82,21 @@ export function ProductInfo({ product, consultPhone }: Props) {
 
   const variants = product.variants ?? [];
   const selectedVariant = variants[selectedVariantIdx] ?? null;
-  const price = selectedVariant?.selling_price ?? product.price ?? 0;
-  const originalPrice = selectedVariant?.cost_price ?? undefined;
-  const hasDiscount = originalPrice && originalPrice > price;
+  // Giá bán <= 0 nghĩa là "chưa có giá" (placeholder trong DB), không phải giá 0đ —
+  // nếu để nguyên sẽ render ra chữ "0 ₫" ở khối giá. Chuẩn hoá về null để UI hiện "Liên hệ".
+  const rawVariantPrice = selectedVariant?.selling_price ?? null;
+  const price =
+    rawVariantPrice !== null && rawVariantPrice > 0
+      ? rawVariantPrice
+      : product.price !== null && product.price > 0
+        ? product.price
+        : 0;
+  // Tương tự: giá vốn 0 hoặc null không dùng làm "giá gốc" để tính giảm giá.
+  const rawOriginalPrice = selectedVariant?.cost_price ?? null;
+  const originalPrice = rawOriginalPrice !== null && rawOriginalPrice > 0 ? rawOriginalPrice : null;
+  // Phải ép về boolean thật: nếu cost_price = 0 thì `originalPrice && ...` trả về số 0,
+  // và React sẽ render chữ "0" thay vì ẩn block (0 && <div/> → 0).
+  const hasDiscount = originalPrice !== null && originalPrice > price;
   const discount = hasDiscount ? Math.round((1 - price / originalPrice) * 100) : 0;
   const savings = hasDiscount ? originalPrice - price : 0;
   const stockQty = selectedVariant?.stock_qty ?? 0;
@@ -111,7 +123,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
       name: product.name,
       slug: product.slug ?? "",
       image: product.thumbnail_url,
-      price: selectedVariant.selling_price ?? price,
+      price: rawVariantPrice !== null && rawVariantPrice > 0 ? rawVariantPrice : price,
       attributes: attrLabel,
       quantity,
       stockQty,
@@ -245,7 +257,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
                 priceAnimated ? "animate-number-pop" : "opacity-0",
               )}
             >
-              {formatCurrency(price)}
+              {price > 0 ? formatCurrency(price) : "Liên hệ"}
             </span>
             {hasDiscount && (
               <span className="text-base text-muted-foreground line-through decoration-rose-300 sm:text-2xl">
@@ -403,7 +415,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
                   >
                     {attrLabel || `Phiên bản ${idx + 1}`}
                   </span>
-                  {v.selling_price != null && (
+                  {v.selling_price != null && v.selling_price > 0 && (
                     <span
                       className={cn(
                         "text-xs",
@@ -579,7 +591,7 @@ export function ProductInfo({ product, consultPhone }: Props) {
                   : "text-foreground",
               )}
             >
-              {formatCurrency(price)}
+              {price > 0 ? formatCurrency(price) : "Liên hệ"}
             </p>
           </div>
           {telHref && (

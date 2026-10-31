@@ -453,7 +453,7 @@ export default function VouchersAdminPage() {
                             {voucher.min_order_amount > 0 && (
                               <p>Đơn tối thiểu: {formatCurrency(voucher.min_order_amount)}</p>
                             )}
-                            {voucher.max_discount_amount && (
+                            {voucher.max_discount_amount != null && (
                               <p>Giảm tối đa: {formatCurrency(voucher.max_discount_amount)}</p>
                             )}
                             {voucher.user_usage_limit > 1 && (

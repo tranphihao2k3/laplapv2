@@ -47,7 +47,9 @@ export function mergeVariants(variants: VariantForMerge[]): MergedVariantData {
       firstActiveVariantId.set(v.product_id, v.id);
     }
 
-    if (v.selling_price != null) {
+    // Chỉ tính giá > 0 — variant chưa nhập giá (0/NULL) không được kéo min-price về 0,
+    // nếu không trang listing sẽ hiện "0 ₫" thay vì "Liên hệ".
+    if (v.selling_price != null && v.selling_price > 0) {
       const cur = minPrice.get(v.product_id);
       if (cur == null || v.selling_price < cur) minPrice.set(v.product_id, v.selling_price);
     }
