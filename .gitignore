@@ -53,6 +53,7 @@ dev-output.txt
 dev-log*.txt
 dev-log*.err.txt
 dev-*.err.txt
+dev-final.txt
 scan*.out
 debug-settings.txt
 public/scripts/FurMark_win64
