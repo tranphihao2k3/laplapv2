@@ -42,6 +42,11 @@ const DialogContent = React.forwardRef<
         // Mobile: rộng gần full viewport, canh giữa chuẩn (KHÔNG dùng mx-* vì phá translate-x centering).
         // Desktop: giữ max-w-lg như cũ (trang nào cần rộng hơn tự override className).
         "w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] p-4 sm:w-full sm:max-w-lg sm:p-6",
+        // QUAN TRỌNG (mobile): grid mặc định để cột tự giãn theo max-content của
+        // con (min-width:auto) → nội dung dài (input, bảng, tiêu đề) làm hộp
+        // thoát ra ngoài viewport. Ép 1 cột co lại được để mọi block con vẫn
+        // nằm trong khung, nội dung dài thì tự cuộn/cắt ở chỗ cần.
+        "grid-cols-[minmax(0,1fr)]",
         // Khi nội dung dài: giới hạn chiều cao theo viewport và cho cuộn trong body.
         "max-h-[90vh] overflow-y-auto overscroll-contain",
         className

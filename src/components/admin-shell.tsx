@@ -29,22 +29,24 @@ export function AdminShell({
   if (pathname === "/quanly/pos") {
     return (
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
-        <header className="flex h-12 shrink-0 items-center justify-between border-b px-4 lg:px-6 bg-card">
-          <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="sm" className="h-8 gap-1.5">
+        <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-3 bg-card lg:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="h-8 shrink-0 gap-1.5 px-2">
               <Link href="/quanly">
                 <ArrowLeft className="h-4 w-4" />
-                <span>Quay lại Dashboard</span>
+                <span className="hidden sm:inline">Quay lại Dashboard</span>
               </Link>
             </Button>
-            <Separator orientation="vertical" className="h-4" />
-            <h1 className="text-sm font-semibold tracking-tight uppercase text-primary">Máy bán hàng POS</h1>
+            <Separator orientation="vertical" className="hidden h-4 shrink-0 sm:block" />
+            <h1 className="min-w-0 truncate text-xs font-semibold uppercase tracking-tight text-primary sm:text-sm">
+              Máy bán hàng POS
+            </h1>
           </div>
-          <div className="text-xs text-muted-foreground font-mono">
+          <div className="hidden shrink-0 font-mono text-xs text-muted-foreground md:block">
             {`Hệ thống ${brandName} v1.0`}
           </div>
         </header>
-        <div className="flex-1 overflow-auto p-2 sm:p-4">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto p-2 sm:p-4">
           {children}
         </div>
       </div>

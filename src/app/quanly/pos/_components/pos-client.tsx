@@ -665,19 +665,21 @@ function PosClientInner() {
 
   return (
     <PosSessionGate shopId={shopId}>
-      <div className="flex h-full flex-col gap-3 pb-20 lg:pb-0">
+      {/* Mobile: cho phép trang cuộn tự nhiên (không khoá chiều cao cứng),
+          nếu khoá h-full thì lưới bên dưới bị bóp và không cuộn được. */}
+      <div className="flex w-full min-w-0 flex-col gap-3 pb-24 lg:h-full lg:pb-0">
         {/* Banner ca POS */}
         <PosSessionBanner shopId={shopId} />
         {/* ============== HEADER ============== */}
-        <header className="rounded-xl border bg-gradient-to-br from-card via-card to-muted/30 p-3 shadow-sm sm:p-4">
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-          <div className="space-y-1">
+        <header className="max-w-full rounded-xl border bg-gradient-to-br from-card via-card to-muted/30 p-3 shadow-sm sm:p-4">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <div className="min-w-0 space-y-1">
             <Label className="text-xs font-medium text-muted-foreground">
               <Store className="mr-1 inline h-3 w-3" />
               Cửa hàng
             </Label>
             <OptionsSelect
-              className="h-10"
+              className="h-10 w-full"
               options={shopOptions}
               value={shopId}
               onValueChange={setShopId}
@@ -688,7 +690,7 @@ function PosClientInner() {
               <p className="text-xs text-amber-600">Tài khoản chưa được gán cửa hàng nào.</p>
             )}
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label className="text-xs font-medium text-muted-foreground">Khách hàng</Label>
             <CustomerPicker value={customer} onChange={setCustomer} />
           </div>
@@ -700,54 +702,58 @@ function PosClientInner() {
 
         {/* Mobile KPI bar */}
         <div className="mt-2 flex items-center gap-2 sm:hidden">
-          <KpiTile label="Sản phẩm" value={formatNumber(itemCount)} className="flex-1" />
-          <KpiTile label="Dòng" value={String(lines.length)} className="flex-1" />
+          <KpiTile label="Sản phẩm" value={formatNumber(itemCount)} className="min-w-0 flex-1" />
+          <KpiTile label="Dòng" value={String(lines.length)} className="min-w-0 flex-1" />
         </div>
       </header>
 
       {/* ============== SEARCH BAR ============== */}
       {/* Mobile: cho ô tìm kiếm chiếm 1 hàng riêng (wrap) vì nếu để cạnh 2 nút
-          "Sửa chữa"/"Đơn tạm" thì ô input chỉ còn ~180px, thu ngân gõ tên rất khó. */}
-      <div className="flex flex-wrap items-center gap-2">
+          "Sửa chữa"/"Đơn tạm" thì ô input chỉ còn ~180px, thu ngân gõ tên rất khó.
+          Các nút hành động nằm ở hàng riêng bên dưới, tự wrap, chiều cao thống nhất
+          (h-11) để bấm bằng ngón tay dễ. */}
+      <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border bg-card px-2 py-1.5 shadow-sm sm:w-auto sm:flex-1 sm:basis-0">
-          <ScanLine className="ml-1 h-4 w-4 text-primary" />
+          <ScanLine className="ml-1 h-4 w-4 shrink-0 text-primary" />
           <ProductSearch onPick={addLine} shopId={shopId} />
         </div>
-        <RepairTicketPicker onPick={handlePickRepair} />
-        <HoldBillDrawer
-          heldBills={heldBills}
-          onResume={resumeBill}
-          onDelete={deleteHeldBill}
-        />
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1 sm:justify-end">
+          <RepairTicketPicker onPick={handlePickRepair} />
+          <HoldBillDrawer
+            heldBills={heldBills}
+            onResume={resumeBill}
+            onDelete={deleteHeldBill}
+          />
+        </div>
       </div>
 
       {/* ============== BODY: Cart + Totals ============== */}
-      <div className="grid flex-1 min-h-0 gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid w-full min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* ----- CART ----- */}
-        <div className="flex min-h-0 flex-col rounded-xl border bg-card shadow-sm">
+        <div className="flex min-w-0 min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
           {/* Cart header sticky */}
-          <div className="flex items-center justify-between border-b bg-card/95 px-3 py-2.5 backdrop-blur sm:px-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <ShoppingCart className="h-4 w-4 text-primary" />
-              <span>Hóa đơn</span>
-              <Badge variant="secondary" className="ml-1 font-mono">
+          <div className="flex items-center justify-between gap-2 border-b bg-card/95 px-3 py-2.5 backdrop-blur sm:px-4">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              <ShoppingCart className="h-4 w-4 shrink-0 text-primary" />
+              <span className="truncate">Hóa đơn</span>
+              <Badge variant="secondary" className="ml-1 shrink-0 font-mono">
                 {lines.length} dòng
               </Badge>
               {lowStockCount > 0 && (
-                <Badge variant="destructive" className="ml-1">
+                <Badge variant="destructive" className="ml-1 shrink-0">
                   <AlertTriangle className="mr-0.5 h-3 w-3" />
                   {lowStockCount} đạt max
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               {lines.length > 0 && (
                 <>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={holdBill}
-                    className="h-8 text-xs"
+                    className="h-10 px-3 text-xs sm:h-8"
                   >
                     <Pause className="mr-1 h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Giữ đơn</span>
@@ -757,7 +763,7 @@ function PosClientInner() {
                     size="sm"
                     variant="ghost"
                     onClick={clearCart}
-                    className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    className="h-10 px-3 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive sm:h-8"
                   >
                     <Trash2 className="mr-1 h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Xoá tất cả</span>
@@ -767,8 +773,9 @@ function PosClientInner() {
             </div>
           </div>
 
-          {/* Cart items */}
-          <div className="min-h-0 flex-1 overflow-auto">
+          {/* Cart items — mobile: giới hạn chiều cao để khối "Tổng cộng / Thanh toán"
+              vẫn nằm trong tầm nhìn, không phải cuộn qua cả danh sách. */}
+          <div className="max-h-[55vh] w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto sm:max-h-none lg:max-h-none">
             {lines.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -793,7 +800,7 @@ function PosClientInner() {
                   return (
                     <div
                       key={l.variant_id}
-                      className="group relative flex items-start gap-2 px-3 py-3 transition-colors hover:bg-muted/30 sm:px-4"
+                      className="group relative flex w-full min-w-0 items-start gap-2 px-3 py-3 transition-colors hover:bg-muted/30 sm:px-4"
                     >
                       {/* Thumbnail placeholder */}
                       <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground sm:flex">
@@ -828,16 +835,19 @@ function PosClientInner() {
                           <button
                             type="button"
                             onClick={() => setQty(l.variant_id, 0)}
-                            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
+                            className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                             aria-label="Xoá dòng"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
 
-                        {/* Price + Qty controls */}
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
+                        {/* Price + Qty controls
+                            Mobile: 2 hàng — hàng 1 = đơn giá + bộ tăng/giảm,
+                            hàng 2 = thành tiền (tràn xuống dưới, không ép ngang
+                            làm dòng vỡ/tràn ra ngoài màn hình 360px). */}
+                        <div className="mt-2 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <Label className="hidden text-xs text-muted-foreground sm:block">
                               Đơn giá
                             </Label>
@@ -868,7 +878,7 @@ function PosClientInner() {
                                   (e.target as HTMLInputElement).blur();
                                 }
                               }}
-                              className="h-8 w-28 text-right text-sm font-medium tabular-nums"
+                              className="h-10 w-full min-w-0 flex-1 text-right text-sm font-medium tabular-nums sm:h-8 sm:w-28 sm:flex-none"
                             />
                             {diff > 0 && (
                               <span className="hidden text-xs text-muted-foreground line-through sm:inline tabular-nums">
@@ -876,12 +886,12 @@ function PosClientInner() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex items-center rounded-lg border bg-card shadow-sm">
+                          <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-end">
+                            <div className="flex shrink-0 items-center rounded-lg border bg-card shadow-sm">
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 rounded-r-none"
+                                className="h-10 w-10 rounded-r-none sm:h-8 sm:w-8"
                                 onClick={() => setQty(l.variant_id, l.quantity - 1)}
                                 aria-label="Giảm"
                               >
@@ -893,14 +903,14 @@ function PosClientInner() {
                                   const n = Number(e.target.value.replace(/\D/g, "")) || 0;
                                   setQty(l.variant_id, n);
                                 }}
-                                className="h-8 w-12 rounded-none border-x-0 text-center text-sm font-semibold tabular-nums"
+                                className="h-10 w-12 rounded-none border-x-0 text-center text-sm font-semibold tabular-nums sm:h-8"
                                 inputMode="numeric"
                                 aria-label="Số lượng"
                               />
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 rounded-l-none"
+                                className="h-10 w-10 rounded-l-none sm:h-8 sm:w-8"
                                 disabled={atMax}
                                 onClick={() => setQty(l.variant_id, l.quantity + 1)}
                                 aria-label="Tăng"
@@ -908,7 +918,7 @@ function PosClientInner() {
                                 <Plus className="h-3.5 w-3.5" />
                               </Button>
                             </div>
-                            <div className="min-w-[90px] text-right text-sm font-bold tabular-nums text-foreground">
+                            <div className="min-w-0 flex-1 truncate text-right text-sm font-bold tabular-nums text-foreground sm:flex-none sm:min-w-[90px]">
                               {formatVND(lineTotal)}
                             </div>
                           </div>
@@ -923,15 +933,15 @@ function PosClientInner() {
         </div>
 
         {/* ----- TOTALS PANEL ----- */}
-        <aside className="flex flex-col gap-3">
+        <aside className="flex w-full min-w-0 flex-col gap-3">
           {/* Tổng quan */}
-          <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="max-w-full rounded-xl border bg-card p-4 shadow-sm">
             <div className="space-y-2.5 text-sm">
               <Row label="Tạm tính" value={formatVND(subtotal)} />
               <div className="flex items-center justify-between gap-2">
                 <Label
                   htmlFor="pos-discount"
-                  className="flex items-center gap-1 text-muted-foreground"
+                  className="flex shrink-0 items-center gap-1 text-muted-foreground"
                 >
                   <Tag className="h-3.5 w-3.5" />
                   Giảm giá
@@ -946,7 +956,7 @@ function PosClientInner() {
                   }
                   onChange={(e) => setDiscountInput(e.target.value.replace(/\D/g, ""))}
                   placeholder="0"
-                  className="h-8 max-w-[140px] text-right tabular-nums"
+                  className="h-10 min-w-0 max-w-[140px] flex-1 text-right tabular-nums sm:h-8"
                 />
               </div>
               {loyaltyDiscount > 0 && (
@@ -957,9 +967,9 @@ function PosClientInner() {
                 />
               )}
               <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-base font-semibold">Tổng cộng</span>
-                <span className="text-2xl font-extrabold text-primary tabular-nums">
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-base font-semibold">Tổng cộng</span>
+                <span className="min-w-0 truncate text-right text-xl font-extrabold text-primary tabular-nums sm:text-2xl">
                   {formatVND(total)}
                 </span>
               </div>
@@ -967,18 +977,18 @@ function PosClientInner() {
           </div>
 
           {/* Ghi chú */}
-          <div className="rounded-xl border bg-card shadow-sm">
+          <div className="max-w-full rounded-xl border bg-card shadow-sm">
             <button
               type="button"
               onClick={() => setShowNote((v) => !v)}
-              className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm font-medium"
+              className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-medium"
             >
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <StickyNote className="h-3.5 w-3.5" />
-                Ghi chú đơn hàng
-                {note && <Badge variant="secondary" className="ml-1 text-[10px]">Có</Badge>}
+              <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                <StickyNote className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Ghi chú đơn hàng</span>
+                {note && <Badge variant="secondary" className="ml-1 shrink-0 text-[10px]">Có</Badge>}
               </span>
-              <span className="text-xs text-muted-foreground">{showNote ? "Ẩn" : "Mở"}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{showNote ? "Ẩn" : "Mở"}</span>
             </button>
             {showNote && (
               <div className="border-t px-4 pb-3 pt-2">
@@ -986,21 +996,22 @@ function PosClientInner() {
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Ghi chú nội bộ (nếu có)"
-                  className="h-9"
+                  className="h-10 w-full"
                 />
               </div>
             )}
           </div>
 
-          {/* Action buttons — sticky trên desktop, dính đáy mobile */}
-          <div className="flex flex-col gap-2 lg:sticky lg:bottom-3">
+          {/* Action buttons — sticky trên desktop, dính đáy mobile (bản mobile
+              nằm ở thanh fixed bottom bên dưới, xem thêm ở cuối component). */}
+          <div className="hidden w-full min-w-0 flex-col gap-2 lg:flex lg:sticky lg:bottom-3">
             <Button
               size="lg"
-              className="h-14 text-base font-bold shadow-md sm:text-lg"
+              className="h-14 w-full truncate text-base font-bold shadow-md sm:text-lg"
               disabled={lines.length === 0 || !shopId}
               onClick={() => setPayOpen(true)}
             >
-              <Banknote className="mr-2 h-5 w-5" />
+              <Banknote className="mr-2 h-5 w-5 shrink-0" />
               Thanh toán · {formatVND(total)}
             </Button>
             <Button
@@ -1008,6 +1019,7 @@ function PosClientInner() {
               variant="outline"
               disabled={lines.length === 0 || !shopId}
               onClick={holdBill}
+              className="h-11 w-full sm:h-9"
             >
               <Pause className="mr-1.5 h-4 w-4" />
               Giữ đơn tạm
@@ -1019,7 +1031,7 @@ function PosClientInner() {
 
           {/* Tip */}
           {lines.length === 0 && (
-            <div className="rounded-xl border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+            <div className="max-w-full rounded-xl border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
               <p className="mb-1 font-semibold">
                 <Percent className="mr-1 inline h-3 w-3" />
                 Phím tắt
@@ -1041,6 +1053,31 @@ function PosClientInner() {
             </div>
           )}
         </aside>
+      </div>
+
+      {/* ============== MOBILE STICKY PAY BAR ==============
+          Mobile: nút "Thanh toán" dính đáy màn hình để thu ngân không phải
+          cuộn tới cuối trang. Desktop: ẩn (dùng cột aside). */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 px-3 py-2 backdrop-blur lg:hidden">
+        <div className="flex w-full min-w-0 items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Tổng cộng
+            </div>
+            <div className="truncate text-lg font-extrabold leading-tight text-primary tabular-nums">
+              {formatVND(total)}
+            </div>
+          </div>
+          <Button
+            size="lg"
+            className="h-12 w-auto min-w-[160px] shrink-0 truncate text-base font-bold shadow-md"
+            disabled={lines.length === 0 || !shopId}
+            onClick={() => setPayOpen(true)}
+          >
+            <Banknote className="mr-1.5 h-5 w-5 shrink-0" />
+            Thanh toán
+          </Button>
+        </div>
       </div>
 
       {/* ============== DIALOGS ============== */}
@@ -1121,12 +1158,12 @@ function KpiTile({
 }) {
   return (
     <div
-      className={`rounded-lg border bg-card px-3 py-2 text-center shadow-sm ${className ?? ""}`}
+      className={`min-w-0 rounded-lg border bg-card px-3 py-2 text-center shadow-sm ${className ?? ""}`}
     >
-      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+      <div className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
-      <div className="mt-0.5 text-lg font-bold tabular-nums">{value}</div>
+      <div className="mt-0.5 truncate text-lg font-bold tabular-nums">{value}</div>
     </div>
   );
 }
@@ -1141,9 +1178,9 @@ function Row({
   accent?: string;
 }) {
   return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={`font-medium tabular-nums ${accent ?? ""}`}>{value}</span>
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <span className="min-w-0 truncate text-muted-foreground">{label}</span>
+      <span className={`shrink-0 font-medium tabular-nums ${accent ?? ""}`}>{value}</span>
     </div>
   );
 }

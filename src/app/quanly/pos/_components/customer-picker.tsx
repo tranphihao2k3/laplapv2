@@ -75,27 +75,27 @@ export function CustomerPicker({ value, onChange }: Props) {
     const tier = (value.tier ?? "bronze").toLowerCase();
     const tierLabel = TIER_LABEL[tier] ?? tier;
     return (
-      <div className="flex items-center gap-2.5 rounded-lg border bg-card px-3 py-2 shadow-sm">
+      <div className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border bg-card px-3 py-2 shadow-sm">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <User className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 truncate text-sm font-medium">
+          <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
             <span className="truncate">{value.full_name || "Khách"}</span>
-            <Badge variant={TIER_VARIANT[tier] ?? "outline"} className="text-[10px]">
+            <Badge variant={TIER_VARIANT[tier] ?? "outline"} className="shrink-0 text-[10px]">
               <Award className="mr-0.5 h-2.5 w-2.5" />
               {tierLabel}
             </Badge>
           </div>
-          <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             {value.phone && (
-              <span className="flex items-center gap-0.5">
-                <Phone className="h-3 w-3" />
-                {value.phone}
+              <span className="flex min-w-0 items-center gap-0.5">
+                <Phone className="h-3 w-3 shrink-0" />
+                <span className="truncate">{value.phone}</span>
               </span>
             )}
             {(value.loyalty_points ?? 0) > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">
+              <span className="shrink-0 text-amber-600 dark:text-amber-400">
                 · {formatLoyaltyPoints(value.loyalty_points)} điểm
               </span>
             )}
@@ -104,7 +104,7 @@ export function CustomerPicker({ value, onChange }: Props) {
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
           aria-label="Bỏ chọn khách"
         >
           <X className="h-4 w-4" />
@@ -138,7 +138,7 @@ export function CustomerPicker({ value, onChange }: Props) {
 
   return (
     <>
-      <div ref={rootRef} className="relative">
+      <div ref={rootRef} className="relative w-full min-w-0">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
@@ -148,14 +148,14 @@ export function CustomerPicker({ value, onChange }: Props) {
           }}
           onFocus={() => setOpen(true)}
           placeholder="Khách lẻ — nhập SĐT/tên để chọn khách"
-          className="h-10 pl-9"
+          className="h-11 w-full pl-9 pr-9"
         />
         {list.isFetching && (
           <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
         )}
 
         {open && (
-          <div className="absolute left-0 right-0 z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border bg-popover shadow-xl">
+          <div className="absolute left-0 right-0 z-50 mt-1 max-h-80 overflow-x-hidden overflow-y-auto rounded-lg border bg-popover shadow-xl">
             <button
               type="button"
               onClick={() => {

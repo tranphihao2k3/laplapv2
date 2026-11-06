@@ -301,7 +301,7 @@ export function ProductSearch({ onPick, shopId, compact = false }: Props) {
   );
 
   return (
-    <div ref={rootRef} className="relative flex-1 min-w-0">
+    <div ref={rootRef} className="relative w-full min-w-0 flex-1">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
       <Input
         ref={inputRef}
@@ -325,7 +325,7 @@ export function ProductSearch({ onPick, shopId, compact = false }: Props) {
         }
         inputMode="search"
         autoComplete="off"
-        className="h-12 pl-10 pr-20 text-base shadow-sm"
+        className="h-12 w-full min-w-0 pl-10 pr-10 text-base shadow-sm"
         aria-label="Tìm sản phẩm"
         aria-expanded={open}
         aria-controls="pos-search-results"
@@ -363,7 +363,7 @@ export function ProductSearch({ onPick, shopId, compact = false }: Props) {
                 role="listbox"
                 ref={panelRef}
                 style={{ top: panelBox.top, maxHeight: panelBox.maxHeight }}
-                className="fixed inset-x-2 z-[var(--z-floating)] overflow-y-auto overscroll-contain rounded-xl border bg-popover shadow-2xl"
+                className="fixed inset-x-2 z-[var(--z-floating)] max-w-[calc(100vw-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border bg-popover shadow-2xl"
               >
                 {panelContent}
               </div>,
@@ -376,7 +376,7 @@ export function ProductSearch({ onPick, shopId, compact = false }: Props) {
               id="pos-search-results"
               role="listbox"
               ref={panelRef}
-              className="absolute left-0 right-0 z-50 mt-2 max-h-[420px] overflow-y-auto rounded-lg border bg-popover shadow-xl"
+              className="absolute left-0 right-0 z-50 mt-2 max-h-[420px] overflow-x-hidden overflow-y-auto rounded-lg border bg-popover shadow-xl"
             >
               {panelContent}
             </div>
@@ -515,14 +515,14 @@ function ResultGroupCard({
         {/* Giá + tồn + nút chọn — mobile: hàng ngang dưới, desktop: cột bên phải */}
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-dashed pt-2 sm:flex-col sm:items-end sm:gap-1 sm:border-0 sm:pt-0">
           <div className="flex min-w-0 flex-1 flex-col items-start sm:flex-none sm:items-end">
-            <span className="text-sm font-semibold text-primary tabular-nums sm:hidden">
+            <span className="max-w-full truncate text-sm font-semibold text-primary tabular-nums sm:hidden">
               {priceLabelMobile}
             </span>
-            <span className="hidden text-sm font-semibold text-primary tabular-nums sm:inline">
+            <span className="hidden max-w-full truncate text-sm font-semibold text-primary tabular-nums sm:inline">
               {priceLabel}
             </span>
             <span
-              className={`text-[11px] tabular-nums ${
+              className={`truncate text-[11px] tabular-nums ${
                 outOfStock
                   ? "font-semibold text-destructive"
                   : group.total_stock <= 3

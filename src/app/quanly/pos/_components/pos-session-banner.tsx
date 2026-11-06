@@ -55,23 +55,23 @@ export function PosSessionBanner({ shopId }: Props) {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200/60 bg-emerald-50/70 px-3 py-1.5 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-        <Clock4 className="h-3.5 w-3.5" />
-        <span className="font-semibold">Ca đang mở</span>
-        <span className="opacity-70">·</span>
-        <span>
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-emerald-200/60 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+        <Clock4 className="h-3.5 w-3.5 shrink-0" />
+        <span className="shrink-0 font-semibold">Ca đang mở</span>
+        <span className="shrink-0 opacity-70">·</span>
+        <span className="min-w-0 truncate">
           Quỹ đầu:{" "}
-          <strong>
+          <strong className="whitespace-nowrap">
             {new Intl.NumberFormat("vi-VN").format(session.opening_cash ?? 0)}
             ₫
           </strong>
         </span>
-        <span className="opacity-70">·</span>
-        <span>Đã mở: <strong>{elapsed}</strong></span>
+        <span className="hidden shrink-0 opacity-70 sm:inline">·</span>
+        <span className="min-w-0 truncate whitespace-nowrap">Đã mở: <strong>{elapsed}</strong></span>
         <Button
           size="sm"
           variant="outline"
-          className="ml-auto h-7 border-emerald-300 bg-white/60 px-2 text-xs hover:bg-white dark:bg-emerald-950/40"
+          className="ml-auto h-9 shrink-0 border-emerald-300 bg-white/60 px-3 text-xs hover:bg-white sm:h-7 sm:px-2 dark:bg-emerald-950/40"
           onClick={() => setClosingOpen(true)}
         >
           <XCircle className="mr-1 h-3.5 w-3.5" />

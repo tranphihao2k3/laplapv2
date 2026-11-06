@@ -243,12 +243,13 @@ export function PaymentDialog({
                     setRedeemInput(e.target.value.replace(/\D/g, "").slice(0, 7))
                   }
                   placeholder={`Tối đa ${maxRedeemPoints.toLocaleString("vi-VN")} điểm`}
-                  className="h-9"
+                  className="h-10 min-w-0 flex-1"
                 />
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setRedeemInput(String(maxRedeemPoints))}
+                  className="h-10 shrink-0"
                 >
                   Max
                 </Button>
@@ -257,7 +258,7 @@ export function PaymentDialog({
                   variant="default"
                   onClick={applyRedeem}
                   disabled={appliedPoints <= 0}
-                  className="bg-amber-600 hover:bg-amber-700"
+                  className="h-10 shrink-0 bg-amber-600 hover:bg-amber-700"
                 >
                   Áp dụng
                 </Button>
@@ -339,7 +340,7 @@ export function PaymentDialog({
           {/* Chọn phương thức */}
           <div>
             <Label className="mb-2 text-xs text-muted-foreground">Phương thức</Label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
               {METHODS.map((m) => {
                 const Icon = m.icon;
                 const active = method === m.value;
@@ -348,14 +349,14 @@ export function PaymentDialog({
                     key={m.value}
                     type="button"
                     onClick={() => setMethod(m.value)}
-                    className={`flex flex-col items-center gap-1 rounded-lg border-2 px-2 py-2.5 text-xs font-medium transition-all ${
+                    className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-lg border-2 px-1 py-2 text-[11px] font-medium transition-all sm:min-h-0 sm:px-2 sm:py-2.5 sm:text-xs ${
                       active
                         ? "border-primary bg-primary/10 text-primary shadow-sm"
                         : "border-transparent hover:border-muted hover:bg-accent"
                     }`}
                   >
-                    <Icon className="h-5 w-5" />
-                    {m.label}
+                    <Icon className="h-5 w-5 shrink-0" />
+                    <span className="w-full truncate text-center">{m.label}</span>
                   </button>
                 );
               })}
@@ -439,7 +440,7 @@ export function PaymentDialog({
                   key={k}
                   type="button"
                   onClick={() => pressKey(k)}
-                  className={`rounded-lg border bg-card py-3 text-center text-lg font-semibold transition-all hover:bg-accent active:scale-95 ${
+                  className={`min-h-[48px] rounded-lg border bg-card py-3 text-center text-lg font-semibold transition-all hover:bg-accent active:scale-95 ${
                     k === "⌫" ? "text-destructive" : ""
                   }`}
                 >
@@ -461,15 +462,15 @@ export function PaymentDialog({
           )}
         </div>
 
-        <DialogFooter className="sticky bottom-0 z-10 border-t bg-card/95 px-4 py-3 backdrop-blur sm:px-6">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+        <DialogFooter className="sticky bottom-0 z-10 gap-2 border-t bg-card/95 px-4 py-3 backdrop-blur sm:gap-2 sm:px-6">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting} className="h-11 w-full sm:w-auto">
             Huỷ
           </Button>
           <Button
             onClick={submit}
             disabled={!canSubmit}
             size="lg"
-            className="min-w-40 bg-gradient-to-r from-primary to-primary/80"
+            className="w-full min-w-0 truncate bg-gradient-to-r from-primary to-primary/80 sm:w-auto sm:min-w-40"
           >
             {submitting ? (
               "Đang xử lý..."

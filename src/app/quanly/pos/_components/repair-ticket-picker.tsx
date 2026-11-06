@@ -168,8 +168,9 @@ export function RepairTicketPicker({ onPick }: RepairTicketPickerProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="flex items-center gap-2">
-          <Wrench className="h-4 w-4" /> Sửa chữa
+        <Button variant="outline" size="sm" className="h-11 flex-1 items-center justify-center gap-2 px-3 sm:h-9 sm:flex-none">
+          <Wrench className="h-4 w-4 shrink-0" />
+          <span className="truncate">Sửa chữa</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
@@ -218,14 +219,14 @@ export function RepairTicketPicker({ onPick }: RepairTicketPickerProps) {
                 return (
                   <div
                     key={t.id}
-                    className="rounded-lg border bg-card p-3 cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/50"
+                    className="w-full min-w-0 cursor-pointer rounded-lg border bg-card p-3 transition-colors hover:border-primary/50 hover:bg-muted/50"
                     onClick={() => handleSelect(t)}
                   >
                     {/* Hàng 1: Tên thiết bị + mã phiếu + badge trạng thái */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-2 min-w-0">
-                          <span className="font-semibold truncate">
+                        <div className="flex min-w-0 items-baseline gap-2">
+                          <span className="min-w-0 truncate font-semibold">
                             {t.device_name || "Máy sửa"}
                           </span>
                           {t.ticket_code && (
@@ -246,16 +247,16 @@ export function RepairTicketPicker({ onPick }: RepairTicketPickerProps) {
                     </div>
 
                     {/* Hàng 2: Khách hàng */}
-                    <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground min-w-0">
-                      <span className="flex items-center gap-1 min-w-0">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                      <span className="flex min-w-0 items-center gap-1">
                         <User className="h-3 w-3 shrink-0" />
                         <span className="truncate font-medium text-foreground/80">
                           {customerName}
                         </span>
                       </span>
                       {t.customer_phone && (
-                        <span className="flex items-center gap-1 shrink-0">
-                          <Phone className="h-3 w-3" />
+                        <span className="flex shrink-0 items-center gap-1">
+                          <Phone className="h-3 w-3 shrink-0" />
                           {t.customer_phone}
                         </span>
                       )}
@@ -281,18 +282,18 @@ export function RepairTicketPicker({ onPick }: RepairTicketPickerProps) {
                       </div>
                     )}
 
-                    {/* Hàng 5: SN + BH + tiền */}
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-3 min-w-0 text-muted-foreground">
+                    {/* Hàng 5: SN + BH + tiền — mobile: wrap để không tràn ngang */}
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
                         {t.serial_number && (
-                          <span className="flex items-center gap-1 min-w-0">
+                          <span className="flex min-w-0 items-center gap-1">
                             <Hash className="h-3 w-3 shrink-0" />
                             <span className="truncate font-mono">{t.serial_number}</span>
                           </span>
                         )}
                         <span
                           className={cn(
-                            "flex items-center gap-1 shrink-0 font-medium",
+                            "flex shrink-0 items-center gap-1 font-medium",
                             wStyle.cls,
                           )}
                           title={
@@ -301,11 +302,11 @@ export function RepairTicketPicker({ onPick }: RepairTicketPickerProps) {
                               : "Bảo hành theo phiếu (chưa phát sinh record)"
                           }
                         >
-                          <WIcon className="h-3 w-3" />
-                          {warranty.label}
+                          <WIcon className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{warranty.label}</span>
                         </span>
                       </div>
-                      <span className="font-semibold text-foreground shrink-0">
+                      <span className="shrink-0 font-semibold text-foreground">
                         {formatVND(t.actual_cost || t.estimated_cost || 0)}
                       </span>
                     </div>

@@ -159,7 +159,7 @@ export function ReceiptDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="max-h-[calc(92vh-160px)] overflow-y-auto px-4 py-4 print:max-h-none print:overflow-visible print:p-0">
+        <div className="max-h-[calc(92vh-160px)] overflow-x-hidden overflow-y-auto px-4 py-4 print:max-h-none print:overflow-visible print:p-0">
           {/* Controls ẩn khi in */}
           <div className="mb-3 space-y-2 print:hidden">
             {/* Chọn khổ giấy */}
@@ -269,7 +269,8 @@ export function ReceiptDialog({
               )}
             </div>
 
-            {/* Bảng sản phẩm */}
+            {/* Bảng sản phẩm — mobile: cho phép cuộn ngang thay vì tràn khỏi khung */}
+            <div className="w-full max-w-full overflow-x-auto">
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="border-y text-neutral-500">
@@ -297,6 +298,7 @@ export function ReceiptDialog({
                 ))}
               </tbody>
             </table>
+            </div>
 
             {/* Bảo hành sửa chữa (nếu có) — nổi bật, dễ thấy */}
             {warrantyInfo && warrantyInfo.months > 0 && (
