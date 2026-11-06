@@ -706,8 +706,10 @@ function PosClientInner() {
       </header>
 
       {/* ============== SEARCH BAR ============== */}
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 items-center gap-2 rounded-xl border bg-card px-2 py-1.5 shadow-sm">
+      {/* Mobile: cho ô tìm kiếm chiếm 1 hàng riêng (wrap) vì nếu để cạnh 2 nút
+          "Sửa chữa"/"Đơn tạm" thì ô input chỉ còn ~180px, thu ngân gõ tên rất khó. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border bg-card px-2 py-1.5 shadow-sm sm:w-auto sm:flex-1 sm:basis-0">
           <ScanLine className="ml-1 h-4 w-4 text-primary" />
           <ProductSearch onPick={addLine} shopId={shopId} />
         </div>

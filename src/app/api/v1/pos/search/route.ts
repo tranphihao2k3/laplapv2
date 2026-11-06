@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/api/guard";
 import { ok, handleError } from "@/lib/api/response";
+import { extractQuickSpecs, mergeSpecSources, type QuickSpec } from "@/lib/products/quick-specs";
 
 type VariantRow = {
   id: string;
@@ -11,6 +12,8 @@ type VariantRow = {
   name: string | null;
   selling_price: number | null;
   is_active: boolean | null;
+  specs: Record<string, unknown> | null;
+  attributes: Record<string, unknown> | null;
 };
 
 type ProductRow = {
@@ -25,7 +28,8 @@ type StockRow = {
   available_qty: number | null;
 };
 
-type PosHit = {
+/** Một biến thể (variant) trong kết quả tìm kiếm POS. */
+export type PosHit = {
   variant_id: string;
   product_id: string | null;
   display_name: string;
@@ -36,6 +40,29 @@ type PosHit = {
   thumbnail_url: string | null;
   selling_price: number;
   stock: number;
+  /** Cấu hình nhanh (CPU / RAM / SSD / VGA / Màn hình) của riêng variant này. */
+  specs: QuickSpec[];
+  /** Số biến thể active của product chứa variant này (>= 2 → thu ngân cần chọn). */
+  variant_count: number;
+  /** true nếu variant này khớp từ khoá tìm kiếm (dùng để sắp xếp ưu tiên). */
+  matched: boolean;
+};
+
+/** Gom các variant của cùng 1 product thành 1 nhóm để hiển thị trên mobile. */
+export type PosGroup = {
+  product_id: string | null;
+  product_name: string | null;
+  thumbnail_url: string | null;
+  /** Tổng số biến thể active của product. */
+  variant_count: number;
+  /** Giá thấp nhất trong các variant (0 = chưa có giá). */
+  min_price: number;
+  /** Giá cao nhất trong các variant (0 = chưa có giá). */
+  max_price: number;
+  /** Tồn kho cộng dồn của product tại cửa hàng đang chọn. */
+  total_stock: number;
+  /** Các biến thể của product (đã sắp xếp: khớp từ khoá → còn hàng → giá). */
+  variants: PosHit[];
 };
 
 export async function GET(req: NextRequest) {
@@ -78,7 +105,7 @@ export async function GET(req: NextRequest) {
     // 2) Query variants — vừa khớp trực tiếp (sku/barcode/name) vừa nằm trong productIds
     let q = supabase
       .from("product_variants")
-      .select("id,product_id,sku,barcode,name,selling_price,is_active")
+      .select("id,product_id,sku,barcode,name,selling_price,is_active,specs,attributes")
       .eq("is_active", true)
       .limit(limit);
 
@@ -96,12 +123,13 @@ export async function GET(req: NextRequest) {
 
     const { data: variants, error: vErr } = await q;
     if (vErr) throw vErr;
-    const variantRows = (variants ?? []) as VariantRow[];
+    const matchedRows = (variants ?? []) as VariantRow[];
+    const matchedIds = new Set(matchedRows.map((v) => v.id));
 
     // 3) Lấy thông tin product cho các variant chưa có trong productMap
     const missingProductIds = [
       ...new Set(
-        variantRows
+        matchedRows
           .map((v) => v.product_id)
           .filter((id): id is string => Boolean(id) && !productMap.has(id!)),
       ),
@@ -115,8 +143,30 @@ export async function GET(req: NextRequest) {
       for (const p of (extraProducts ?? []) as ProductRow[]) productMap.set(p.id, p);
     }
 
-    // 4) Lấy tồn kho cho các variant — chỉ trong kho của cửa hàng đang chọn (nếu có shop_id)
-    const variantIds = variantRows.map((v) => v.id);
+    // 4) Gộp thêm các variant "anh em" của product đã khớp — để thu ngân thấy ĐỦ
+    //    các phiên bản (vd "Dell Inspiron" có 2 biến thể → hiện đủ 2 để chọn).
+    const matchedProductIds = [
+      ...new Set(matchedRows.map((v) => v.product_id).filter((id): id is string => Boolean(id))),
+    ];
+    let siblingRows: VariantRow[] = [];
+    if (matchedProductIds.length > 0) {
+      const { data: siblings, error: sibErr } = await supabase
+        .from("product_variants")
+        .select("id,product_id,sku,barcode,name,selling_price,is_active,specs,attributes")
+        .in("product_id", matchedProductIds)
+        .eq("is_active", true);
+      if (sibErr) throw sibErr;
+      siblingRows = (siblings ?? []) as VariantRow[];
+    }
+
+    // Không trùng lặp: variant khớp search được ưu tiên giữ bản đầy đủ nhất.
+    const allRows: VariantRow[] = [
+      ...matchedRows,
+      ...siblingRows.filter((s) => !matchedIds.has(s.id)),
+    ];
+
+    // 5) Lấy tồn kho cho các variant — chỉ trong kho của cửa hàng đang chọn (nếu có shop_id)
+    const variantIds = allRows.map((v) => v.id);
     const stockByVariant = new Map<string, number>();
     // Nếu đã chọn cửa hàng nhưng cửa hàng đó không có kho nào → tồn = 0 cho tất cả
     const skipStockQuery = shopWarehouseIds !== null && shopWarehouseIds.length === 0;
@@ -139,11 +189,33 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const items: PosHit[] = variantRows.map((v) => {
+    // 6) Đếm số biến thể active của từng product
+    const productIdsOfVariants = [
+      ...new Set(allRows.map((v) => v.product_id).filter((id): id is string => Boolean(id))),
+    ];
+    const variantCountByProduct = new Map<string, number>();
+    if (productIdsOfVariants.length > 0) {
+      const { data: countRows, error: cErr } = await supabase
+        .from("product_variants")
+        .select("product_id")
+        .in("product_id", productIdsOfVariants)
+        .eq("is_active", true);
+      if (cErr) throw cErr;
+      for (const row of (countRows ?? []) as Array<{ product_id: string | null }>) {
+        if (!row.product_id) continue;
+        variantCountByProduct.set(
+          row.product_id,
+          (variantCountByProduct.get(row.product_id) ?? 0) + 1,
+        );
+      }
+    }
+
+    const toHit = (v: VariantRow): PosHit => {
       const product = v.product_id ? productMap.get(v.product_id) ?? null : null;
       const productName = product?.name ?? null;
       const variantName = v.name;
-      const displayName = [productName, variantName].filter(Boolean).join(" — ") || v.sku || "Sản phẩm";
+      const displayName =
+        [productName, variantName].filter(Boolean).join(" — ") || v.sku || "Sản phẩm";
       return {
         variant_id: v.id,
         product_id: v.product_id,
@@ -155,19 +227,65 @@ export async function GET(req: NextRequest) {
         thumbnail_url: product?.thumbnail_url ?? null,
         selling_price: Number(v.selling_price ?? 0),
         stock: stockByVariant.get(v.id) ?? 0,
+        specs: extractQuickSpecs(mergeSpecSources(v.specs, v.attributes)),
+        variant_count: v.product_id ? (variantCountByProduct.get(v.product_id) ?? 1) : 1,
+        matched: matchedIds.has(v.id),
       };
-    });
+    };
+
+    const items: PosHit[] = allRows.map(toHit);
+
+    // 7) Gom theo product — 1 product = 1 nhóm trong dropdown.
+    const groups = new Map<string, PosGroup>();
+    for (const hit of items) {
+      const key = hit.product_id ?? `__variant__${hit.variant_id}`;
+      const existing = groups.get(key);
+      if (!existing) {
+        groups.set(key, {
+          product_id: hit.product_id,
+          product_name: hit.product_name,
+          thumbnail_url: hit.thumbnail_url,
+          variant_count: hit.variant_count,
+          min_price: hit.selling_price,
+          max_price: hit.selling_price,
+          total_stock: hit.stock,
+          variants: [hit],
+        });
+        continue;
+      }
+      existing.variants.push(hit);
+      if (hit.selling_price > 0) {
+        existing.min_price =
+          existing.min_price > 0 ? Math.min(existing.min_price, hit.selling_price) : hit.selling_price;
+        existing.max_price = Math.max(existing.max_price, hit.selling_price);
+      }
+      existing.total_stock += hit.stock;
+    }
+
+    const groupList = [...groups.values()];
+    for (const g of groupList) {
+      // Trong nhóm: khớp từ khoá trước, rồi variant còn hàng, rồi giá tăng dần.
+      g.variants.sort((a, b) => {
+        if (a.matched !== b.matched) return a.matched ? -1 : 1;
+        const aOut = a.stock <= 0 ? 1 : 0;
+        const bOut = b.stock <= 0 ? 1 : 0;
+        if (aOut !== bOut) return aOut - bOut;
+        return a.selling_price - b.selling_price;
+      });
+    }
 
     // Ưu tiên sản phẩm CÒN tồn kho lên đầu, hết hàng (tồn = 0) xuống cuối.
     // Trong cùng nhóm giữ thứ tự theo tên cho dễ nhìn.
-    items.sort((a, b) => {
-      const aOut = a.stock <= 0 ? 1 : 0;
-      const bOut = b.stock <= 0 ? 1 : 0;
+    groupList.sort((a, b) => {
+      const aOut = a.total_stock <= 0 ? 1 : 0;
+      const bOut = b.total_stock <= 0 ? 1 : 0;
       if (aOut !== bOut) return aOut - bOut;
-      return a.display_name.localeCompare(b.display_name, "vi");
+      const aName = a.product_name ?? a.variants[0]?.display_name ?? "";
+      const bName = b.product_name ?? b.variants[0]?.display_name ?? "";
+      return aName.localeCompare(bName, "vi");
     });
 
-    return ok({ items, total: items.length });
+    return ok({ items, groups: groupList, total: items.length });
   } catch (e) {
     return handleError(e);
   }
