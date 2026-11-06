@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowUp, ArrowDown, GripVertical, Plus, Trash2 } from "lucide-react";
 import { httpPost, httpPatch, httpDelete } from "@/lib/api/http";
+import { invalidateBrandCache } from "@/lib/brand-cache-invalidation";
 import {
   type TrustBadge,
   type TrustBadgeSetting,
@@ -91,7 +92,19 @@ export function TrustBadgesSettings({
       return httpPost("/v1/settings", payload);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["settings-config"] });
+      // Query key của trang Settings cho tab Trust Badges là
+      // ["settings-config-trust"] (xem settings/page.tsx → TrustBadgesSection).
+      // Invalidate key cũ ["settings-config"] không làm list refresh.
+      qc.invalidateQueries({ queryKey: ["settings-config-trust"] });
+      // Báo các tab client đang mở refresh (header/footer/product detail).
+      invalidateBrandCache();
+      // Invalidate cache server-side tag "trust-badges" để trang public
+      // (trang chi tiết sản phẩm) thấy ngay, không phải chờ TTL 1h.
+      try {
+        void fetch("/api/admin/revalidate-store", { method: "POST" });
+      } catch {
+        // ignore — cache tự hết hạn sau 1h
+      }
       toast.success("Đã lưu trust badges");
     },
     onError: () => toast.error("Lưu thất bại"),

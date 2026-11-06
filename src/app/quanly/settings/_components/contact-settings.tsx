@@ -65,6 +65,24 @@ function getApiErrorMsg(e: unknown) {
   return err?.error?.message ?? "Có lỗi xảy ra";
 }
 
+/**
+ * Parse giá trị setting có thể là object/array native HOẶC JSON string.
+ * Lý do: các row cũ lưu value dạng chuỗi JSON (vd: '{"weekday":"8:00 - 21:00"}')
+ * → nếu chỉ check `typeof raw === "object"` thì admin thấy form rỗng và
+ * (với channels) nút "Lưu" bị ẩn luôn → mất dữ liệu đã lưu.
+ */
+function parseMaybeJson<T>(v: unknown): T | null {
+  if (typeof v === "string") {
+    try {
+      return JSON.parse(v) as T;
+    } catch {
+      return null;
+    }
+  }
+  if (v !== null && typeof v === "object") return v as T;
+  return null;
+}
+
 // ====== Component =====
 export function ContactSettings() {
   const qc = useQueryClient();
@@ -95,44 +113,39 @@ export function ContactSettings() {
 
   // Parse current values
   const [channels, setChannels] = useState<ContactChannel[]>(() => {
-    const raw = contactChannelsSetting?.value;
-    if (Array.isArray(raw)) return raw as ContactChannel[];
-    return [];
+    const parsed = parseMaybeJson<ContactChannel[]>(contactChannelsSetting?.value);
+    return Array.isArray(parsed) ? parsed : [];
   });
 
   const [hours, setHours] = useState<OpeningHours>(() => {
-    const raw = openingHoursSetting?.value;
-    if (raw && typeof raw === "object") return raw as OpeningHours;
-    return {};
+    return parseMaybeJson<OpeningHours>(openingHoursSetting?.value) ?? {};
   });
 
   const [socials, setSocials] = useState<SocialLinks>(() => {
-    const raw = socialLinksSetting?.value;
-    if (raw && typeof raw === "object") return raw as SocialLinks;
-    return {};
+    return parseMaybeJson<SocialLinks>(socialLinksSetting?.value) ?? {};
   });
 
   // Update local state when server data loads
   useEffect(() => {
-    const raw = contactChannelsSetting?.value;
-    if (Array.isArray(raw) && JSON.stringify(raw) !== JSON.stringify(channels)) {
-      setChannels(raw as ContactChannel[]);
+    const parsed = parseMaybeJson<ContactChannel[]>(contactChannelsSetting?.value);
+    if (Array.isArray(parsed) && JSON.stringify(parsed) !== JSON.stringify(channels)) {
+      setChannels(parsed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactChannelsSetting?.value]);
 
   useEffect(() => {
-    const raw = openingHoursSetting?.value;
-    if (raw && typeof raw === "object" && JSON.stringify(raw) !== JSON.stringify(hours)) {
-      setHours(raw as OpeningHours);
+    const parsed = parseMaybeJson<OpeningHours>(openingHoursSetting?.value);
+    if (parsed && JSON.stringify(parsed) !== JSON.stringify(hours)) {
+      setHours(parsed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingHoursSetting?.value]);
 
   useEffect(() => {
-    const raw = socialLinksSetting?.value;
-    if (raw && typeof raw === "object" && JSON.stringify(raw) !== JSON.stringify(socials)) {
-      setSocials(raw as SocialLinks);
+    const parsed = parseMaybeJson<SocialLinks>(socialLinksSetting?.value);
+    if (parsed && JSON.stringify(parsed) !== JSON.stringify(socials)) {
+      setSocials(parsed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socialLinksSetting?.value]);

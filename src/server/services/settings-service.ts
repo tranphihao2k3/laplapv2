@@ -25,7 +25,10 @@ const PUBLIC_CACHE_GROUPS = new Set([
  * Cache tags tương ứng với từng nhóm. Mỗi nhóm có thể map ra nhiều tag.
  */
 const GROUP_TAGS: Record<string, string[]> = {
-  store: ["store-info", "store-legal", "store-contact", "footer-settings"],
+  // "trust-badges" phải nằm trong group "store" vì trust_badges được ghi
+  // dưới group "store" (xem settings/page.tsx → TrustBadgesSection).
+  // Thiếu tag này → sửa trust badges nhưng cache vẫn cũ tới 1 giờ.
+  store: ["store-info", "store-legal", "store-contact", "footer-settings", "trust-badges"],
   legal: ["store-info", "store-legal", "store-contact"],
   contact: ["store-info", "store-contact", "footer-settings"],
   footer: ["footer-settings", "store-info"],

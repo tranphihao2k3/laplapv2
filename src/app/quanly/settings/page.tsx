@@ -47,6 +47,11 @@ import { ContactSettings } from "./_components/contact-settings";
 import { FooterSettings } from "./_components/footer-settings";
 import { LegalSettings } from "./_components/legal-settings";
 import { StoreInfoSettings } from "./_components/store-info-settings";
+import {
+  DEFAULT_FOOTER_SETTINGS,
+  type FooterColumn,
+  type FooterSettings as FooterSettingsData,
+} from "@/lib/footer-settings";
 import type { Paginated } from "@/lib/api/response";
 
 // ====== Types ======
@@ -267,12 +272,18 @@ function OrgSettings() {
 
 // ====== System settings tab ======
 const COMMON_KEYS: Array<{ key: string; label: string; group: string; hint?: string; multiline?: boolean }> = [
-  { key: "default_warranty_months", label: "Bảo hành mặc định (tháng)", group: "warranty", hint: "Số tháng áp dụng khi sản phẩm không khai báo bảo hành riêng" },
+  // Key "warranty_months" + group "store" là canonical: đây là key/group
+  // mà `getStoreInfo()` đọc (lib/store-info.ts) và script seed dùng
+  // (scripts/seed-store-info.ts). Trước đây ghi "default_warranty_months"
+  // trong group "warranty" → không reader nào đọc → setting không tới site.
+  { key: "warranty_months", label: "Bảo hành mặc định (tháng)", group: "store", hint: "Số tháng áp dụng khi sản phẩm không khai báo bảo hành riêng" },
   { key: "receipt.shop_name", label: "Tên hiển thị hoá đơn", group: "receipt" },
   { key: "receipt.stamp_text", label: "Chữ trong dấu mộc", group: "receipt", hint: "Chữ hiển thị bên trong con dấu tròn (VD tên viết tắt cửa hàng)" },
   { key: "receipt.footer", label: "Lời cảm ơn cuối hoá đơn", group: "receipt" },
   { key: "receipt.policy", label: "Chính sách bảo hành / đổi trả", group: "receipt", hint: "Mỗi dòng 1 mục. Bỏ trống sẽ dùng chính sách mặc định.", multiline: true },
-  { key: "loyalty.points_per_vnd", label: "Số VND đổi 1 điểm", group: "loyalty", hint: "Mặc định 10000" },
+  // Rate loyalty đang được consumer dùng cứng là 1000 VND/điểm
+  // (xem quanly/pos/_components/pos-client.tsx → DEFAULT_LOYALTY_RATE).
+  { key: "loyalty.points_per_vnd", label: "Số VND đổi 1 điểm", group: "loyalty", hint: "Mặc định 1000" },
 ];
 
 function SystemSettings() {
@@ -394,7 +405,7 @@ function SystemSettings() {
   function saveCommon(k: { key: string; group: string }) {
     const raw = getDisplayValue(k.key).trim();
     let parsed: unknown = raw;
-    if (k.key === "default_warranty_months" || k.key === "loyalty.points_per_vnd") {
+    if (k.key === "warranty_months" || k.key === "loyalty.points_per_vnd") {
       const n = Number(raw);
       if (Number.isFinite(n)) parsed = n;
     } else {
@@ -767,9 +778,14 @@ function TrustBadgesSection() {
   const settingsQ = useQuery({
     queryKey: ["settings-config-trust", scope, scopeShopId],
     queryFn: () =>
+      // KHÔNG lọc group: public reader (lib/trust-badges.ts) đọc bằng
+      // `.eq("key", "trust_badges")` — không giới hạn group. Nếu admin lọc
+      // group "store" mà row thật nằm ở group khác → admin không thấy row
+      // đó, bấm Lưu sẽ POST row MỚI → trùng key → reader `.single()` fail
+      // → rơi về badge mặc định.
       httpGet<Paginated<Setting>>("/v1/settings", { page: 1, pageSize: 100, ...settingsFilter }),
   });
-  const items = settingsQ.data?.items ?? [];
+  const items = useMemo(() => settingsQ.data?.items ?? [], [settingsQ.data]);
 
   const trustBadgesSetting = useMemo(() => {
     return items.find((s) => s.key === "trust_badges") ?? null;
@@ -839,12 +855,72 @@ function FooterSection() {
   const settingsQ = useQuery({
     queryKey: ["settings-config-footer", scope, scopeShopId],
     queryFn: () =>
-      httpGet<Paginated<Setting>>("/v1/settings", { page: 1, pageSize: 100, ...settingsFilter }),
+      // Lọc theo group "footer" — đúng group mà server reader
+      // (lib/footer-settings.ts) đọc. Trước đây tab Footer đọc key
+      // "footer_settings" (không ai ghi) nên luôn hiện mặc định và bấm
+      // "Lưu thay đổi" sẽ đè mất dữ liệu footer đã lưu.
+      httpGet<Paginated<Setting>>("/v1/settings", {
+        page: 1,
+        pageSize: 20,
+        group_name: "footer",
+        ...settingsFilter,
+      }),
   });
-  const items = settingsQ.data?.items ?? [];
+  const items = useMemo(() => settingsQ.data?.items ?? [], [settingsQ.data]);
 
-  const footerSetting = useMemo(() => {
-    return items.find((s) => s.key === "footer_settings") ?? null;
+  // Gộp 3 key thật của footer (đúng key server đọc) thành 1 object
+  // đúng shape `FooterSettings` để đưa vào component.
+  const footerRaw = useMemo<FooterSettingsData>(() => {
+    const byKey = new Map<string, unknown>();
+    for (const s of items) if (s.key) byKey.set(s.key, s.value);
+
+    // Value có thể được lưu dạng JSON string (legacy) hoặc object/array.
+    const parse = <T,>(v: unknown): T | undefined => {
+      if (typeof v === "string") {
+        try {
+          return JSON.parse(v) as T;
+        } catch {
+          return undefined;
+        }
+      }
+      if (v === null || v === undefined) return undefined;
+      return v as T;
+    };
+
+    const savedDescription = byKey.get("footer_description");
+    const savedCopyright = byKey.get("footer_copyright");
+
+    // Clone sâu mảng columns: component admin sửa thứ tự bằng cách mutate
+    // `col.order` → nếu dùng chung reference với DEFAULT_FOOTER_SETTINGS sẽ
+    // làm hỏng mặc định của cả app.
+    const columns = parse<FooterColumn[]>(byKey.get("footer_columns"));
+    const paymentMethods = parse<string[]>(byKey.get("footer_payment_methods"));
+
+    // Dùng ĐÚNG quy tắc của server reader (lib/footer-settings.ts):
+    // chuỗi rỗng / mảng rỗng = "chưa đặt" → hiện giá trị mặc định.
+    // Nếu admin hiện khác với server → admin tưởng sửa sai, lưu đè mất data.
+    const description =
+      typeof savedDescription === "string" && savedDescription.trim().length > 0
+        ? savedDescription
+        : DEFAULT_FOOTER_SETTINGS.description;
+
+    return {
+      description,
+      copyright:
+        typeof savedCopyright === "string" && savedCopyright.trim().length > 0
+          ? savedCopyright
+          : undefined,
+      payment_methods:
+        paymentMethods && paymentMethods.length > 0
+          ? [...paymentMethods]
+          : [...(DEFAULT_FOOTER_SETTINGS.payment_methods ?? [])],
+      columns: columns
+        ? columns.map((c) => ({ ...c, links: [...(c.links ?? [])] }))
+        : (DEFAULT_FOOTER_SETTINGS.columns ?? []).map((c) => ({
+            ...c,
+            links: [...(c.links ?? [])],
+          })),
+    };
   }, [items]);
 
   return (
@@ -883,11 +959,8 @@ function FooterSection() {
       </div>
 
       <FooterSettings
-        raw={footerSetting?.value}
+        raw={footerRaw}
         saving={false}
-        settingId={footerSetting?.id}
-        group="store"
-        keyName="footer_settings"
         scope={scope}
         shopId={scopeShopId}
       />

@@ -26,9 +26,6 @@ type Props = {
   /** The current saved settings from the settings table (may be undefined) */
   raw?: unknown;
   saving?: boolean;
-  settingId?: string;
-  group?: string;
-  keyName?: string;
   /** Scope of the setting */
   scope?: "org" | "shop";
   shopId?: string | null;
@@ -37,18 +34,17 @@ type Props = {
 export function FooterSettings({
   raw,
   saving,
-  settingId,
-  group = "store",
-  keyName = "footer_settings",
   scope = "org",
   shopId,
 }: Props) {
   const qc = useQueryClient();
 
-  // Parse initial value — server lưu dưới group "footer", key "footer_columns"
+  // Parse initial value — server lưu dưới group "footer" với 3 key:
+  //   - footer_columns         (FooterColumn[])
+  //   - footer_description     (string)
+  //   - footer_payment_methods (string[])
   // (xem lib/footer-settings.ts → _getFooterSettings đọc map.get("footer_columns")).
-  // Tuy nhiên, để back-compat với cài đặt cũ đã lỡ lưu dưới group "store"
-  // + key "footer_settings" thì vẫn fallback về `raw` ở dưới.
+  // Component tự lo group/key cứng → không cần props group/keyName.
 
   // Parse initial value
   const initial: FooterSettings = (() => {
@@ -60,40 +56,49 @@ export function FooterSettings({
   })();
 
   const [settings, setSettings] = useState<FooterSettings>(initial);
-  const [columns, setColumns] = useState<FooterColumn[]>(initial.columns ?? DEFAULT_FOOTER_SETTINGS.columns ?? []);
+  const [columns, setColumns] = useState<FooterColumn[]>(
+    (initial.columns ?? DEFAULT_FOOTER_SETTINGS.columns ?? []).map((c) => ({
+      ...c,
+      links: [...(c.links ?? [])],
+    })),
+  );
   const [description, setDescription] = useState(initial.description ?? "");
   const [paymentMethods, setPaymentMethods] = useState<string[]>(initial.payment_methods ?? []);
+  const [copyright, setCopyright] = useState(initial.copyright ?? "");
 
   // Sync when raw prop changes (e.g. data refetched from server)
   useEffect(() => {
-    if (raw && typeof raw === "object") {
-      const val = raw as FooterSettings;
+    const apply = (val: FooterSettings) => {
       setSettings(val);
-      setColumns(val.columns ?? []);
+      setColumns(
+        (val.columns ?? []).map((c) => ({ ...c, links: [...(c.links ?? [])] })),
+      );
       setDescription(val.description ?? "");
       setPaymentMethods(val.payment_methods ?? []);
+      setCopyright(val.copyright ?? "");
+    };
+    if (raw && typeof raw === "object") {
+      apply(raw as FooterSettings);
     } else if (typeof raw === "string") {
       try {
-        const val = JSON.parse(raw) as FooterSettings;
-        setSettings(val);
-        setColumns(val.columns ?? []);
-        setDescription(val.description ?? "");
-        setPaymentMethods(val.payment_methods ?? []);
+        apply(JSON.parse(raw) as FooterSettings);
       } catch { /* no-op */ }
     }
   }, [raw]);
 
   const upsertMutation = useMutation({
     mutationFn: async (value: FooterSettings) => {
-      // Lưu cả 3 keys mà server `getFooterSettings` đọc:
+      // Lưu 4 keys mà server `getFooterSettings` đọc:
       //   - footer_columns     (FooterColumn[] — cấu trúc cột + link)
       //   - footer_description (string)
       //   - footer_payment_methods (string[])
+      //   - footer_copyright   (string — tuỳ chọn, bỏ trống → dùng mặc định)
       // Đặt vào group "footer" để khớp với logic đọc.
       const items: Array<{ value: unknown; key: string }> = [
         { key: "footer_columns", value: value.columns ?? [] },
         { key: "footer_description", value: value.description ?? "" },
         { key: "footer_payment_methods", value: value.payment_methods ?? [] },
+        { key: "footer_copyright", value: value.copyright ?? "" },
       ];
 
       // Upsert từng key song song.
@@ -152,6 +157,7 @@ export function FooterSettings({
       description,
       payment_methods: paymentMethods,
       columns,
+      copyright,
     });
   }
 
@@ -268,6 +274,19 @@ export function FooterSettings({
             placeholder="Hệ thống bán lẻ laptop chính hãng hàng đầu..."
           />
           <p className="text-xs text-muted-foreground">Mô tả ngắn hiển thị trong phần thương hiệu của footer.</p>
+        </div>
+
+        {/* Copyright */}
+        <div className="space-y-2">
+          <Label>Copyright</Label>
+          <Input
+            value={copyright}
+            onChange={(e) => setCopyright(e.target.value)}
+            placeholder={`© ${new Date().getFullYear()} Tên doanh nghiệp`}
+          />
+          <p className="text-xs text-muted-foreground">
+            Bỏ trống → dùng mặc định (năm hiện tại + tên pháp nhân cửa hàng).
+          </p>
         </div>
 
         {/* Payment Methods */}
@@ -428,8 +447,16 @@ export function FooterSettings({
             size="sm"
             onClick={() => {
               setDescription(DEFAULT_FOOTER_SETTINGS.description ?? "");
-              setPaymentMethods(DEFAULT_FOOTER_SETTINGS.payment_methods ?? []);
-              setColumns(DEFAULT_FOOTER_SETTINGS.columns ?? []);
+              setPaymentMethods([...(DEFAULT_FOOTER_SETTINGS.payment_methods ?? [])]);
+              // Clone sâu: component dùng `col.order = i` khi đổi thứ tự → nếu
+              // dùng chung reference với DEFAULT sẽ làm hỏng mặc định toàn app.
+              setColumns(
+                (DEFAULT_FOOTER_SETTINGS.columns ?? []).map((c) => ({
+                  ...c,
+                  links: [...(c.links ?? [])],
+                })),
+              );
+              setCopyright(DEFAULT_FOOTER_SETTINGS.copyright ?? "");
             }}
           >
             Khôi phục mặc định

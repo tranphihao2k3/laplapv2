@@ -125,6 +125,17 @@ function asJson<T>(v: unknown): T | null {
   return null;
 }
 
+/**
+ * Chuỗi rỗng / chỉ khoảng trắng được coi là "chưa đặt" (undefined).
+ * Lý do: admin ghi `value.description ?? ""` khi xoá ô → nếu đọc bằng `??`
+ * thì "" vẫn được dùng và footer bị mất đoạn mô tả. Xem FIX 4.
+ */
+function asNonEmptyString(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const trimmed = v.trim();
+  return trimmed.length > 0 ? v : undefined;
+}
+
 // ====== Cached Data Fetching ======
 
 /**
@@ -169,11 +180,19 @@ async function _getFooterSettings(): Promise<FooterSettings> {
         links: [...col.links].sort((a, b) => a.order - b.order),
       }));
 
+    // payment_methods rỗng (admin xoá hết) → không hiện section rỗng,
+    // fallback về danh sách mặc định.
+    const paymentMethods = asJson<string[]>(map.get("footer_payment_methods"));
+
     return {
-      description: (map.get("footer_description") as string) ?? DEFAULT_FOOTER_SETTINGS.description,
-      copyright: (map.get("footer_copyright") as string) ?? DEFAULT_FOOTER_SETTINGS.copyright,
+      // "" (chuỗi rỗng) = chưa đặt → fallback mặc định, không ghi đè.
+      description:
+        asNonEmptyString(map.get("footer_description")) ?? DEFAULT_FOOTER_SETTINGS.description,
+      copyright: asNonEmptyString(map.get("footer_copyright")) ?? DEFAULT_FOOTER_SETTINGS.copyright,
       payment_methods:
-        asJson<string[]>(map.get("footer_payment_methods")) ?? DEFAULT_FOOTER_SETTINGS.payment_methods,
+        paymentMethods && paymentMethods.length > 0
+          ? paymentMethods
+          : DEFAULT_FOOTER_SETTINGS.payment_methods,
       columns: sortedColumns,
     };
   } catch {
