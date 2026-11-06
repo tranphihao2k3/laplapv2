@@ -172,17 +172,39 @@ export const getStoreInfo = cache(
       const { data } = await supabase
         .from("settings")
         .select("key,value,group_name")
-        .in("group_name", ["store", "legal", "contact"]);
+        .in("group_name", ["store", "legal", "contact"])
+        // ORDER BY bắt buộc: query không có ORDER BY nên thứ tự row trả về
+        // không xác định → nếu cùng một key tồn tại ở 2 group thì "winner"
+        // là ngẫu nhiên mỗi request (lúc đọc lại có thể ra giá trị khác).
+        // Sắp xếp group → key → id để thứ tự luôn ổn định.
+        // Với group, group "store" đứng sau "legal"/"contact" nên khi trùng key
+        // thì giá trị của group "store" được ưu tiên (set sau cùng).
+        .order("group_name", { ascending: true })
+        .order("key", { ascending: true })
+        .order("id", { ascending: true });
 
       const rows = (data ?? []) as Array<{
         key: string | null;
         value: unknown;
         group_name?: string | null;
       }>;
-      const map = new Map<string, string>();
+
+      // 2 map riêng biệt:
+      //  - `rawMap` giữ nguyên kiểu gốc (object/array/string) cho các key JSON
+      //    (opening_hours, contact_channels, social_links).
+      //  - `map` chỉ chứa giá trị scalar đã ép thành chuỗi cho các field phẳng
+      //    (name, phone, address, legal.*).
+      // Trước đây tất cả value đều đi qua `asString`, khiến object/array bị
+      // vứt bỏ → opening_hours/social_links/contact_channels luôn rơi về
+      // DEFAULTS và phần "Giờ mở cửa" không bao giờ cập nhật từ Settings.
+      const rawMap = new Map<string, unknown>();
       for (const r of rows) {
-        const val = asString(r.value);
-        if (r.key && val) map.set(r.key, val);
+        if (r.key) rawMap.set(r.key, r.value);
+      }
+      const map = new Map<string, string>();
+      for (const [k, v] of rawMap) {
+        const val = asString(v);
+        if (val) map.set(k, val);
       }
 
       const legal: LegalInfo = {
@@ -213,10 +235,14 @@ export const getStoreInfo = cache(
           DEFAULTS_LEGAL.bo_cong_thuong_notified_at,
       };
 
-      // Parse contact settings (stored as JSON strings)
-      const contact_channels = asJson<ContactChannel[]>(map.get("contact_channels")) ?? DEFAULTS.contact_channels;
-      const opening_hours = asJson<OpeningHours>(map.get("opening_hours")) ?? DEFAULTS.opening_hours;
-      const social_links = asJson<SocialLinks>(map.get("social_links")) ?? DEFAULTS.social_links;
+      // Parse contact settings (stored as JSON object hoặc JSON string)
+      const contact_channels =
+        asJson<ContactChannel[]>(rawMap.get("contact_channels")) ??
+        DEFAULTS.contact_channels;
+      const opening_hours =
+        asJson<OpeningHours>(rawMap.get("opening_hours")) ?? DEFAULTS.opening_hours;
+      const social_links =
+        asJson<SocialLinks>(rawMap.get("social_links")) ?? DEFAULTS.social_links;
 
       return {
         name: map.get("name") ?? DEFAULTS.name,

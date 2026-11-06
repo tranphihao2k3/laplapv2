@@ -1,6 +1,6 @@
 ﻿import Link from "next/link";
-import { getStoreInfoForRequest } from "@/lib/request-shop";
-import { getFooterSettings } from "@/lib/footer-settings";
+import { getStoreInfoCached } from "@/lib/store-info-cached";
+import { getFooterSettingsCached } from "@/lib/footer-settings-cached";
 import { telHref } from "@/lib/shop-info";
 import { TradeBadge } from "@/components/shared/trade-badge";
 import { FooterColumns } from "@/components/client/layout/footer-columns";
@@ -25,14 +25,29 @@ const SOCIAL_ICONS: Record<string, LucideIcon> = {
 
 export async function ClientFooter() {
   const [store, footerSettings] = await Promise.all([
-    getStoreInfoForRequest(),
-    getFooterSettings(),
+    // Dùng bản `unstable_cache` (có tag "store-info"/"footer-settings") thay vì
+    // `getStoreInfo()` trần. Lý do: footer nằm trong layout của MỌI trang
+    // public → nếu đọc DB trực tiếp thì mỗi request đều query Supabase.
+    // Bản cached được `revalidateTag("store-info")` xoá ngay khi admin lưu
+    // settings (xem server/services/settings-service.ts) → vẫn cập nhật tức thì,
+    // chỉ khác là cache hit thay vì query mỗi lượt.
+    getStoreInfoCached(),
+    getFooterSettingsCached(),
   ]);
 
   const description = footerSettings.description ?? store.description;
   const columns = footerSettings.columns ?? [];
   const opening = store.opening_hours;
   const socials = store.social_links ?? {};
+  // Phương thức thanh toán do admin cấu hình ở tab "Footer" (Settings).
+  // Lọc bỏ chuỗi rỗng để không render badge trống.
+  const paymentMethods = (footerSettings.payment_methods ?? []).filter(
+    (m) => typeof m === "string" && m.trim().length > 0,
+  );
+  // Copyright tuỳ chỉnh (nếu admin có khai báo) → fallback về năm + tên pháp nhân.
+  const copyrightText =
+    footerSettings.copyright?.trim() ||
+    `© ${new Date().getFullYear()} ${store.legal.business_name}`;
 
   const socialEntries = Object.entries({
     facebook: socials.facebook,
@@ -142,10 +157,25 @@ export async function ClientFooter() {
           <ContactCell icon={Clock} label="Giờ mở cửa" value={hoursLine} />
         </div>
 
+        {/* Payment methods — do admin cấu hình ở tab "Footer" (Settings). */}
+        {paymentMethods.length > 0 && (
+          <div className="mt-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="mr-1 shrink-0 font-medium">Thanh toán:</span>
+            {paymentMethods.map((method, idx) => (
+              <span
+                key={`${method}-${idx}`}
+                className="rounded-md border bg-background px-2 py-1 font-medium text-foreground"
+              >
+                {method}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Bottom bar */}
         <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t pt-5 text-xs text-muted-foreground sm:flex-row sm:gap-4">
           <p className="text-center sm:text-left">
-            © {new Date().getFullYear()} {store.legal.business_name} · MST:{" "}
+            {copyrightText} · MST:{" "}
             <span className="font-semibold text-foreground">{store.legal.tax_id}</span>
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:gap-6">

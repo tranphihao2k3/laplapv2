@@ -1,13 +1,37 @@
 import type { Metadata } from "next";
-import { getBrandNameAsync } from "@/lib/brand";
-import { getShopIdFromRequest } from "@/lib/request-shop";
+import { getBrandNameCached } from "@/lib/brand-cached";
 import { ClientHeader } from "@/components/client/layout/client-header";
 import { ClientFooter } from "@/components/client/layout/client-footer";
 import { CompareBar } from "@/components/client/compare/compare-bar";
 
+/**
+ * PHẢI render động cho toàn bộ nhóm route (client).
+ *
+ * Lý do: `<ClientFooter />` là server component đọc thông tin cửa hàng (giờ mở
+ * cửa, hotline, địa chỉ…) từ bảng `settings` qua `getStoreInfo()` — hàm này
+ * dùng Supabase service-role key nên chỉ chạy được ở RUNTIME.
+ *
+ * Nếu route được prerender lúc `next build` (Docker builder KHÔNG có
+ * SUPABASE_SERVICE_ROLE_KEY) → `getStoreInfo()` throw → fallback về DEFAULTS →
+ * giờ mở cửa mặc định ("8:00 - 21:00") bị BAKE vào static HTML và phục vụ
+ * tới hết TTL. Kết quả: admin sửa giờ mở cửa ở /quanly/settings → tab
+ * Liên hệ → footer vẫn hiện giá trị cũ mãi mãi (dù đã sửa đúng parser).
+ *
+ * Đã kiểm chứng: `next build` xuất `/`, `/contact`, `/products`… vào
+ * `.next/prerender-manifest.json` (static) và giờ mở cửa được bake thẳng vào
+ * `.next/server/app/contact.html`. `revalidateTag("store-info")` KHÔNG gỡ được
+ * static shell này vì route không có tag data-cache nào (chỉ có implicit
+ * `_N_T_/...` tag theo path).
+ *
+ * `force-dynamic` ở đây chỉ ảnh hưởng HTML shell của route group (client):
+ * mỗi request render lại footer + header server-side. Phần nội dung sản
+ * phẩm vẫn được fetch client-side như trước nên không tăng tải DB đáng kể
+ * (footer đọc qua `unstable_cache` nên chỉ query DB khi cache bị miss).
+ */
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
-  const shopId = await getShopIdFromRequest();
-  const brandName = await getBrandNameAsync(shopId);
+  const brandName = await getBrandNameCached();
   return {
     title: {
       default: `${brandName} - Laptop Cần Thơ`,
