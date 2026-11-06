@@ -12,6 +12,7 @@ import { warrantyCreateSchema } from "@/lib/validators/after-sale";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser, requirePermission } from "@/lib/api/guard";
 import { ok, handleError, paginated, rangeOf } from "@/lib/api/response";
+import { parseDeviceName } from "@/lib/warranties/quick-warranty";
 
 const factory = makeCollectionHandlers({
   crud: warrantiesService,
@@ -68,6 +69,13 @@ export async function GET(req: NextRequest) {
 
     // Search client-side trong page hiện tại (không có cột text dễ search trong warranties)
     let items = (data ?? []) as Record<string, unknown>[];
+    // Bảo hành tạo nhanh (máy không có trong catalog) lưu tên máy trong `note`
+    // theo quy ước "Thiết bị: <tên>" → expose ra field `device_name` cho UI hiển thị.
+    items = items.map((row) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = row as any;
+      return { ...r, device_name: parseDeviceName(r?.note ?? null) };
+    });
     if (search) {
       const needle = search.toLowerCase();
       items = items.filter((row) => {
@@ -84,8 +92,11 @@ export async function GET(req: NextRequest) {
           String(r?.customer?.full_name ?? "").toLowerCase().includes(needle) ||
           String(r?.customer?.phone ?? "").toLowerCase().includes(needle) ||
           String(r?.order?.order_number ?? "").toLowerCase().includes(needle) ||
+          String(r?.serial?.serial ?? "").toLowerCase().includes(needle) ||
+          String(r?.serial?.imei ?? "").toLowerCase().includes(needle) ||
           String(r?.serial?.product_variant?.name ?? "").toLowerCase().includes(needle) ||
           String(r?.serial?.product_variant?.product?.name ?? "").toLowerCase().includes(needle) ||
+          String(r?.device_name ?? "").toLowerCase().includes(needle) ||
           productNamesFromOrder.includes(needle)
         );
       });

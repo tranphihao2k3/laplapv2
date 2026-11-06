@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseDeviceName } from "@/lib/warranties/quick-warranty";
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("warranties")
       .select(`
-        id, start_date, end_date, status,
+        id, start_date, end_date, status, note,
         order:orders(id, order_number, created_at),
         serial:serial_numbers(id, serial, imei)
       `)
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("warranties")
       .select(`
-        id, start_date, end_date, status,
+        id, start_date, end_date, status, note,
         customer:customers(id, full_name, phone),
         order:orders(id, order_number, created_at),
         serial:serial_numbers(id, serial, imei)
@@ -173,7 +174,10 @@ export async function GET(req: NextRequest) {
         ? orderItemMap.get(w.order.id)
         : null;
 
-    const pn = productInfo?.product_name ?? "Sản phẩm không xác định";
+    // Bảo hành tạo nhanh (máy ngoài catalog) không có product_variant →
+    // lấy tên thiết bị lưu trong `note` để khách tra cứu vẫn thấy đúng tên máy.
+    const deviceName = parseDeviceName(w.note);
+    const pn = productInfo?.product_name ?? deviceName ?? "Sản phẩm không xác định";
     const sku = productInfo?.product_sku ?? null;
 
     const startDate = new Date(w.start_date);

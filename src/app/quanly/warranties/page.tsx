@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -21,7 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudList } from "@/lib/api/admin-crud";
-import { Wrench, ShoppingBag, PlusCircle, ExternalLink } from "lucide-react";
+import { Wrench, ShoppingBag, PlusCircle, ExternalLink, ShieldCheck } from "lucide-react";
+import { QuickWarrantyDialog } from "./_components/quick-warranty-dialog";
+import { parseNoteBody } from "@/lib/warranties/quick-warranty";
 
 type WarrantyRow = {
   id: string;
@@ -34,6 +37,8 @@ type WarrantyRow = {
   end_date: string | null;
   status: string | null;
   note: string | null;
+  /** Tên thiết bị lấy từ `note` (bảo hành tạo nhanh cho máy ngoài danh mục). */
+  device_name: string | null;
   customer: { id: string; full_name: string | null; phone: string | null } | null;
   order: {
     id: string;
@@ -143,6 +148,7 @@ export default function WarrantiesAdminPage() {
   const [status, setStatus] = useState<string>("all");
   const [warrantyType, setWarrantyType] = useState<string>("all");
   const [page, setPage] = useState(1);
+  const [quickOpen, setQuickOpen] = useState(false);
 
   const list = useCrudList<WarrantyRow>("warranties", {
     search,
@@ -190,6 +196,14 @@ export default function WarrantiesAdminPage() {
             </CardDescription>
           </div>
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button
+              type="button"
+              onClick={() => setQuickOpen(true)}
+              className="w-full sm:w-auto"
+            >
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Tạo nhanh bảo hành
+            </Button>
             <Input
               value={search}
               onChange={(e) => {
@@ -276,9 +290,13 @@ export default function WarrantiesAdminPage() {
                     pv?.name ??
                     primary?.product?.name ??
                     primary?.name ??
+                    // Máy ngoài danh mục (bảo hành tạo nhanh) → tên lấy từ `note`.
+                    w.device_name ??
                     "(Không xác định)";
                   const sku = pv?.sku ?? primary?.sku ?? null;
                   const extraCount = Math.max(0, orderItems.length - 1);
+                  // Serial/IMEI hiển thị cho mọi bản ghi (kể cả máy ngoài danh mục).
+                  const serialCode = w.serial?.serial ?? w.serial?.imei ?? null;
                   return (
                     <TableRow key={w.id}>
                       <TableCell>
@@ -288,6 +306,9 @@ export default function WarrantiesAdminPage() {
                         <div className="font-medium">{productName}</div>
                         <div className="text-xs text-muted-foreground space-x-2">
                           {sku ? <span>SKU: {sku}</span> : null}
+                          {serialCode ? (
+                            <span className="font-mono">SN: {serialCode}</span>
+                          ) : null}
                           {extraCount > 0 ? (
                             <span>+ {extraCount} SP khác trong HĐ</span>
                           ) : null}
@@ -327,8 +348,13 @@ export default function WarrantiesAdminPage() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                         {w.note ? (
-                          <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1" title={w.note}>
-                            {w.note}
+                          <div
+                            className="text-xs text-muted-foreground mt-0.5 line-clamp-1"
+                            title={w.note}
+                          >
+                            {/* Bảo hành tạo nhanh lưu tiền tố "Thiết bị: ..." trong note
+                                → chỉ hiện phần ghi chú tự do của admin. */}
+                            {parseNoteBody(w.note) ?? w.note}
                           </div>
                         ) : null}
                       </TableCell>
@@ -387,6 +413,16 @@ export default function WarrantiesAdminPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Tạo nhanh bảo hành cho máy đã bán/sửa nhưng không có trong danh mục. */}
+      <QuickWarrantyDialog
+        open={quickOpen}
+        onOpenChange={setQuickOpen}
+        onCreated={() => {
+          // Refetch danh sách để bản ghi vừa tạo hiện ngay.
+          void list.refetch();
+        }}
+      />
     </div>
   );
 }

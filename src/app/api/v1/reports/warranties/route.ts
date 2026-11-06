@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/api/guard";
 import { ok, handleError } from "@/lib/api/response";
 import { parseFilters, type ReportFilters } from "@/lib/reports/query";
+import { parseDeviceName } from "@/lib/warranties/quick-warranty";
 
 type Warranty = {
   id: string;
@@ -51,10 +52,12 @@ export async function GET(req: NextRequest) {
       customerIds.length > 0
         ? supabase.from("customers").select("id, full_name, phone").in("id", customerIds)
         : Promise.resolve({ data: [] as { id: string; full_name: string | null; phone: string | null }[] }),
+      // LEFT JOIN (không dùng `!inner`): serial tạo nhanh có product_variant_id = NULL
+      // (máy ngoài catalog) → `!inner` sẽ loại mất luôn serial đó khỏi kết quả.
       serialIds.length > 0
         ? supabase
             .from("serial_numbers")
-            .select("id, serial, imei, product_variant:product_variants!inner(id, sku, name, product:products!inner(id, name))")
+            .select("id, serial, imei, product_variant:product_variants(id, sku, name, product:products(id, name))")
             .in("id", serialIds)
         : Promise.resolve({ data: [] as Array<{ id: string; serial: string | null; imei: string | null; product_variant?: unknown }> }),
       // Count repairs per serial
@@ -98,7 +101,13 @@ export async function GET(req: NextRequest) {
         warranty_type_code: w.warranty_type,
         customer_name: c?.full_name ?? "Khách lẻ",
         customer_phone: c?.phone,
-        product_name: serial?.product_variant?.product?.name ?? "—",
+        // Tên máy: ưu tiên tên trong catalog, không có thì lấy tên thiết bị lưu
+        // trong `note` của bảo hành tạo nhanh (máy ngoài danh mục).
+        product_name:
+          serial?.product_variant?.product?.name
+          ?? serial?.product_variant?.name
+          ?? parseDeviceName(w.note)
+          ?? "—",
         sku: serial?.product_variant?.sku ?? "—",
         serial_number: serial?.serial ?? serial?.imei ?? "—",
         purchase_date: w.start_date,

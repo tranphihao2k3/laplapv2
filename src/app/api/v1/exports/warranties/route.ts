@@ -6,11 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/api/guard";
 import { excelResponse, buildWorkbook, type ExcelColumn } from "@/lib/excel/server";
 import { parseFilters, type ReportFilters } from "@/lib/reports/query";
+import { parseDeviceName } from "@/lib/warranties/quick-warranty";
 
 type Warranty = {
   id: string; serial_number_id: string | null; customer_id: string | null;
   warranty_type: string | null; start_date: string | null; end_date: string | null;
-  status: string | null;
+  status: string | null; note: string | null;
 };
 
 const COLUMNS: ExcelColumn<{
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = supabase
     .from("warranties")
-    .select("id, serial_number_id, customer_id, warranty_type, start_date, end_date, status")
+    .select("id, serial_number_id, customer_id, warranty_type, start_date, end_date, status, note")
     .limit(50_000);
   if (filters.from) q = q.gte("start_date", filters.from);
   if (filters.to) q = q.lte("start_date", filters.to);
@@ -54,12 +55,14 @@ export async function GET(req: NextRequest) {
   const [customersRes, serialsRes, repairsRes] = await Promise.all([
     customerIds.length > 0 ? supabase.from("customers").select("id, full_name, phone").in("id", customerIds) : Promise.resolve({ data: [] }),
     serialIds.length > 0
-      ? supabase.from("serial_numbers").select("id, serial, imei, product_variant:product_variants!inner(sku, name, product:products!inner(name))").in("id", serialIds)
+      // LEFT JOIN (không `!inner`): serial tạo nhanh có product_variant_id = NULL
+      // (máy ngoài catalog) → `!inner` sẽ loại mất serial đó khỏi file export.
+      ? supabase.from("serial_numbers").select("id, serial, imei, product_variant:product_variants(sku, name, product:products(name))").in("id", serialIds)
       : Promise.resolve({ data: [] }),
     serialIds.length > 0 ? supabase.from("repair_tickets").select("serial_number_id").in("serial_number_id", serialIds) : Promise.resolve({ data: [] }),
   ]);
   const customerMap = new Map(((customersRes.data ?? []) as { id: string; full_name: string | null; phone: string | null }[]).map((c) => [c.id, c]));
-  type Serial = { id: string; serial: string | null; imei: string | null; product_variant: { sku: string | null; name: string | null; product: { name: string | null } } };
+  type Serial = { id: string; serial: string | null; imei: string | null; product_variant: { sku: string | null; name: string | null; product: { name: string | null } | null } | null };
   const serialMap = new Map(((serialsRes.data ?? []) as unknown as Serial[]).map((s) => [s.id, s]));
   const repairCount = new Map<string, number>();
   for (const r of (repairsRes.data ?? []) as Array<{ serial_number_id: string | null }>) {
@@ -79,7 +82,12 @@ export async function GET(req: NextRequest) {
       warranty_type: w.warranty_type ?? "—",
       customer_name: c?.full_name ?? "Khách lẻ",
       customer_phone: c?.phone ?? "",
-      product_name: s?.product_variant?.product?.name ?? "—",
+      product_name:
+        s?.product_variant?.product?.name
+        ?? s?.product_variant?.name
+        // Bảo hành tạo nhanh (máy ngoài catalog) lưu tên máy trong `note`.
+        ?? parseDeviceName(w.note)
+        ?? "—",
       sku: s?.product_variant?.sku ?? "—",
       serial_number: s?.serial ?? s?.imei ?? "—",
       purchase_date: w.start_date ?? "",
