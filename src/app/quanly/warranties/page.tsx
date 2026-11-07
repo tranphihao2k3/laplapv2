@@ -42,7 +42,6 @@ type WarrantyRow = {
   end_date: string | null;
   status: string | null;
   note: string | null;
-  created_at?: string | null;
   /** Tên thiết bị lấy từ `note` (bảo hành tạo nhanh cho máy ngoài danh mục). */
   device_name: string | null;
   customer: { id: string; full_name: string | null; phone: string | null } | null;
@@ -183,9 +182,7 @@ function findDuplicateWarrantyIds(rows: WarrantyRow[]): string[] {
         (w.serial_number_id ? 1 : 0);
       const diff = score(b) - score(a);
       if (diff !== 0) return diff;
-      const ta = a.created_at ?? "";
-      const tb = b.created_at ?? "";
-      if (ta !== tb) return ta < tb ? -1 : 1;
+      // Không có created_at trên bảng warranties → giữ id nhỏ hơn (bản cũ hơn thường insert trước).
       return a.id < b.id ? -1 : 1;
     });
     for (const extra of ranked.slice(1)) toDelete.push(extra.id);
