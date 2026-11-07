@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -21,8 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCrudList } from "@/lib/api/admin-crud";
-import { Wrench, ShoppingBag, PlusCircle, ExternalLink, ShieldCheck } from "lucide-react";
+import { useCrudBulkDelete, useCrudDelete, useCrudList } from "@/lib/api/admin-crud";
+import { httpGet } from "@/lib/api/http";
+import type { Paginated } from "@/lib/api/response";
+import { BulkActionsToolbar, useBulkSelection } from "@/components/admin/bulk-actions";
+import { Wrench, ShoppingBag, PlusCircle, ExternalLink, ShieldCheck, Trash2, CopyMinus } from "lucide-react";
 import { QuickWarrantyDialog } from "./_components/quick-warranty-dialog";
 import { parseNoteBody } from "@/lib/warranties/quick-warranty";
 
@@ -37,6 +42,7 @@ type WarrantyRow = {
   end_date: string | null;
   status: string | null;
   note: string | null;
+  created_at?: string | null;
   /** Tên thiết bị lấy từ `note` (bảo hành tạo nhanh cho máy ngoài danh mục). */
   device_name: string | null;
   customer: { id: string; full_name: string | null; phone: string | null } | null;
@@ -110,7 +116,6 @@ function diffMonths(start: string | null, end: string | null) {
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return null;
   const months =
     (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
-  // bù phần ngày
   const dayAdj = e.getDate() >= s.getDate() ? 0 : -1;
   return months + dayAdj;
 }
@@ -138,9 +143,54 @@ function statusBadge(status: string | null, leftDays: number | null) {
   return <Badge className="bg-emerald-600 hover:bg-emerald-600">Còn hiệu lực</Badge>;
 }
 
-function fmtCurrency(v: number | null) {
-  if (v === null || v === undefined) return "—";
-  return v.toLocaleString("vi-VN") + " ₫";
+/** Khoá để nhận diện 2 BH cùng 1 máy/khách/ngày (bản tạo nhầm 2 lần). */
+function warrantyDupKey(w: WarrantyRow): string {
+  const type = w.warranty_type ?? "sold";
+  const start = w.start_date ?? "";
+  const end = w.end_date ?? "";
+  if (w.serial_number_id) {
+    return `sn:${w.serial_number_id}|${type}|${start}|${end}`;
+  }
+  const who =
+    w.customer?.phone ??
+    w.customer_id ??
+    "guest";
+  const device = (w.device_name ?? w.note ?? "").trim().toLowerCase();
+  return `dev:${who}|${device}|${type}|${start}|${end}`;
+}
+
+/**
+ * Giữ 1 bản / nhóm trùng: ưu tiên có HĐ / phiếu sửa, rồi bản tạo sớm hơn.
+ * Trả về id cần xoá (bản thừa).
+ */
+function findDuplicateWarrantyIds(rows: WarrantyRow[]): string[] {
+  const groups = new Map<string, WarrantyRow[]>();
+  for (const w of rows) {
+    if (w.status === "voided") continue;
+    const key = warrantyDupKey(w);
+    const list = groups.get(key) ?? [];
+    list.push(w);
+    groups.set(key, list);
+  }
+
+  const toDelete: string[] = [];
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const ranked = [...list].sort((a, b) => {
+      const score = (w: WarrantyRow) =>
+        (w.order_id ? 4 : 0) +
+        (w.repair_ticket_id ? 2 : 0) +
+        (w.serial_number_id ? 1 : 0);
+      const diff = score(b) - score(a);
+      if (diff !== 0) return diff;
+      const ta = a.created_at ?? "";
+      const tb = b.created_at ?? "";
+      if (ta !== tb) return ta < tb ? -1 : 1;
+      return a.id < b.id ? -1 : 1;
+    });
+    for (const extra of ranked.slice(1)) toDelete.push(extra.id);
+  }
+  return toDelete;
 }
 
 export default function WarrantiesAdminPage() {
@@ -149,18 +199,34 @@ export default function WarrantiesAdminPage() {
   const [warrantyType, setWarrantyType] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [scanningDupes, setScanningDupes] = useState(false);
 
   const list = useCrudList<WarrantyRow>("warranties", {
     search,
     page,
     pageSize: 20,
-    ...(status !== "all" ? ({ filters: { status } } as never) : {}),
-    ...(warrantyType !== "all" ? ({ filters: { warranty_type: warrantyType } } as never) : {}),
+    ...(status !== "all" || warrantyType !== "all"
+      ? ({
+          filters: {
+            ...(status !== "all" ? { status } : {}),
+            ...(warrantyType !== "all" ? { warranty_type: warrantyType } : {}),
+          },
+        } as never)
+      : {}),
   });
+
+  const bulkDeleteMutation = useCrudBulkDelete("warranties");
+  const deleteMutation = useCrudDelete("warranties");
+  const selection = useBulkSelection();
 
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
   const totalPages = list.data?.totalPages ?? 1;
+
+  const pageIds = useMemo(() => items.map((w) => w.id), [items]);
+  const allOnPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selection.isSelected(id));
+  const someOnPageSelected = pageIds.some((id) => selection.isSelected(id));
 
   const stats = useMemo(() => {
     let active = 0;
@@ -180,6 +246,86 @@ export default function WarrantiesAdminPage() {
     return { active, expiringSoon, expired, repairCount, soldCount };
   }, [items]);
 
+  async function handleBulkDelete() {
+    const ids = selection.array;
+    if (ids.length === 0) return;
+    try {
+      const result = await bulkDeleteMutation.mutateAsync(ids);
+      const deletedCount = result.deleted?.length ?? 0;
+      const missingCount = result.missing?.length ?? 0;
+      if (deletedCount === 0) {
+        toast.error("Không xoá được bản ghi nào");
+      } else if (missingCount > 0) {
+        toast.warning(`Đã xoá ${deletedCount}, bỏ qua ${missingCount} không tồn tại`);
+      } else {
+        toast.success(`Đã xoá ${deletedCount} bảo hành`);
+      }
+      selection.clear();
+      void list.refetch();
+    } catch (e: unknown) {
+      const err = e as { error?: { message?: string } };
+      toast.error(err?.error?.message ?? "Có lỗi xảy ra");
+    }
+  }
+
+  async function handleDeleteOne(w: WarrantyRow) {
+    const label =
+      w.device_name ??
+      w.serial?.product_variant?.product?.name ??
+      w.customer?.full_name ??
+      w.id.slice(0, 8);
+    if (!confirm(`Xoá bảo hành "${label}"?`)) return;
+    try {
+      await deleteMutation.mutateAsync(w.id);
+      toast.success("Đã xoá bảo hành");
+      selection.clear();
+      void list.refetch();
+    } catch (e: unknown) {
+      const err = e as { error?: { message?: string } };
+      toast.error(err?.error?.message ?? "Có lỗi xảy ra");
+    }
+  }
+
+  /** Quét tối đa 200 bản gần nhất → chọn các bản thừa (giữ 1 / nhóm). */
+  async function handleSelectDuplicates() {
+    setScanningDupes(true);
+    try {
+      const params: Record<string, unknown> = {
+        page: 1,
+        pageSize: 100,
+      };
+      if (status !== "all") params.status = status;
+      if (warrantyType !== "all") params.warranty_type = warrantyType;
+      if (search.trim()) params.search = search.trim();
+
+      const page1 = await httpGet<Paginated<WarrantyRow>>("/v1/warranties", params);
+      let all = page1.items ?? [];
+      if ((page1.totalPages ?? 1) > 1) {
+        const page2 = await httpGet<Paginated<WarrantyRow>>("/v1/warranties", {
+          ...params,
+          page: 2,
+        });
+        all = all.concat(page2.items ?? []);
+      }
+
+      const dupIds = findDuplicateWarrantyIds(all);
+      if (dupIds.length === 0) {
+        toast.message("Không thấy bảo hành trùng trong ~200 bản gần nhất");
+        selection.clear();
+        return;
+      }
+      selection.setMany(dupIds);
+      toast.success(
+        `Đã chọn ${dupIds.length} bản trùng (đã giữ lại 1 bản / nhóm). Bấm Xoá để dọn.`,
+      );
+    } catch (e: unknown) {
+      const err = e as { error?: { message?: string } };
+      toast.error(err?.error?.message ?? "Không quét được bản trùng");
+    } finally {
+      setScanningDupes(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -196,6 +342,17 @@ export default function WarrantiesAdminPage() {
             </CardDescription>
           </div>
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleSelectDuplicates()}
+              disabled={scanningDupes}
+              className="w-full sm:w-auto"
+              title="Tìm BH trùng (cùng máy/khách/ngày) và chọn sẵn bản thừa để xoá"
+            >
+              <CopyMinus className="mr-2 h-4 w-4" />
+              {scanningDupes ? "Đang quét…" : "Chọn bản trùng"}
+            </Button>
             <Button
               type="button"
               onClick={() => setQuickOpen(true)}
@@ -251,9 +408,37 @@ export default function WarrantiesAdminPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <BulkActionsToolbar
+            count={selection.count}
+            entityLabel="bảo hành"
+            onClear={selection.clear}
+            onRequestDelete={() => {
+              if (
+                window.confirm(
+                  `Xoá ${selection.count} bảo hành đã chọn? Hành động không thể hoàn tác.`,
+                )
+              ) {
+                void handleBulkDelete();
+              }
+            }}
+            isPending={bulkDeleteMutation.isPending}
+          />
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    onCheckedChange={() => selection.toggleAll(pageIds)}
+                    aria-label="Chọn tất cả"
+                    ref={(el) => {
+                      if (el && "indeterminate" in el) {
+                        (el as HTMLInputElement).indeterminate =
+                          !allOnPageSelected && someOnPageSelected;
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Loại</TableHead>
                 <TableHead>Sản phẩm / thiết bị</TableHead>
                 <TableHead>Khách hàng</TableHead>
@@ -263,18 +448,19 @@ export default function WarrantiesAdminPage() {
                 <TableHead className="text-right">Thời hạn</TableHead>
                 <TableHead className="text-right">Còn lại</TableHead>
                 <TableHead>Trạng thái</TableHead>
+                <TableHead className="text-right w-[56px]">Xoá</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {list.isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground">
                     Đang tải...
                   </TableCell>
                 </TableRow>
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground">
                     Không có bảo hành nào
                   </TableCell>
                 </TableRow>
@@ -290,15 +476,21 @@ export default function WarrantiesAdminPage() {
                     pv?.name ??
                     primary?.product?.name ??
                     primary?.name ??
-                    // Máy ngoài danh mục (bảo hành tạo nhanh) → tên lấy từ `note`.
                     w.device_name ??
                     "(Không xác định)";
                   const sku = pv?.sku ?? primary?.sku ?? null;
                   const extraCount = Math.max(0, orderItems.length - 1);
-                  // Serial/IMEI hiển thị cho mọi bản ghi (kể cả máy ngoài danh mục).
                   const serialCode = w.serial?.serial ?? w.serial?.imei ?? null;
+                  const checked = selection.isSelected(w.id);
                   return (
-                    <TableRow key={w.id}>
+                    <TableRow key={w.id} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(w.id)}
+                          aria-label={`Chọn bảo hành ${productName}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <WarrantyTypeBadge type={w.warranty_type} />
                       </TableCell>
@@ -352,8 +544,6 @@ export default function WarrantiesAdminPage() {
                             className="text-xs text-muted-foreground mt-0.5 line-clamp-1"
                             title={w.note}
                           >
-                            {/* Bảo hành tạo nhanh lưu tiền tố "Thiết bị: ..." trong note
-                                → chỉ hiện phần ghi chú tự do của admin. */}
                             {parseNoteBody(w.note) ?? w.note}
                           </div>
                         ) : null}
@@ -381,6 +571,19 @@ export default function WarrantiesAdminPage() {
                         )}
                       </TableCell>
                       <TableCell>{statusBadge(w.status, left)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => void handleDeleteOne(w)}
+                          disabled={deleteMutation.isPending}
+                          aria-label="Xoá bảo hành"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -414,12 +617,10 @@ export default function WarrantiesAdminPage() {
         </CardContent>
       </Card>
 
-      {/* Tạo nhanh bảo hành cho máy đã bán/sửa nhưng không có trong danh mục. */}
       <QuickWarrantyDialog
         open={quickOpen}
         onOpenChange={setQuickOpen}
         onCreated={() => {
-          // Refetch danh sách để bản ghi vừa tạo hiện ngay.
           void list.refetch();
         }}
       />

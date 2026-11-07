@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     // Supabase nested select: lấy customer, order, serial_number + product_variant + product
     const selectExpr = `
       id, serial_number_id, customer_id, order_id, repair_ticket_id, warranty_type, note,
-      start_date, end_date, status,
+      start_date, end_date, status, created_at,
       customer:customers ( id, full_name, phone ),
       order:orders (
         id, order_number, created_at, total_amount,

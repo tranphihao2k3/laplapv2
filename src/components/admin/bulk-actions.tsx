@@ -47,10 +47,15 @@ export function useBulkSelection() {
 
   const clear = useCallback(() => setSelectedIds(new Set()), []);
 
+  /** Thay toàn bộ selection (vd: chọn sẵn các bản trùng). */
+  const setMany = useCallback((ids: string[]) => {
+    setSelectedIds(new Set(ids));
+  }, []);
+
   const count = selectedIds.size;
   const array = useMemo(() => Array.from(selectedIds), [selectedIds]);
 
-  return { selectedIds, count, array, isSelected, toggle, toggleAll, clear };
+  return { selectedIds, count, array, isSelected, toggle, toggleAll, clear, setMany };
 }
 
 // ============================================================
