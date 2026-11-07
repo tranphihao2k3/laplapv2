@@ -73,6 +73,7 @@ type CategoryOption = {
   slug?: string | null;
   parentId?: string | null;
   parentSlug?: string | null;
+  kind?: "laptop" | "pc_component" | null;
 };
 
 export function ClientHeader() {
