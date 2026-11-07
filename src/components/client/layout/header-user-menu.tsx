@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { User, LogOut, ShoppingBag, Award, Ticket, Settings } from "lucide-react";
 
@@ -16,7 +17,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useLogout } from "@/lib/hooks/use-account-profile";
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
 
 type Me = {
   id: string;
@@ -53,7 +53,7 @@ export function HeaderUserMenu() {
       if (!data.user) return null;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
-      const [c, p] = await Promise.all([
+      const [cRes, pRes] = await Promise.all([
         db
           .from("customers")
           .select("id, full_name, tier, loyalty_points, avatar_url, deleted_at")
@@ -66,6 +66,8 @@ export function HeaderUserMenu() {
           .eq("id", data.user.id)
           .maybeSingle(),
       ]);
+      const c = cRes?.data ?? null;
+      const p = pRes?.data ?? null;
       return {
         id: data.user.id,
         email: data.user.email ?? "",
@@ -81,15 +83,21 @@ export function HeaderUserMenu() {
       };
     },
     staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
-  // Re-fetch khi auth state thay đổi
-  if (typeof window !== "undefined") {
+  // Chỉ subscribe 1 lần — KHÔNG gọi onAuthStateChange trong body render
+  // (trước đây mỗi render gắn listener mới → spam invalidate/refetch).
+  useEffect(() => {
     const supabase = createClient();
-    supabase.auth.onAuthStateChange(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") return;
       qc.invalidateQueries({ queryKey: ["header", "me"] });
     });
-  }
+    return () => subscription.unsubscribe();
+  }, [qc]);
 
   if (!me) {
     return (

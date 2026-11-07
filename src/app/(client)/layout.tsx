@@ -1,6 +1,7 @@
 import { ClientHeader } from "@/components/client/layout/client-header";
 import { ClientFooter } from "@/components/client/layout/client-footer";
 import { CompareBar } from "@/components/client/compare/compare-bar";
+import { PageViewTracker } from "@/components/client/analytics/page-view-tracker";
 
 /**
  * PHẢI render động cho toàn bộ nhóm route (client).
@@ -40,6 +41,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <ClientFooter />
       {/* Thanh so sánh nổi đáy màn hình — tự ẩn khi chưa chọn máy nào. */}
       <CompareBar />
+      <PageViewTracker />
     </div>
   );
 }

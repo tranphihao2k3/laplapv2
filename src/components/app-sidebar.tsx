@@ -65,6 +65,7 @@ const navMain = [
 
 const documents = [
   { name: "Doanh thu", url: "/quanly/bao-cao/doanh-thu", icon: Banknote, group: "Báo cáo" },
+  { name: "Lượt truy cập", url: "/quanly/bao-cao/truy-cap", icon: BarChart3, group: "Báo cáo" },
   { name: "Sản phẩm", url: "/quanly/bao-cao/san-pham", icon: Package, group: "Báo cáo" },
   { name: "Khách hàng", url: "/quanly/bao-cao/khach-hang", icon: Users, group: "Báo cáo" },
   { name: "Kho", url: "/quanly/bao-cao/kho", icon: Warehouse, group: "Báo cáo" },
