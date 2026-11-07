@@ -27,6 +27,8 @@ export type UseVariantDraftOptions = {
   quickStock: number | "";
   /** Biến thể đang có trong form (đã thêm hoặc đã tồn tại trong DB). */
   existingVariants: VariantDraftVariant[];
+  /** Specs đã điền — ưu tiên khi sinh tên cấu hình. */
+  specs?: Record<string, string> | null;
 };
 
 /**
@@ -53,6 +55,7 @@ export function useVariantDraft(options: UseVariantDraftOptions) {
         quickPrice: options.quickPrice,
         quickStock: options.quickStock,
         existingVariants: options.existingVariants,
+        specs: options.specs,
       }),
     [
       options.productName,
@@ -60,6 +63,7 @@ export function useVariantDraft(options: UseVariantDraftOptions) {
       options.quickPrice,
       options.quickStock,
       options.existingVariants,
+      options.specs,
     ],
   );
 

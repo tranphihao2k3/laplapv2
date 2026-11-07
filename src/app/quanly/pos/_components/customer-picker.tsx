@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, User, UserPlus, X, Search, Phone, Award } from "lucide-react";
+import { Loader2, User, UserPlus, X, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,39 +75,31 @@ export function CustomerPicker({ value, onChange }: Props) {
     const tier = (value.tier ?? "bronze").toLowerCase();
     const tierLabel = TIER_LABEL[tier] ?? tier;
     return (
-      <div className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border bg-card px-3 py-2 shadow-sm">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <User className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-            <span className="truncate">{value.full_name || "Khách"}</span>
-            <Badge variant={TIER_VARIANT[tier] ?? "outline"} className="shrink-0 text-[10px]">
-              <Award className="mr-0.5 h-2.5 w-2.5" />
-              {tierLabel}
-            </Badge>
-          </div>
-          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            {value.phone && (
-              <span className="flex min-w-0 items-center gap-0.5">
-                <Phone className="h-3 w-3 shrink-0" />
-                <span className="truncate">{value.phone}</span>
-              </span>
-            )}
-            {(value.loyalty_points ?? 0) > 0 && (
-              <span className="shrink-0 text-amber-600 dark:text-amber-400">
-                · {formatLoyaltyPoints(value.loyalty_points)} điểm
-              </span>
-            )}
-          </div>
-        </div>
+      <div className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border bg-muted/40 px-2">
+        <User className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <span className="min-w-0 truncate text-sm font-medium">
+          {value.full_name || "Khách"}
+        </span>
+        {value.phone && (
+          <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
+            {value.phone}
+          </span>
+        )}
+        <Badge variant={TIER_VARIANT[tier] ?? "outline"} className="shrink-0 text-[10px]">
+          {tierLabel}
+        </Badge>
+        {(value.loyalty_points ?? 0) > 0 && (
+          <span className="hidden shrink-0 text-xs text-amber-600 sm:inline dark:text-amber-400">
+            {formatLoyaltyPoints(value.loyalty_points)}đ
+          </span>
+        )}
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          className="ml-auto shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
           aria-label="Bỏ chọn khách"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     );
@@ -139,7 +131,7 @@ export function CustomerPicker({ value, onChange }: Props) {
   return (
     <>
       <div ref={rootRef} className="relative w-full min-w-0">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
           onChange={(e) => {
@@ -147,11 +139,11 @@ export function CustomerPicker({ value, onChange }: Props) {
             if (!open) setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Khách lẻ — nhập SĐT/tên để chọn khách"
-          className="h-11 w-full pl-9 pr-9"
+          placeholder="Khách lẻ — SĐT / tên"
+          className="h-9 w-full pl-8 pr-8"
         />
         {list.isFetching && (
-          <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+          <Loader2 className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
         )}
 
         {open && (

@@ -5,6 +5,7 @@ import { ok, handleError, fail } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/api/audit";
 import { checkoutSchema } from "@/lib/validators/sales";
 import { checkoutService } from "@/server/services";
+import { giftStockService } from "@/server/services/gift-stock-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,18 +53,45 @@ export async function POST(req: NextRequest) {
     // Gọi RPC checkout
     const data = await checkoutService.checkout(supabase, body);
 
+    // Trừ tồn quà tặng kèm (RPC chỉ trừ máy chính)
+    const orderId = String((data as { order_id?: string })?.order_id ?? "");
+    let giftDeduct: Awaited<ReturnType<typeof giftStockService.deductForSoldItems>> | null =
+      null;
+    if (orderId) {
+      try {
+        giftDeduct = await giftStockService.deductForSoldItems(supabase, {
+          shopId: body.shop_id,
+          orderId,
+          userId: user.id,
+          orgId,
+          items: body.items.map((i) => ({
+            product_variant_id: i.product_variant_id,
+            quantity: i.quantity,
+          })),
+        });
+      } catch (giftErr) {
+        console.warn("[checkout] trừ tồn quà tặng thất bại:", giftErr);
+      }
+    }
+
+    const payload = {
+      ...(data as object),
+      gift_deductions: giftDeduct?.deducted ?? [],
+      gift_warnings: giftDeduct?.warnings ?? [],
+    };
+
     await writeAuditLog({
       supabase,
       userId: user.id,
       organizationId: orgId,
       entityType: "orders",
-      entityId: String((data as { order_id?: string })?.order_id ?? ""),
+      entityId: orderId,
       action: "action",
-      afterData: data,
+      afterData: payload,
       ipAddress: req.headers.get("x-forwarded-for"),
     });
 
-    return ok(data, { status: 201 });
+    return ok(payload, { status: 201 });
   } catch (e) {
     const err = e as { code?: string; message?: string; details?: unknown };
     if (err?.code === "INSUFFICIENT_STOCK") {

@@ -33,6 +33,7 @@ import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { useUser } from "@/hooks/use-user";
 import { OptionsSelect, type SelectOption } from "@/components/ui/options-select";
 import { ProductSearch, type PosSearchHit } from "./product-search";
+import { PosQuickPicks } from "./pos-quick-picks";
 import { CustomerPicker } from "./customer-picker";
 import { RepairTicketPicker, type RepairTicket } from "./repair-ticket-picker";
 import { PaymentDialog } from "./payment-dialog";
@@ -44,9 +45,7 @@ import { PosSessionProvider, usePosSession } from "@/hooks/use-pos-session";
 import { PosSessionGate } from "./pos-session-gate";
 import {
   formatVND,
-  formatNumber,
   calcSubtotal,
-  calcItemCount,
   type CartLine,
   type Customer,
   type HeldBill,
@@ -196,8 +195,6 @@ function PosClientInner() {
     () => Math.max(0, subtotal - flatDiscount - loyaltyDiscount),
     [subtotal, flatDiscount, loyaltyDiscount],
   );
-  const itemCount = useMemo(() => calcItemCount(lines), [lines]);
-
   // ===== Cart ops =====
   const addLine = (hit: PosSearchHit) => {
     if (hit.stock <= 0) {
@@ -671,41 +668,25 @@ function PosClientInner() {
         {/* Banner ca POS */}
         <PosSessionBanner shopId={shopId} />
         {/* ============== HEADER ============== */}
-        <header className="max-w-full rounded-xl border bg-gradient-to-br from-card via-card to-muted/30 p-3 shadow-sm sm:p-4">
-        <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-          <div className="min-w-0 space-y-1">
-            <Label className="text-xs font-medium text-muted-foreground">
-              <Store className="mr-1 inline h-3 w-3" />
-              Cửa hàng
-            </Label>
+        <header className="flex max-w-full min-w-0 flex-wrap items-center gap-2 rounded-lg border bg-card px-2 py-1.5 shadow-sm sm:flex-nowrap">
+          <div className="flex min-w-0 items-center gap-1.5 sm:w-[200px] sm:shrink-0">
+            <Store className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <OptionsSelect
-              className="h-10 w-full"
+              className="h-9 w-full min-w-0"
               options={shopOptions}
               value={shopId}
               onValueChange={setShopId}
-              placeholder="Chọn cửa hàng"
+              placeholder="Cửa hàng"
               disabled={shops.length === 0}
             />
-            {!shopsQuery.isLoading && shops.length === 0 && (
-              <p className="text-xs text-amber-600">Tài khoản chưa được gán cửa hàng nào.</p>
-            )}
           </div>
-          <div className="min-w-0 space-y-1">
-            <Label className="text-xs font-medium text-muted-foreground">Khách hàng</Label>
+          <div className="min-w-0 flex-1 basis-full sm:basis-auto">
             <CustomerPicker value={customer} onChange={setCustomer} />
           </div>
-          <div className="hidden items-end gap-2 sm:flex">
-            <KpiTile label="Sản phẩm" value={formatNumber(itemCount)} />
-            <KpiTile label="Dòng" value={String(lines.length)} />
-          </div>
-        </div>
-
-        {/* Mobile KPI bar */}
-        <div className="mt-2 flex items-center gap-2 sm:hidden">
-          <KpiTile label="Sản phẩm" value={formatNumber(itemCount)} className="min-w-0 flex-1" />
-          <KpiTile label="Dòng" value={String(lines.length)} className="min-w-0 flex-1" />
-        </div>
-      </header>
+          {!shopsQuery.isLoading && shops.length === 0 && (
+            <p className="w-full text-xs text-amber-600">Tài khoản chưa được gán cửa hàng nào.</p>
+          )}
+        </header>
 
       {/* ============== SEARCH BAR ============== */}
       {/* Mobile: cho ô tìm kiếm chiếm 1 hàng riêng (wrap) vì nếu để cạnh 2 nút
@@ -726,6 +707,9 @@ function PosClientInner() {
           />
         </div>
       </div>
+
+      {/* PC: dải SP mới nhất — cuộn ngang, không chiếm chỗ giỏ hàng */}
+      <PosQuickPicks shopId={shopId} onPick={addLine} limit={16} />
 
       {/* ============== BODY: Cart + Totals ============== */}
       <div className="grid w-full min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -1146,27 +1130,6 @@ function PosClientInner() {
 }
 
 // ============ Sub-components ============
-
-function KpiTile({
-  label,
-  value,
-  className,
-}: {
-  label: string;
-  value: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`min-w-0 rounded-lg border bg-card px-3 py-2 text-center shadow-sm ${className ?? ""}`}
-    >
-      <div className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-0.5 truncate text-lg font-bold tabular-nums">{value}</div>
-    </div>
-  );
-}
 
 function Row({
   label,

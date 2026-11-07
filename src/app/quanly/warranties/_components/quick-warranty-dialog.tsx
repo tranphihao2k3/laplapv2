@@ -56,7 +56,9 @@ import { useCrudList } from "@/lib/api/admin-crud";
 import { useStoreSettings } from "@/components/client/layout/use-store-settings";
 import {
   addMonthsIso,
+  calcLoyaltyPoints,
   diffMonthsIso,
+  parseMoneyInput,
   parseQuickBulkText,
   QUICK_BULK_TEMPLATE_EXAMPLE,
   QUICK_BULK_TEMPLATE_HEADER,
@@ -89,7 +91,14 @@ type QuickResponse = {
   mode: "single" | "bulk";
   succeeded: number;
   failed: number;
-  results: Array<{ ok: boolean; warranty_id?: string; error?: string }>;
+  results: Array<{
+    ok: boolean;
+    warranty_id?: string;
+    order_id?: string | null;
+    order_number?: string | null;
+    loyalty_points?: number;
+    error?: string;
+  }>;
 };
 
 const TYPE_LABEL: Record<WarrantyType, string> = {
@@ -181,6 +190,11 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
   const [endDateTouched, setEndDateTouched] = useState(false);
   const [repairTicketId, setRepairTicketId] = useState("");
   const [note, setNote] = useState("");
+  /** Giá bán / phí (chuỗi hiển thị) — có giá → tạo đơn + điểm + doanh thu. */
+  const [saleAmountInput, setSaleAmountInput] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cash" | "card" | "transfer" | "ewallet"
+  >("cash");
   /** Ẩn Serial/IMEI/liên kết SP/ghi chú… — chỉ hiện khi admin cần. */
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -189,6 +203,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
   const [bulkType, setBulkType] = useState<WarrantyType>("sold");
   const [bulkMonths, setBulkMonths] = useState(12);
   const [bulkStartDate, setBulkStartDate] = useState(todayIso());
+  const [bulkSaleAmountInput, setBulkSaleAmountInput] = useState("");
 
   // Số tháng bảo hành mặc định lấy từ Settings cửa hàng (`warranty_months`).
   const { settings } = useStoreSettings();
@@ -301,6 +316,12 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
   );
 
   const bulkRows = useMemo(() => parseQuickBulkText(bulkText), [bulkText]);
+  const saleAmount = useMemo(() => parseMoneyInput(saleAmountInput), [saleAmountInput]);
+  const bulkSaleAmount = useMemo(
+    () => parseMoneyInput(bulkSaleAmountInput),
+    [bulkSaleAmountInput],
+  );
+  const previewPoints = saleAmount ? calcLoyaltyPoints(saleAmount) : 0;
 
   // ── Submit 1 máy ──
   function validateSingle(): FieldErrors {
@@ -312,6 +333,9 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
     if (!startDate) e.startDate = "Vui lòng chọn ngày bắt đầu";
     if (months <= 0 && !endDate) {
       e.months = "Số tháng bảo hành phải lớn hơn 0 (hoặc chọn ngày hết hạn)";
+    }
+    if (saleAmountInput.trim() && !saleAmount) {
+      e.saleAmount = "Giá không hợp lệ";
     }
     return e;
   }
@@ -344,9 +368,20 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
         status: "active",
         note: note.trim() || null,
         repair_ticket_id: warrantyType === "repair" ? repairTicketId || null : null,
+        sale_amount: saleAmount,
+        payment_method: paymentMethod,
       };
-      await httpPost<QuickResponse>("/v1/warranties/quick", body);
-      toast.success(`Đã tạo bảo hành (${TYPE_LABEL[warrantyType]})`);
+      const res = await httpPost<QuickResponse>("/v1/warranties/quick", body);
+      const first = res.results?.[0];
+      const pts = first && "loyalty_points" in first ? Number(first.loyalty_points ?? 0) : 0;
+      if (saleAmount && first?.ok) {
+        toast.success(
+          `Đã tạo BH + đơn ${first.order_number ?? ""}` +
+            (pts > 0 ? ` · +${pts.toLocaleString("vi-VN")} điểm` : ""),
+        );
+      } else {
+        toast.success(`Đã tạo bảo hành (${TYPE_LABEL[warrantyType]})`);
+      }
       onCreated?.();
       onOpenChange(false);
     } catch (err) {
@@ -389,6 +424,8 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
           end_date: r.endDate,
           status: "active",
           note: r.note,
+          sale_amount: r.saleAmount ?? bulkSaleAmount,
+          payment_method: "cash" as const,
         };
       });
 
@@ -428,8 +465,8 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
             Tạo nhanh bảo hành
           </DialogTitle>
           <DialogDescription>
-            Dùng cho máy đã bán / đã sửa nhưng KHÔNG có trong danh mục sản phẩm.
-            Hệ thống tự tạo serial (nếu chưa có) và bảo hành gắn với khách hàng.
+            Máy đã bán / đã sửa nhưng chưa kịp nhập POS. Có nhập giá → tạo đơn,
+            doanh thu, lịch sử mua và tích điểm (1đ / 10.000đ).
           </DialogDescription>
         </DialogHeader>
 
@@ -540,6 +577,57 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               {errors.months ? (
                 <p className="text-xs text-destructive">{errors.months}</p>
               ) : null}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="qw-sale-amount">
+                  Giá bán / phí{" "}
+                  <span className="font-normal text-muted-foreground">(đồng bộ đơn)</span>
+                </Label>
+                <Input
+                  id="qw-sale-amount"
+                  value={saleAmountInput}
+                  onChange={(e) => setSaleAmountInput(e.target.value)}
+                  placeholder="VD: 14800000 hoặc 14.800.000"
+                  inputMode="numeric"
+                  aria-invalid={!!errors.saleAmount}
+                />
+                {errors.saleAmount ? (
+                  <p className="text-xs text-destructive">{errors.saleAmount}</p>
+                ) : saleAmount ? (
+                  <p className="text-[11px] text-emerald-700">
+                    {saleAmount.toLocaleString("vi-VN")} đ
+                    {previewPoints > 0
+                      ? ` · +${previewPoints.toLocaleString("vi-VN")} điểm`
+                      : ""}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Để trống = chỉ tạo BH, không ghi doanh thu
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label>Thanh toán</Label>
+                <Select
+                  value={paymentMethod}
+                  onValueChange={(v) =>
+                    setPaymentMethod(v as typeof paymentMethod)
+                  }
+                  disabled={!saleAmount}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Tiền mặt</SelectItem>
+                    <SelectItem value="transfer">Chuyển khoản</SelectItem>
+                    <SelectItem value="card">Quẹt thẻ</SelectItem>
+                    <SelectItem value="ewallet">Ví điện tử</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
@@ -676,7 +764,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
                 <Label>Loại bảo hành</Label>
                 <Select
@@ -714,6 +802,16 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                     monthsTouched.current = true;
                     setBulkMonths(Number(e.target.value));
                   }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="qw-bulk-price">Giá mặc định (đ)</Label>
+                <Input
+                  id="qw-bulk-price"
+                  value={bulkSaleAmountInput}
+                  onChange={(e) => setBulkSaleAmountInput(e.target.value)}
+                  placeholder="Tuỳ chọn / lấy từ Telegram"
+                  inputMode="numeric"
                 />
               </div>
             </div>
@@ -760,12 +858,12 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Có thể dán: (1){" "}
-                <code>tên máy | tên khách | SĐT | tháng | ngày bắt đầu</code>,
+                <code>tên máy | tên khách | SĐT | tháng | ngày | giá</code>,
                 (2) tin Telegram 1 dòng <code>máy - tên SĐT</code>, hoặc (3) block
                 3 dòng{" "}
-                <code>ngày bắt đầu / mô tả máy bh2th / tên SĐT</code> copy từ
-                group. Không có ngày từng dòng → dùng ô &quot;Ngày bắt đầu&quot;
-                phía trên. SĐT trùng → gắn khách cũ.
+                <code>ngày / mô tả máy 750k bh2th / tên SĐT</code> — tự lấy giá
+                từ tin. Không có giá từng dòng → dùng &quot;Giá mặc định&quot;.
+                Có giá → tạo đơn + điểm.
               </p>
             </div>
 

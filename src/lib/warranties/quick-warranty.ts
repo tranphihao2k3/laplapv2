@@ -151,6 +151,8 @@ export type QuickBulkRow = {
   endDate: string | null;
   /** Ghi chú thêm (VD: nội dung sửa / giá từ tin nhắn). */
   note: string | null;
+  /** Giá bán / phí (VNĐ) — từ Telegram hoặc cột pipe. */
+  saleAmount: number | null;
 };
 
 const VN_PHONE_TAIL = /(\+?84|0)?(\d{9,10})\s*$/;
@@ -174,6 +176,50 @@ export function extractWarrantyMonths(text: string): number | null {
   if (!m) return null;
   const n = Number(m[1]);
   return n > 0 ? n : null;
+}
+
+/**
+ * Lấy số tiền VNĐ từ chuỗi Telegram / ghi chú:
+ * `750k` → 750000 · `1tr350k` → 1350000 · `14.800.000` → 14800000
+ */
+export function extractVnMoney(text: string): number | null {
+  if (!text) return null;
+  const tr =
+    /\b(\d+(?:[.,]\d+)?)\s*tr(?:iệu)?\s*(\d{1,3})?\s*k?\b/i.exec(text) ??
+    /\b(\d+(?:[.,]\d+)?)\s*tr(?:iệu)?\b/i.exec(text);
+  if (tr) {
+    const millions = Number(String(tr[1]).replace(",", ".")) * 1_000_000;
+    if (!Number.isFinite(millions)) return null;
+    const extraK = tr[2] ? Number(tr[2]) * 1000 : 0;
+    const total = Math.round(millions + (Number.isFinite(extraK) ? extraK : 0));
+    return total > 0 ? total : null;
+  }
+  const kOnly = /\b(\d+)\s*k\b/i.exec(text);
+  if (kOnly) {
+    const n = Number(kOnly[1]) * 1000;
+    return n > 0 ? n : null;
+  }
+  const dotted = /\b(\d{1,3}(?:[.,]\d{3})+)(?:\s*đ)?\b/.exec(text);
+  if (dotted) {
+    const n = Number(dotted[1].replace(/[.,]/g, ""));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+
+/** Chuỗi nhập tay giá → số VNĐ (`14.800.000` / `14800000`). */
+export function parseMoneyInput(input: string | null | undefined): number | null {
+  if (!input) return null;
+  const digits = String(input).replace(/[^\d]/g, "");
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Tích điểm theo quy ước checkout POS: 1 điểm / 10.000đ. */
+export function calcLoyaltyPoints(amountVnd: number): number {
+  if (!amountVnd || amountVnd <= 0) return 0;
+  return Math.floor(amountVnd / 10_000);
 }
 
 /** Tách tên khách + SĐT ở cuối dòng (`Khánh 0777645720`). */
@@ -232,6 +278,7 @@ export function parseQuickBulkLine(line: string): QuickBulkRow | null {
           startDate: null,
           endDate: null,
           note: null,
+          saleAmount: extractVnMoney(device),
         };
       }
     }
@@ -254,6 +301,9 @@ export function parseQuickBulkLine(line: string): QuickBulkRow | null {
   const startDate =
     parseVnDate(startRaw) ??
     (/^\d{4}-\d{2}-\d{2}$/.test(startRaw) ? startRaw : null);
+  // Cột 6 (tuỳ chọn): giá bán VNĐ
+  const saleRaw = cells[5] ?? "";
+  const saleAmount = parseMoneyInput(saleRaw) ?? extractVnMoney(saleRaw);
 
   return {
     name,
@@ -265,6 +315,7 @@ export function parseQuickBulkLine(line: string): QuickBulkRow | null {
     startDate,
     endDate: null,
     note: null,
+    saleAmount,
   };
 }
 
@@ -293,6 +344,7 @@ export function parseQuickBulkText(text: string): QuickBulkRow[] {
       // Dòng kế phải giống "tên + SĐT", không phải ngày khác
       if (!parseVnDate(customerLine) && VN_PHONE_TAIL.test(customerLine)) {
         const months = extractWarrantyMonths(deviceRaw);
+        const saleAmount = extractVnMoney(deviceRaw);
         const name = cleanTelegramDeviceLine(deviceRaw) || deviceRaw;
         const { customerName, phone } = parseNamePhone(customerLine);
         rows.push({
@@ -305,6 +357,7 @@ export function parseQuickBulkText(text: string): QuickBulkRow[] {
           startDate: dateIso,
           endDate: null,
           note: deviceRaw !== name ? deviceRaw : null,
+          saleAmount,
         });
         i += 3;
         continue;
@@ -327,10 +380,10 @@ export function parseQuickBulkText(text: string): QuickBulkRow[] {
 
 /** Mẫu định dạng để hiển thị trong UI + dùng cho file "Tải mẫu". */
 export const QUICK_BULK_TEMPLATE_HEADER =
-  "tên máy | tên khách | số điện thoại | số tháng BH | ngày bắt đầu";
+  "tên máy | tên khách | số điện thoại | số tháng BH | ngày bắt đầu | giá";
 
 export const QUICK_BULK_TEMPLATE_EXAMPLE = [
-  "Dell Inspiron 15 3511 | Nguyễn Văn A | 0901234567 | 12 | 7/11/2026",
+  "Dell Inspiron 15 3511 | Nguyễn Văn A | 0901234567 | 12 | 7/11/2026 | 14800000",
   "Asus Vivobook 15 | Trần Thị B | 0912345678 | 6",
   "# Hoặc dán nguyên tin Telegram (dòng 1 = ngày bắt đầu BH):",
   "An515-58 - Phước Ân 0936393449",

@@ -88,8 +88,11 @@ export async function GET(req: NextRequest) {
     }
 
     // 1) Tìm products khớp search → lấy product_ids
+    //    Không có từ khoá → lấy SP mới nhất (để POS hiện gợi ý nhanh).
     let productIds: string[] = [];
     let productMap = new Map<string, ProductRow>();
+    /** Giữ thứ tự product mới → cũ khi browse (không search). */
+    let browseOrderIds: string[] = [];
     if (term) {
       const { data: products, error } = await supabase
         .from("products")
@@ -100,16 +103,28 @@ export async function GET(req: NextRequest) {
       const rows = (products ?? []) as ProductRow[];
       productIds = rows.map((p) => p.id);
       productMap = new Map(rows.map((p) => [p.id, p]));
+    } else {
+      const { data: products, error } = await supabase
+        .from("products")
+        .select("id,name,thumbnail_url,status,created_at")
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      const rows = (products ?? []) as ProductRow[];
+      productIds = rows.map((p) => p.id);
+      browseOrderIds = productIds.slice();
+      productMap = new Map(rows.map((p) => [p.id, p]));
     }
 
     // 2) Query variants — vừa khớp trực tiếp (sku/barcode/name) vừa nằm trong productIds
-    let q = supabase
-      .from("product_variants")
-      .select("id,product_id,sku,barcode,name,selling_price,is_active,specs,attributes")
-      .eq("is_active", true)
-      .limit(limit);
-
+    let matchedRows: VariantRow[] = [];
     if (term) {
+      let q = supabase
+        .from("product_variants")
+        .select("id,product_id,sku,barcode,name,selling_price,is_active,specs,attributes")
+        .eq("is_active", true)
+        .limit(limit);
       const orParts: string[] = [
         `sku.ilike.%${term}%`,
         `barcode.ilike.%${term}%`,
@@ -119,11 +134,19 @@ export async function GET(req: NextRequest) {
         orParts.push(`product_id.in.(${productIds.join(",")})`);
       }
       q = q.or(orParts.join(","));
+      const { data: variants, error: vErr } = await q;
+      if (vErr) throw vErr;
+      matchedRows = (variants ?? []) as VariantRow[];
+    } else if (productIds.length > 0) {
+      // Browse: lấy toàn bộ variant của N SP mới nhất
+      const { data: variants, error: vErr } = await supabase
+        .from("product_variants")
+        .select("id,product_id,sku,barcode,name,selling_price,is_active,specs,attributes")
+        .in("product_id", productIds)
+        .eq("is_active", true);
+      if (vErr) throw vErr;
+      matchedRows = (variants ?? []) as VariantRow[];
     }
-
-    const { data: variants, error: vErr } = await q;
-    if (vErr) throw vErr;
-    const matchedRows = (variants ?? []) as VariantRow[];
     const matchedIds = new Set(matchedRows.map((v) => v.id));
 
     // 3) Lấy thông tin product cho các variant chưa có trong productMap
@@ -274,16 +297,26 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Ưu tiên sản phẩm CÒN tồn kho lên đầu, hết hàng (tồn = 0) xuống cuối.
-    // Trong cùng nhóm giữ thứ tự theo tên cho dễ nhìn.
-    groupList.sort((a, b) => {
-      const aOut = a.total_stock <= 0 ? 1 : 0;
-      const bOut = b.total_stock <= 0 ? 1 : 0;
-      if (aOut !== bOut) return aOut - bOut;
-      const aName = a.product_name ?? a.variants[0]?.display_name ?? "";
-      const bName = b.product_name ?? b.variants[0]?.display_name ?? "";
-      return aName.localeCompare(bName, "vi");
-    });
+    if (browseOrderIds.length > 0) {
+      // Browse (không search): giữ thứ tự SP mới nhất.
+      const order = new Map(browseOrderIds.map((id, i) => [id, i]));
+      groupList.sort((a, b) => {
+        const ai = a.product_id != null ? (order.get(a.product_id) ?? 9999) : 9999;
+        const bi = b.product_id != null ? (order.get(b.product_id) ?? 9999) : 9999;
+        if (ai !== bi) return ai - bi;
+        return 0;
+      });
+    } else {
+      // Ưu tiên sản phẩm CÒN tồn kho lên đầu, hết hàng (tồn = 0) xuống cuối.
+      groupList.sort((a, b) => {
+        const aOut = a.total_stock <= 0 ? 1 : 0;
+        const bOut = b.total_stock <= 0 ? 1 : 0;
+        if (aOut !== bOut) return aOut - bOut;
+        const aName = a.product_name ?? a.variants[0]?.display_name ?? "";
+        const bName = b.product_name ?? b.variants[0]?.display_name ?? "";
+        return aName.localeCompare(bName, "vi");
+      });
+    }
 
     return ok({ items, groups: groupList, total: items.length });
   } catch (e) {

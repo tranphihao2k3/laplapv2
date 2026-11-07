@@ -110,7 +110,7 @@ export function ProductSearch({ onPick, shopId, compact = false }: Props) {
         {
           search: debounced || undefined,
           shop_id: shopId || undefined,
-          limit: compact ? 20 : 12,
+          limit: compact ? 20 : 16,
         },
       ),
     staleTime: 30 * 1000,
@@ -275,7 +275,9 @@ export function ProductSearch({ onPick, shopId, compact = false }: Props) {
         </EmptyHint>
       ) : isEmpty ? (
         <EmptyHint icon={<Package className="h-5 w-5" />}>
-          {debounced ? `Không tìm thấy "${debounced}"` : "Gõ tên / SKU / mã vạch để tìm sản phẩm"}
+          {debounced
+            ? `Không tìm thấy "${debounced}"`
+            : "Gợi ý SP mới nhất — hoặc gõ tên / SKU / mã vạch"}
         </EmptyHint>
       ) : (
         <ul className="py-1">

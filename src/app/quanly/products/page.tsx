@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ProductCard, ProductCardSkeleton, type ProductCardData } from "./_components/product-card";
 import { useVariantDraft } from "./_components/use-variant-draft";
+import { buildCompactConfigName } from "./_components/variant-autofill";
 import { ProductFilters, EMPTY_FILTER, type ProductFilterValue } from "./_components/products-filters";
 import { ProductFilterChips } from "./_components/product-filter-chips";
 import { ProductStatsCards } from "./_components/product-stats-cards";
@@ -257,6 +258,7 @@ export default function ProductsAdminPage() {
     quickPrice,
     quickStock,
     existingVariants: existingVariantsForDraft,
+    specs: specValues,
   });
   const newSku = variantDraft.draft.sku;
   const newVarName = variantDraft.draft.name;
@@ -859,7 +861,7 @@ export default function ProductsAdminPage() {
       ...prev,
       {
         sku: newSku,
-        name: newVarName || "Mặc định",
+        name: newVarName || variantDraft.derived.name || "Mặc định",
         selling_price: Number(newSellingPrice) || 0,
         cost_price: Number(newCostPrice) || 0,
         is_active: true,
@@ -1015,7 +1017,7 @@ export default function ProductsAdminPage() {
           ? [
             {
               sku: slug || `SKU-${Date.now()}`,
-              name: "Mặc định",
+              name: buildCompactConfigName(name, specValues),
               selling_price: Number(quickPrice),
               cost_price: 0,
               is_active: true,
@@ -2027,7 +2029,7 @@ export default function ProductsAdminPage() {
             <Section
               key={`gifts-${dialogOpenNonce}-${editingProduct?.id ?? "new"}`}
               title="Quà tặng kèm"
-              description="Chọn sản phẩm khác làm quà tặng khi bán sản phẩm này"
+              description="Chọn 1 combo sẵn, nhập thêm quà khác, hoặc tìm chọn nhiều sản phẩm"
               icon={<Gift className="h-4 w-4 text-muted-foreground" />}
               badge={selectedGifts.length || null}
               defaultOpen
@@ -2087,7 +2089,7 @@ export default function ProductsAdminPage() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Tên cấu hình</Label>
-                    <Input size={1} value={newVarName} onChange={(e) => setNewVarName(e.target.value)} placeholder="i7/16GB/512GB" className="h-8" />
+                    <Input size={1} value={newVarName} onChange={(e) => setNewVarName(e.target.value)} placeholder="i5-12500H/16GB/512GB/RTX3050" className="h-8" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Giá bán</Label>
@@ -2106,9 +2108,8 @@ export default function ProductsAdminPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Ô nhập được tự động điền theo thông tin phía trên (tên sản phẩm, giá bán nhanh, tồn kho nhanh).
-                  Sau khi thêm một biến thể, dòng này tự chuyển sang biến thể tiếp theo (SKU kế tiếp, giá vốn &amp; tồn kho kế thừa).
-                  Ô nào bạn tự gõ sẽ không bị tự động điền đè.
+                  Tên cấu hình tự rút từ tên SP thành dạng CPU/RAM/SSD/VGA (vd: i5-12500H/16GB/512GB/RTX3050).
+                  SKU / giá / tồn lấy từ phần trên. Ô bạn tự gõ sẽ không bị đè.
                 </p>
 
                 {variants.length > 0 && quickPrice !== "" && !editingProduct && (

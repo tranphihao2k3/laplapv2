@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { PlayCircle, Store } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { PlayCircle, Store, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,18 +33,23 @@ type Props = {
 };
 
 /**
- * Gate: bắt buộc mở ca POS trước khi thao tác.
- * - Có ca mở cho shop đang chọn → render children
- * - Chưa có ca mở → show dialog mở ca (số tiền đầu ca mặc định = 0)
+ * Gate: bắt buộc có ca POS trước khi thao tác.
+ *
+ * Chế độ quyền admin (/quanly): tự mở ca với quỹ 0đ nếu chưa có ca —
+ * để máy admin để khách thanh toán không cần bấm "Mở ca" thủ công.
+ * Dialog chỉ hiện khi auto-open thất bại (hoặc user muốn nhập quỹ đầu ca).
  */
 export function PosSessionGate({ shopId, children }: Props) {
   const user = useUser();
   const shops = useMyShops();
-  const { findOpenSession, openSession, current } = usePosSession();
+  const { findOpenSession, openSession, isLoadingList } = usePosSession();
   const [openingCash, setOpeningCash] = useState<number>(0);
   const [selectedShop, setSelectedShop] = useState<string>("");
   const [openDialog, setOpenDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [autoTried, setAutoTried] = useState(false);
+  const autoBusy = useRef(false);
+  const lastAutoShop = useRef<string>("");
 
   const shopOptions = useMemo(
     () => (shops.data ?? []).map((s) => ({ id: s.id, name: s.name })),
@@ -53,16 +58,46 @@ export function PosSessionGate({ shopId, children }: Props) {
 
   const openForShop = shopId ? findOpenSession(shopId) : null;
 
+  // Admin: tự mở ca quỹ 0đ — 1 lần / shop khi chưa có ca.
   useEffect(() => {
-    // Nếu chưa có session mở → mở dialog ngay
-    if (!openForShop && shopId) {
+    if (!shopId || openForShop || isLoadingList || autoBusy.current) return;
+    if (lastAutoShop.current === shopId && autoTried) return;
+
+    lastAutoShop.current = shopId;
+    autoBusy.current = true;
+    setAutoTried(true);
+    void (async () => {
+      try {
+        const result = await openSession({
+          shop_id: shopId,
+          opening_cash: 0,
+        });
+        if (result) {
+          toast.success("Đã tự mở ca POS (quỹ đầu ca 0đ)", {
+            description: "Chế độ admin — máy sẵn sàng thanh toán.",
+          });
+          setOpenDialog(false);
+        } else {
+          setSelectedShop(shopId);
+          setOpenDialog(true);
+        }
+      } finally {
+        autoBusy.current = false;
+      }
+    })();
+  }, [shopId, openForShop, isLoadingList, autoTried, openSession]);
+
+  useEffect(() => {
+    if (openForShop) {
+      setOpenDialog(false);
+      return;
+    }
+    // Chỉ hiện dialog sau khi đã thử auto-open mà vẫn chưa có ca
+    if (autoTried && !openForShop && shopId && !autoBusy.current) {
       setSelectedShop(shopId);
       setOpenDialog(true);
-    } else {
-      setOpenDialog(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shopId, openForShop?.id]);
+  }, [shopId, openForShop, autoTried]);
 
   if (!shopId) {
     return (
@@ -79,7 +114,15 @@ export function PosSessionGate({ shopId, children }: Props) {
   }
 
   if (!openForShop) {
-    // dialog sẽ hiện — render null children để tránh tương tác nhầm
+    if (!autoTried || autoBusy.current || submitting) {
+      return (
+        <div className="flex h-full min-h-[40vh] flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+          <Zap className="h-6 w-6 animate-pulse text-emerald-500" />
+          Đang mở ca POS…
+        </div>
+      );
+    }
+
     return (
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent>
@@ -89,7 +132,8 @@ export function PosSessionGate({ shopId, children }: Props) {
               Mở ca POS
             </DialogTitle>
             <DialogDescription>
-              Nhập tiền mặt đầu ca để hệ thống đối soát cuối ca.
+              Tự mở ca chưa thành công. Nhập quỹ đầu ca rồi thử lại — hoặc để 0đ
+              nếu chỉ dùng máy admin thanh toán nhanh.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">

@@ -20,31 +20,17 @@
  */
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { requireUser, requirePermission } from "@/lib/api/guard";
-import { ok, fail, handleError, Errors } from "@/lib/api/response";
+import { ok, handleError, Errors } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/api/audit";
 import { uuid, isoDate } from "@/lib/validators/common";
 import {
   addMonthsIso,
   buildDeviceNote,
+  calcLoyaltyPoints,
   normalizePhone,
 } from "@/lib/warranties/quick-warranty";
-
-/**
- * Lấy message từ lỗi Supabase/PostgREST (có thể là Error hoặc plain object
- * `{ message, details, hint, code }` — không luôn `instanceof Error` sau minify).
- */
-function extractErr(e: unknown): string {
-  if (e instanceof Error && e.message) return e.message;
-  if (e && typeof e === "object") {
-    const err = e as { message?: unknown; details?: unknown; code?: unknown; hint?: unknown };
-    const parts = [err.message, err.details, err.hint, err.code ? `(${err.code})` : null]
-      .filter((p): p is string => typeof p === "string" && p.length > 0);
-    if (parts.length > 0) return parts.join(" — ");
-  }
-  return "Lỗi không xác định";
-}
 
 /** 1 dòng trong body (dùng cho cả single & bulk). */
 const quickWarrantyItemSchema = z.object({
@@ -72,6 +58,15 @@ const quickWarrantyItemSchema = z.object({
   note: z.string().max(2000).nullish(),
   /** Tuỳ chọn: gắn vào 1 phiếu sửa chữa có sẵn (chỉ dùng cho warranty_type = repair). */
   repair_ticket_id: uuid.nullish(),
+  /**
+   * Giá bán / phí (VNĐ). Nếu > 0 → tạo đơn hoàn tất + thanh toán + tích điểm
+   * (giống bán hàng nhanh, không trừ kho vì máy ngoài catalog).
+   */
+  sale_amount: z.number().nonnegative().nullish(),
+  payment_method: z
+    .enum(["cash", "card", "transfer", "ewallet", "cod", "credit"])
+    .default("cash")
+    .optional(),
 });
 
 type QuickItem = z.infer<typeof quickWarrantyItemSchema>;
@@ -81,6 +76,9 @@ type CreateResult = {
   warranty_id?: string;
   serial_number_id?: string;
   customer_id?: string | null;
+  order_id?: string | null;
+  order_number?: string | null;
+  loyalty_points?: number;
   error?: string;
 };
 
@@ -137,28 +135,16 @@ async function findOrCreateCustomer(
  * Tìm serial_numbers theo serial/imei → tái sử dụng nếu đã có (KHÔNG tạo trùng).
  * Nếu chưa có thì tạo mới với product_variant_id = null (máy ngoài catalog).
  *
- * Trả về `null` khi máy không có serial/IMEI nào — bảng `warranties.serial_number_id`
- * NULLABLE nên vẫn tạo được bảo hành (tên máy nằm trong `note`).
- *
  * Lưu ý: dùng 2 query `.eq()` riêng thay vì `.or("serial.eq.X,imei.eq.Y")` vì
  * dấu `|`/`,`/`(` trong serial dán tay sẽ làm hỏng cú pháp filter của PostgREST.
- *
- * Client dùng ở đây PHẢI bypass RLS (service role / admin client): policy insert
- * của `serial_numbers` thường check qua `product_variant_id` → máy ngoài catalog
- * (variant = null) bị chặn dù cột DB cho phép NULL.
  */
 async function findOrCreateSerial(
   supabase: SB,
   item: QuickItem,
   startDate: string,
-): Promise<string | null> {
+): Promise<string> {
   const serial = item.device.serial?.trim() || null;
   const imei = item.device.imei?.trim() || null;
-
-  // Không có định danh vật lý → không tạo serial_numbers row (tránh rác + NOT NULL ảo).
-  if (!serial && !imei && !item.device.product_variant_id) {
-    return null;
-  }
 
   // Trạng thái serial: máy đã bán (bán máy / gia hạn) hoặc đang sửa (sửa chữa).
   // `sold_at` chỉ set cho máy đã bán.
@@ -204,18 +190,7 @@ async function findOrCreateSerial(
     .insert(row)
     .select("id")
     .single();
-  if (createErr) {
-    // Máy ngoài catalog: một số DB/RLS vẫn từ chối product_variant_id = NULL.
-    // Không chặn cả luồng tạo BH — trả null, caller sẽ ghi SN/IMEI vào note.
-    if (!item.device.product_variant_id) {
-      console.warn(
-        "[warranties/quick] không tạo được serial_numbers (bỏ qua):",
-        extractErr(createErr),
-      );
-      return null;
-    }
-    throw createErr;
-  }
+  if (createErr) throw createErr;
   return created.id as string;
 }
 
@@ -245,10 +220,123 @@ async function syncSerialStatus(
   }
 }
 
+/**
+ * Tạo đơn hoàn tất + thanh toán + tích điểm khi admin nhập giá ở BH nhanh.
+ * Không trừ kho (máy ngoài catalog / đã bán tay). Channel:
+ *   repair → "repair" · sold/extension → "pos"
+ */
+async function createQuickSaleOrder(
+  supabase: SB,
+  args: {
+    orgId: string;
+    shopId: string | null;
+    userId: string;
+    customerId: string | null;
+    item: QuickItem;
+    amount: number;
+    serialNumberId: string;
+  },
+): Promise<{ orderId: string; orderNumber: string; loyaltyPoints: number }> {
+  const { orgId, shopId, userId, customerId, item, amount, serialNumberId } = args;
+  const channel = item.warranty_type === "repair" ? "repair" : "pos";
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const orderNumber = `LPL-QW-${stamp}-${String(Date.now()).slice(-6)}`;
+  const label =
+    item.warranty_type === "repair"
+      ? `Phí sửa chữa - ${item.device.name}`
+      : item.warranty_type === "extension"
+        ? `Gia hạn BH - ${item.device.name}`
+        : item.device.name;
+
+  const { data: order, error: orderErr } = await supabase
+    .from("orders")
+    .insert({
+      organization_id: orgId,
+      shop_id: shopId,
+      customer_id: customerId,
+      order_number: orderNumber,
+      channel,
+      status: "completed",
+      payment_status: "paid",
+      fulfillment_status: "delivered",
+      subtotal: amount,
+      discount_amount: 0,
+      total_amount: amount,
+      note: `Bảo hành nhanh · ${label}`,
+      created_by: userId,
+      created_at: `${item.start_date}T12:00:00.000Z`,
+    })
+    .select("id, order_number")
+    .single();
+  if (orderErr) throw orderErr;
+
+  const { error: itemErr } = await supabase.from("order_items").insert({
+    order_id: order.id,
+    product_variant_id: item.device.product_variant_id ?? null,
+    quantity: 1,
+    unit_price: amount,
+    total_price: amount,
+    product_snapshot: {
+      name: label,
+      kind: "quick_warranty_sale",
+      device_name: item.device.name,
+      serial_number_id: serialNumberId,
+      serial: item.device.serial ?? null,
+      imei: item.device.imei ?? null,
+      warranty_type: item.warranty_type,
+    },
+  });
+  if (itemErr) throw itemErr;
+
+  const { error: payErr } = await supabase.from("payments").insert({
+    order_id: order.id,
+    method: item.payment_method ?? "cash",
+    amount,
+    status: "paid",
+    paid_at: `${item.start_date}T12:00:00.000Z`,
+  });
+  if (payErr) throw payErr;
+
+  let loyaltyPoints = 0;
+  if (customerId) {
+    loyaltyPoints = calcLoyaltyPoints(amount);
+    if (loyaltyPoints > 0) {
+      const { error: txErr } = await supabase.from("loyalty_transactions").insert({
+        customer_id: customerId,
+        order_id: order.id,
+        points: loyaltyPoints,
+        type: "earn",
+      });
+      if (txErr) throw txErr;
+
+      const { data: cust, error: custErr } = await supabase
+        .from("customers")
+        .select("loyalty_points")
+        .eq("id", customerId)
+        .maybeSingle();
+      if (custErr) throw custErr;
+      const nextPoints = Number(cust?.loyalty_points ?? 0) + loyaltyPoints;
+      const { error: updErr } = await supabase
+        .from("customers")
+        .update({ loyalty_points: nextPoints })
+        .eq("id", customerId);
+      if (updErr) throw updErr;
+    }
+  }
+
+  return {
+    orderId: order.id as string,
+    orderNumber: order.order_number as string,
+    loyaltyPoints,
+  };
+}
+
 /** Tạo 1 bảo hành (và các bản ghi liên quan). Trả về id các row đã tạo. */
 async function createOne(
   supabase: SB,
   orgId: string,
+  userId: string,
+  shopId: string | null,
   item: QuickItem,
 ): Promise<CreateResult> {
   const phone = normalizePhone(item.customer?.phone);
@@ -274,25 +362,35 @@ async function createOne(
 
   // Tên máy (không có trong catalog) được lưu trong `note` theo quy ước
   // "Thiết bị: <tên>" — xem src/lib/warranties/quick-warranty.ts.
-  // Nếu có serial/IMEI nhưng không tạo được serial_numbers row, vẫn ghi kèm
-  // vào note để tra cứu thủ công.
-  let extraNote = item.note ?? null;
-  if (!serialNumberId) {
-    const ids = [
-      item.device.serial?.trim() ? `SN: ${item.device.serial.trim()}` : null,
-      item.device.imei?.trim() ? `IMEI: ${item.device.imei.trim()}` : null,
-    ].filter(Boolean);
-    if (ids.length > 0) {
-      extraNote = [extraNote, ids.join(" · ")].filter(Boolean).join(" | ");
-    }
-  }
-  const note = buildDeviceNote(item.device.name, extraNote);
+  const note = buildDeviceNote(item.device.name, item.note);
 
   const endDate =
     item.end_date ??
     (item.warranty_months && item.warranty_months > 0
       ? addMonthsIso(item.start_date, item.warranty_months)
       : null);
+
+  const saleAmount =
+    item.sale_amount != null && item.sale_amount > 0 ? item.sale_amount : 0;
+
+  let orderId: string | null = null;
+  let orderNumber: string | null = null;
+  let loyaltyPoints = 0;
+
+  if (saleAmount > 0) {
+    const sale = await createQuickSaleOrder(supabase, {
+      orgId,
+      shopId,
+      userId,
+      customerId,
+      item,
+      amount: saleAmount,
+      serialNumberId,
+    });
+    orderId = sale.orderId;
+    orderNumber = sale.orderNumber;
+    loyaltyPoints = sale.loyaltyPoints;
+  }
 
   const { data: warranty, error: wErr } = await supabase
     .from("warranties")
@@ -301,7 +399,7 @@ async function createOne(
       serial_number_id: serialNumberId,
       repair_ticket_id:
         item.warranty_type === "repair" ? (item.repair_ticket_id ?? null) : null,
-      order_id: null,
+      order_id: orderId,
       warranty_type: item.warranty_type,
       start_date: item.start_date,
       end_date: endDate,
@@ -315,8 +413,11 @@ async function createOne(
   return {
     ok: true,
     warranty_id: warranty.id as string,
-    serial_number_id: serialNumberId ?? undefined,
+    serial_number_id: serialNumberId,
     customer_id: customerId,
+    order_id: orderId,
+    order_number: orderNumber,
+    loyalty_points: loyaltyPoints,
   };
 }
 
@@ -332,10 +433,17 @@ export async function POST(req: NextRequest) {
     const { user } = await requireUser();
     // requirePermission trả về luôn orgId (qua requireOrg bên trong).
     const { orgId } = await requirePermission("warranties.create");
-    // Service role: bypass RLS trên serial_numbers (policy insert thường
-    // kiểm tra qua product_variant_id → máy ngoài catalog bị chặn).
-    // Quyền đã được check ở trên nên an toàn khi dùng admin client.
-    const supabase = createAdminClient();
+    const supabase = await createClient();
+
+    const { data: shop } = await supabase
+      .from("shops")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const shopId = (shop?.id as string | undefined) ?? null;
 
     const raw = await req.json();
     // Bulk: mỗi dòng validate RIÊNG → 1 dòng sai không làm hỏng cả batch.
@@ -356,10 +464,11 @@ export async function POST(req: NextRequest) {
         continue;
       }
       try {
-        results.push(await createOne(supabase, orgId, parsed.data));
+        results.push(await createOne(supabase, orgId, user.id, shopId, parsed.data));
       } catch (e) {
         // Một dòng lỗi KHÔNG được làm hỏng cả batch → ghi lại lỗi dòng đó.
-        results.push({ ok: false, error: extractErr(e) });
+        const message = e instanceof Error ? e.message : "Lỗi không xác định";
+        results.push({ ok: false, error: message });
       }
     }
 
@@ -383,19 +492,8 @@ export async function POST(req: NextRequest) {
       failed,
       results,
     };
-
-    // Hỏng hết → trả fail() (ok:false) để axios/http client hiện đúng message,
-    // không trả ok(payload, {status:422}) vì body vẫn ok:true → UI chỉ thấy "422".
-    if (succeeded === 0) {
-      const summary =
-        results
-          .map((r) => r.error)
-          .filter((m): m is string => !!m)
-          .slice(0, 3)
-          .join(" · ") || "Không tạo được bảo hành nào";
-      return fail("QUICK_WARRANTY_FAILED", summary, 422, payload);
-    }
-    return ok(payload, { status: 201 });
+    // Trả 201 khi tạo được ít nhất 1 bản ghi; nếu hỏng hết thì 422 để UI báo lỗi.
+    return ok(payload, { status: succeeded > 0 ? 201 : 422 });
   } catch (e) {
     return handleError(e);
   }

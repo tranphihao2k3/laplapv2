@@ -212,7 +212,8 @@ export function CustomerHistorySheet({
   const orderIdsKey = orders.map((o) => o.id).join(",");
   const itemsQ = useQuery({
     queryKey: ["customer-history-items", customerId, orderIdsKey],
-    enabled: open && !!customerId && ordersQ.isSuccess,
+    // Không gọi khi chưa có đơn — tránh API trả items linh tinh khi `__in` rỗng
+    enabled: open && !!customerId && ordersQ.isSuccess && orderIdsKey.length > 0,
     queryFn: () =>
       httpGet<Paginated<OrderItem>>("/v1/order-items", {
         order_id__in: orderIdsKey,
