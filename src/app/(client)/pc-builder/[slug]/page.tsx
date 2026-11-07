@@ -25,9 +25,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { formatCurrency } from "@/lib/utils";
 import { fetchBuildByShareSlug, loadBuildAsState } from "@/lib/pc-builder/api";
-import { calculateTotal, countItems } from "@/lib/pc-builder/storage";
+import { countItems } from "@/lib/pc-builder/storage";
 import { checkCompatibility } from "@/lib/pc-builder/compatibility";
 import { CompatibilityBanner } from "@/components/client/pc-builder/compatibility-banner";
 import { BuildReceipt } from "@/components/client/pc-builder/build-receipt";
@@ -111,7 +110,6 @@ export default function PublicBuildPage({ params }: Props) {
   }
 
   const state = data.state;
-  const total = calculateTotal(state);
   const itemCount = countItems(state);
   const issues: CompatibilityIssue[] = checkCompatibility(state, {});
   const dateLabel = data.updatedAt
@@ -249,14 +247,14 @@ export default function PublicBuildPage({ params }: Props) {
             data-pc-builder-no-print
             className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-white to-white p-4"
           >
-            <p className="text-[11px] uppercase tracking-wider text-slate-500">
-              Tổng tiền
+            <p className="text-[11px] uppercase tracking-wider text-amber-700/80">
+              Tham khảo
             </p>
             <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-              {formatCurrency(total)}
+              {itemCount} linh kiện
             </p>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              {itemCount} linh kiện
+              Giá do shop báo khi nhận cấu hình
             </p>
             <Separator className="my-3" />
             <Button asChild className="w-full rounded-lg">
@@ -281,16 +279,13 @@ function PublicSlotBlock({
   slot: SlotKey;
   items: BuildItem[];
 }) {
-  const total = items.reduce((s, it) => s + it.unitPrice * it.qty, 0);
   return (
     <section className="rounded-xl border border-slate-200 bg-white">
       <header className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
         <p className="text-sm font-semibold text-slate-800">
           {SLOT_LABEL[slot]}
         </p>
-        <span className="text-[11px] text-slate-500">
-          {items.length} món · {formatCurrency(total)}
-        </span>
+        <span className="text-[11px] text-slate-500">{items.length} món</span>
       </header>
       <ul className="divide-y divide-slate-100">
         {items.map((item) => (
@@ -306,16 +301,11 @@ function PublicSlotBlock({
                 <p className="text-[11px] text-slate-500">{item.brand}</p>
               ) : null}
             </div>
-            <div className="shrink-0 text-right">
-              <p className="text-xs font-semibold text-slate-900">
-                {formatCurrency(item.unitPrice * item.qty)}
+            {item.qty > 1 ? (
+              <p className="shrink-0 text-xs font-semibold text-slate-600">
+                ×{item.qty}
               </p>
-              {item.qty > 1 ? (
-                <p className="text-[10px] text-slate-500">
-                  ×{item.qty} · {formatCurrency(item.unitPrice)}
-                </p>
-              ) : null}
-            </div>
+            ) : null}
           </li>
         ))}
       </ul>

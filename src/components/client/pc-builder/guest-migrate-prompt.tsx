@@ -33,11 +33,9 @@ import { useUser } from "@/hooks/use-user";
 import {
   clearGuestBuild,
   loadGuestBuild,
-  calculateTotal,
 } from "@/lib/pc-builder/storage";
 import { createBuild } from "@/lib/pc-builder/api";
 import type { BuildState } from "@/lib/pc-builder/types";
-import { formatCurrency } from "@/lib/utils";
 
 const ASKED_KEY = "pc_builder_migrate_asked";
 
@@ -110,7 +108,12 @@ export function GuestMigratePrompt() {
     dismiss();
   };
 
-  const total = guestState ? calculateTotal(guestState) : 0;
+  const itemCount = guestState
+    ? Object.values(guestState).reduce(
+        (s, arr) => s + (arr?.reduce((n, it) => n + (it.qty || 0), 0) ?? 0),
+        0,
+      )
+    : 0;
 
   return (
     <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : dismiss())}>
@@ -121,7 +124,8 @@ export function GuestMigratePrompt() {
             Lưu cấu hình đang thử vào tài khoản?
           </DialogTitle>
           <DialogDescription>
-            Bạn vừa đăng nhập và có một cấu hình đang thử ({formatCurrency(total)}).
+            Bạn vừa đăng nhập và có một cấu hình đang thử
+            {itemCount > 0 ? ` (${itemCount} linh kiện)` : ""}.
             Bạn có muốn lưu nó vào tài khoản để mở lại sau không?
           </DialogDescription>
         </DialogHeader>

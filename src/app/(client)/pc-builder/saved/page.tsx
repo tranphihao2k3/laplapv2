@@ -28,7 +28,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency } from "@/lib/utils";
 import { useUser } from "@/hooks/use-user";
 import {
   fetchUserBuilds,
@@ -247,7 +246,6 @@ export default function SavedBuildsPage() {
               ? format(new Date(b.build.updated_at), "dd/MM/yyyy HH:mm")
               : "—";
             const itemCount = b.items.reduce((s, it) => s + it.qty, 0);
-            const total = b.build.total_price ?? 0;
             const isOpening = openingId === b.build.id;
             const isDeleting = deletingId === b.build.id;
             return (
@@ -275,10 +273,10 @@ export default function SavedBuildsPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-xl font-bold tracking-tight text-slate-900">
-                    {formatCurrency(total)}
+                    {itemCount} linh kiện
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
-                    {itemCount} linh kiện
+                    Tham khảo · giá do shop báo
                   </p>
                   <div className="mt-3 flex items-center gap-1.5">
                     <Button

@@ -26,8 +26,10 @@ import {
   Download,
   FileSpreadsheet,
   Loader2,
+  RefreshCw,
   ShieldCheck,
   Upload,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -106,6 +108,24 @@ const TYPE_LABEL: Record<WarrantyType, string> = {
   repair: "Sửa chữa",
   extension: "Gia hạn",
 };
+
+const TYPE_HINT: Record<WarrantyType, string> = {
+  sold: "Máy đã bán — tạo phiếu BH theo máy, có giá thì ghi đơn + điểm.",
+  repair: "Máy đã sửa — BH linh kiện / dịch vụ. Nhập nội dung sửa và phí (nếu có).",
+  extension: "Gia hạn BH thêm tháng — nhập máy, khách và số tháng gia hạn.",
+};
+
+const TYPE_SUBMIT: Record<WarrantyType, string> = {
+  sold: "Tạo BH bán máy",
+  repair: "Tạo BH sửa chữa",
+  extension: "Tạo BH gia hạn",
+};
+
+function defaultMonthsForType(type: WarrantyType, storeDefault: number) {
+  if (type === "repair") return 3;
+  if (type === "extension") return 6;
+  return storeDefault;
+}
 
 /** Bảng lỗi field → message tiếng Việt (hiển thị inline ngay dưới field). */
 type FieldErrors = Record<string, string>;
@@ -200,7 +220,6 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
 
   // ── Form nhiều dòng ──
   const [bulkText, setBulkText] = useState("");
-  const [bulkType, setBulkType] = useState<WarrantyType>("sold");
   const [bulkMonths, setBulkMonths] = useState(12);
   const [bulkStartDate, setBulkStartDate] = useState(todayIso());
   const [bulkSaleAmountInput, setBulkSaleAmountInput] = useState("");
@@ -238,15 +257,14 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
       setCustomerName("");
       setIsGuest(false);
       setStartDate(todayIso());
-      setMonths(defaultMonths);
+      setMonths(defaultMonthsForType("sold", defaultMonths));
       setEndDate("");
       setEndDateTouched(false);
       setRepairTicketId("");
       setNote("");
       setShowAdvanced(false);
       setBulkText("");
-      setBulkType("sold");
-      setBulkMonths(defaultMonths);
+      setBulkMonths(defaultMonthsForType("sold", defaultMonths));
       setBulkStartDate(todayIso());
       setErrors({});
       setBulkErrors([]);
@@ -260,9 +278,22 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
   const monthsTouched = useRef(false);
   useEffect(() => {
     if (monthsTouched.current) return;
-    setMonths(defaultMonths);
-    setBulkMonths(defaultMonths);
-  }, [defaultMonths]);
+    const next = defaultMonthsForType(warrantyType, defaultMonths);
+    setMonths(next);
+    setBulkMonths(next);
+  }, [defaultMonths, warrantyType]);
+
+  function applyType(type: WarrantyType) {
+    setWarrantyType(type);
+    setErrors({});
+    if (type !== "repair") setRepairTicketId("");
+    if (!monthsTouched.current) {
+      const next = defaultMonthsForType(type, defaultMonths);
+      setMonths(next);
+      setBulkMonths(next);
+      setEndDateTouched(false);
+    }
+  }
 
   // Ngày hết hạn ↔ số tháng:
   // - Sửa tháng / ngày bắt đầu (chưa đụng ngày hết hạn) → tự tính end_date.
@@ -411,7 +442,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
           (r.endDate ? diffMonthsIso(start, r.endDate) : null) ??
           bulkMonths;
         return {
-          warranty_type: bulkType,
+          warranty_type: warrantyType,
           customer: { phone: r.phone, full_name: r.customerName },
           device: {
             name: r.name,
@@ -462,15 +493,47 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-emerald-600" />
-            Tạo nhanh bảo hành
+            Tạo nhanh phiếu bảo hành
           </DialogTitle>
-          <DialogDescription>
-            Máy đã bán / đã sửa nhưng chưa kịp nhập POS. Có nhập giá → tạo đơn,
-            doanh thu, lịch sử mua và tích điểm (1đ / 10.000đ).
-          </DialogDescription>
+          <DialogDescription>{TYPE_HINT[warrantyType]}</DialogDescription>
         </DialogHeader>
 
-        {/* Chọn chế độ */}
+        <div className="space-y-1.5">
+          <Label>Loại phiếu</Label>
+          <div className="grid grid-cols-3 gap-2">
+            <Button
+              type="button"
+              variant={warrantyType === "sold" ? "default" : "outline"}
+              size="sm"
+              className="h-auto flex-col gap-1 py-2"
+              onClick={() => applyType("sold")}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Bán máy
+            </Button>
+            <Button
+              type="button"
+              variant={warrantyType === "repair" ? "default" : "outline"}
+              size="sm"
+              className="h-auto flex-col gap-1 py-2"
+              onClick={() => applyType("repair")}
+            >
+              <Wrench className="h-4 w-4" />
+              Sửa chữa
+            </Button>
+            <Button
+              type="button"
+              variant={warrantyType === "extension" ? "default" : "outline"}
+              size="sm"
+              className="h-auto flex-col gap-1 py-2"
+              onClick={() => applyType("extension")}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Gia hạn
+            </Button>
+          </div>
+        </div>
+
         <div className="flex gap-2">
           <Button
             type="button"
@@ -483,7 +546,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               setBulkErrors([]);
             }}
           >
-            1 máy
+            1 phiếu
           </Button>
           <Button
             type="button"
@@ -501,17 +564,23 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
         </div>
 
         {mode === "single" ? (
-          /* 1 cột — Tab đi thẳng xuống: tên máy → SĐT → tên khách → mã máy → tháng BH */
           <div className="flex flex-col gap-2.5">
             <div className="space-y-1">
               <Label htmlFor="qw-device-name">
-                Tên máy <span className="text-destructive">*</span>
+                {warrantyType === "repair" ? "Nội dung sửa / tên máy" : "Tên máy"}{" "}
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="qw-device-name"
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
-                placeholder="VD: HP 830G8"
+                placeholder={
+                  warrantyType === "repair"
+                    ? "VD: thay pin HP 245 G10"
+                    : warrantyType === "extension"
+                      ? "VD: HP 830G8 — gia hạn BH"
+                      : "VD: HP 830G8"
+                }
                 aria-invalid={!!errors.deviceName}
                 autoFocus
               />
@@ -549,6 +618,21 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               />
             </div>
 
+            {warrantyType === "repair" ? (
+              <div className="space-y-1">
+                <Label>Phiếu sửa chữa (tuỳ chọn)</Label>
+                <OptionsSelect
+                  options={ticketOptions}
+                  value={repairTicketId}
+                  onValueChange={setRepairTicketId}
+                  placeholder="Không liên kết phiếu nào"
+                  searchable
+                  searchPlaceholder="Tìm mã phiếu / thiết bị..."
+                  emptyText="Không tìm thấy phiếu"
+                />
+              </div>
+            ) : null}
+
             <div className="space-y-1">
               <Label htmlFor="qw-serial">Mã máy (Serial)</Label>
               <Input
@@ -560,7 +644,13 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="qw-months">Số tháng bảo hành</Label>
+              <Label htmlFor="qw-months">
+                {warrantyType === "repair"
+                  ? "Số tháng BH linh kiện"
+                  : warrantyType === "extension"
+                    ? "Số tháng gia hạn"
+                    : "Số tháng bảo hành"}
+              </Label>
               <Input
                 id="qw-months"
                 type="number"
@@ -582,7 +672,11 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <Label htmlFor="qw-sale-amount">
-                  Giá bán / phí{" "}
+                  {warrantyType === "repair"
+                    ? "Phí sửa chữa"
+                    : warrantyType === "extension"
+                      ? "Phí gia hạn"
+                      : "Giá bán"}{" "}
                   <span className="font-normal text-muted-foreground">(đồng bộ đơn)</span>
                 </Label>
                 <Input
@@ -604,7 +698,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                   </p>
                 ) : (
                   <p className="text-[11px] text-muted-foreground">
-                    Để trống = chỉ tạo BH, không ghi doanh thu
+                    Để trống = chỉ tạo phiếu BH, không ghi doanh thu
                   </p>
                 )}
               </div>
@@ -655,8 +749,8 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Tab: tên máy → SĐT → tên khách → mã máy → tháng BH. Sửa hết hạn →
-              tháng tự điều chỉnh.
+              Chọn loại phiếu trước, rồi nhập đúng các ô bên dưới. Sửa ngày hết
+              hạn → số tháng tự điều chỉnh.
             </p>
 
             <div>
@@ -669,7 +763,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               >
                 <span>
                   Tuỳ chọn thêm
-                  <span className="ml-1 font-normal">(IMEI, loại BH, ghi chú…)</span>
+                  <span className="ml-1 font-normal">(IMEI, liên kết SP, ghi chú…)</span>
                 </span>
                 <ChevronDown
                   className={cn(
@@ -682,23 +776,6 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               {showAdvanced ? (
                 <div className="mt-2.5 flex flex-col gap-2.5">
                   <div className="space-y-1">
-                    <Label>Loại bảo hành</Label>
-                    <Select
-                      value={warrantyType}
-                      onValueChange={(v) => setWarrantyType(v as WarrantyType)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sold">Bán máy</SelectItem>
-                        <SelectItem value="repair">Sửa chữa</SelectItem>
-                        <SelectItem value="extension">Gia hạn</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
                     <Label htmlFor="qw-imei">IMEI</Label>
                     <Input
                       id="qw-imei"
@@ -708,30 +785,17 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <Label>Liên kết sản phẩm (tuỳ chọn)</Label>
-                    <OptionsSelect
-                      options={variantOptions}
-                      value={productVariantId}
-                      onValueChange={setProductVariantId}
-                      placeholder="Không liên kết (máy ngoài danh mục)"
-                      searchable
-                      searchPlaceholder="Tìm tên sản phẩm / SKU..."
-                      emptyText="Không tìm thấy sản phẩm"
-                    />
-                  </div>
-
-                  {warrantyType === "repair" ? (
+                  {warrantyType !== "repair" ? (
                     <div className="space-y-1">
-                      <Label>Phiếu sửa chữa (tuỳ chọn)</Label>
+                      <Label>Liên kết sản phẩm (tuỳ chọn)</Label>
                       <OptionsSelect
-                        options={ticketOptions}
-                        value={repairTicketId}
-                        onValueChange={setRepairTicketId}
-                        placeholder="Không liên kết phiếu nào"
+                        options={variantOptions}
+                        value={productVariantId}
+                        onValueChange={setProductVariantId}
+                        placeholder="Không liên kết (máy ngoài danh mục)"
                         searchable
-                        searchPlaceholder="Tìm mã phiếu / thiết bị..."
-                        emptyText="Không tìm thấy phiếu"
+                        searchPlaceholder="Tìm tên sản phẩm / SKU..."
+                        emptyText="Không tìm thấy sản phẩm"
                       />
                     </div>
                   ) : null}
@@ -764,23 +828,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2">
-                <Label>Loại bảo hành</Label>
-                <Select
-                  value={bulkType}
-                  onValueChange={(v) => setBulkType(v as WarrantyType)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sold">Bán máy</SelectItem>
-                    <SelectItem value="repair">Sửa chữa</SelectItem>
-                    <SelectItem value="extension">Gia hạn</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="qw-bulk-start">Ngày bắt đầu</Label>
                 <Input
@@ -805,7 +853,13 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="qw-bulk-price">Giá mặc định (đ)</Label>
+                <Label htmlFor="qw-bulk-price">
+                  {warrantyType === "repair"
+                    ? "Phí mặc định (đ)"
+                    : warrantyType === "extension"
+                      ? "Phí gia hạn mặc định (đ)"
+                      : "Giá mặc định (đ)"}
+                </Label>
                 <Input
                   id="qw-bulk-price"
                   value={bulkSaleAmountInput}
@@ -928,7 +982,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
           {mode === "single" ? (
             <Button onClick={handleSubmitSingle} disabled={submitting}>
               {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Tạo bảo hành
+              {TYPE_SUBMIT[warrantyType]}
             </Button>
           ) : (
             <Button
@@ -940,7 +994,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               ) : (
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
               )}
-              Tạo {bulkRows.length} bảo hành
+              Tạo {bulkRows.length} phiếu {TYPE_LABEL[warrantyType].toLowerCase()}
             </Button>
           )}
         </DialogFooter>

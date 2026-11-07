@@ -1,14 +1,7 @@
 "use client";
 
 /**
- * Panel phải (sticky) của trang PC Builder.
- *
- * - Hiện tất cả slot đã chọn (ảnh, tên, qty, giá, tổng từng slot).
- * - Cho phép xoá linh kiện khỏi slot, thay đổi số lượng (1–n).
- * - Tổng tiền ở chân.
- * - Empty state khi chưa có gì.
- *
- * Component này KHÔNG bao gồm các nút Lưu/Chia sẻ — đó là của `save-share-bar.tsx`.
+ * Panel phải của trang PC Builder (chế độ tham khảo — không hiện giá).
  */
 
 import { useMemo } from "react";
@@ -18,19 +11,17 @@ import {
   Plus,
   Trash2,
   PackageOpen,
-  ShoppingBag,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   SLOT_LABEL,
   SLOT_ORDER,
-  type BuildItem,
   type BuildState,
   type SlotKey,
 } from "@/lib/pc-builder/types";
-import { calculateTotal, countItems } from "@/lib/pc-builder/storage";
+import { countItems } from "@/lib/pc-builder/storage";
 import { CompatibilityBanner } from "./compatibility-banner";
 import type { CompatibilityIssue } from "@/lib/pc-builder/types";
 
@@ -50,13 +41,11 @@ function SlotGroup({
   onUpdateQty,
 }: {
   slot: SlotKey;
-  items: BuildItem[];
+  items: BuildItemLike[];
   onAdd: () => void;
   onRemove: (productId: string) => void;
   onUpdateQty: (productId: string, qty: number) => void;
 }) {
-  const total = items.reduce((s, it) => s + it.unitPrice * it.qty, 0);
-
   return (
     <section className="rounded-xl border border-slate-200 bg-white">
       <header className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
@@ -65,9 +54,7 @@ function SlotGroup({
             {SLOT_LABEL[slot]}
           </p>
           <p className="text-[11px] text-slate-500">
-            {items.length > 0
-              ? `${items.length} món · ${formatCurrency(total)}`
-              : "Chưa chọn"}
+            {items.length > 0 ? `${items.length} món đã chọn` : "Chưa chọn"}
           </p>
         </div>
         <Button
@@ -109,34 +96,29 @@ function SlotGroup({
                 {item.brand ? (
                   <p className="text-[11px] text-slate-500">{item.brand}</p>
                 ) : null}
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onUpdateQty(item.productId, Math.max(1, item.qty - 1))
-                      }
-                      aria-label="Giảm số lượng"
-                      className="flex h-6 w-6 items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40"
-                      disabled={item.qty <= 1}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="w-6 text-center text-xs font-semibold tabular-nums text-slate-700">
-                      {item.qty}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onUpdateQty(item.productId, item.qty + 1)}
-                      aria-label="Tăng số lượng"
-                      className="flex h-6 w-6 items-center justify-center text-slate-500 hover:bg-slate-50"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <p className="text-xs font-bold text-slate-900">
-                    {formatCurrency(item.unitPrice * item.qty)}
-                  </p>
+                <div className="mt-1 flex items-center gap-1 rounded-md border border-slate-200 bg-white w-fit">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateQty(item.productId, Math.max(1, item.qty - 1))
+                    }
+                    aria-label="Giảm số lượng"
+                    className="flex h-6 w-6 items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40"
+                    disabled={item.qty <= 1}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="w-6 text-center text-xs font-semibold tabular-nums text-slate-700">
+                    {item.qty}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateQty(item.productId, item.qty + 1)}
+                    aria-label="Tăng số lượng"
+                    className="flex h-6 w-6 items-center justify-center text-slate-500 hover:bg-slate-50"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
               <button
@@ -166,6 +148,14 @@ function SlotGroup({
   );
 }
 
+type BuildItemLike = {
+  productId: string;
+  name: string;
+  thumbnail: string | null;
+  qty: number;
+  brand?: string | null;
+};
+
 export function BuildSummary({
   build,
   issues,
@@ -173,7 +163,6 @@ export function BuildSummary({
   onRemoveItem,
   onUpdateQty,
 }: Props) {
-  const total = useMemo(() => calculateTotal(build), [build]);
   const itemCount = useMemo(() => countItems(build), [build]);
 
   const filledSlots = SLOT_ORDER.filter(
@@ -182,30 +171,27 @@ export function BuildSummary({
 
   return (
     <div className="space-y-3">
-      {/* Banner tương thích */}
       <CompatibilityBanner issues={issues} />
 
-      {/* Tổng tiền card */}
-      <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-white to-white p-4">
-        <div className="flex items-end justify-between">
+      <div className="rounded-xl border border-amber-200/70 bg-gradient-to-br from-amber-50/70 via-white to-white p-4">
+        <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-wider text-slate-500">
-              Tổng tiền
+            <p className="text-[11px] uppercase tracking-wider text-amber-700/80">
+              Chế độ tham khảo
             </p>
-            <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-              {formatCurrency(total)}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-500">
+            <p className="mt-1 text-lg font-bold tracking-tight text-slate-900">
               {itemCount > 0
                 ? `${itemCount} linh kiện · ${filledSlots.length} loại`
-                : "Chưa có linh kiện nào"}
+                : "Chưa chọn linh kiện"}
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Không hiện giá trên web — gửi cấu hình cho shop để nhận báo giá lắp ráp.
             </p>
           </div>
-          <ShoppingBag className="h-8 w-8 text-primary/30" />
+          <ClipboardList className="h-8 w-8 shrink-0 text-amber-500/40" />
         </div>
       </div>
 
-      {/* Danh sách slot */}
       {filledSlots.length > 0 ? (
         <div className="space-y-2.5">
           {filledSlots.map((slot) => (
@@ -226,26 +212,10 @@ export function BuildSummary({
             Bắt đầu dựng cấu hình của bạn
           </p>
           <p className="max-w-xs text-[11px] text-slate-500">
-            Chọn linh kiện từ thanh bên trái hoặc chọn 1 cấu hình mẫu để bắt đầu nhanh.
+            Chọn linh kiện từ kho shop (API) ở thanh bên trái, hoặc dùng mẫu gợi ý.
           </p>
         </div>
       )}
-
-      {filledSlots.length > 0 ? (
-        <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
-          <div className="flex items-center justify-between text-xs text-slate-600">
-            <span>Tạm tính ({itemCount} món)</span>
-            <span className="font-semibold text-slate-900">
-              {formatCurrency(total)}
-            </span>
-          </div>
-          <Separator className="my-2" />
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Phí lắp đặt (dự kiến)</span>
-            <span>Tính khi đặt hàng</span>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -33,7 +33,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { createBuild, ensureShareSlug } from "@/lib/pc-builder/api";
 import {
-  calculateTotal,
   loadGuestBuild,
   saveGuestBuild,
 } from "@/lib/pc-builder/storage";
@@ -253,9 +252,8 @@ export function SaveShareBar({
               Đăng nhập để lưu cấu hình
             </DialogTitle>
             <DialogDescription>
-              Bạn đang có cấu hình dở dang ({calculateTotal(loadGuestBuild()).toLocaleString("vi-VN")} đ).
-              Đăng nhập để lưu vào tài khoản và đồng bộ giữa các thiết bị. Nếu chưa có
-              tài khoản, bạn có thể đăng ký miễn phí.
+              Bạn đang có cấu hình dở dang trên máy này. Đăng nhập để lưu vào
+              tài khoản và đồng bộ giữa các thiết bị.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col gap-2 sm:flex-row">

@@ -86,21 +86,21 @@ export async function GET(
   try {
     const supabase = createAdminClient();
 
-    // 1) Tìm category theo slug (slot = slug). Lấy luôn id để filter products.
+    // 1) Tìm category theo slug (slot = slug). Có thể có nhiều bản ghi trùng slug
+    // (org khác nhau / seed cũ) → lấy tất cả id rồi filter products bằng `.in(...)`.
     const { data: catData, error: catErr } = await supabase
       .from("categories")
       .select("id, slug")
-      .eq("slug", slot)
-      .maybeSingle();
+      .eq("slug", slot);
     if (catErr) {
       // eslint-disable-next-line no-console
       console.warn("[pc-builder] category lookup error", catErr.message);
       return NextResponse.json({ items: [], total: 0 });
     }
-    if (!catData) {
+    const categoryIds = ((catData ?? []) as Array<{ id: string }>).map((c) => c.id);
+    if (categoryIds.length === 0) {
       return NextResponse.json({ items: [], total: 0 });
     }
-    const categoryId = (catData as { id: string }).id;
 
     // 2) Lấy product active trong category.
     // Lưu ý: một số seed cũ dùng 'published' thay vì 'active' — match cả 2 để
@@ -108,7 +108,7 @@ export async function GET(
     let pq = supabase
       .from("products")
       .select("id, name, slug, thumbnail_url, status, brand_id, category_id")
-      .eq("category_id", categoryId)
+      .in("category_id", categoryIds)
       .in("status", ["active", "published"])
       .order("name", { ascending: true })
       .limit(limit);

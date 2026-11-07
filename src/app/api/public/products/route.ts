@@ -243,6 +243,15 @@ export async function GET(req: NextRequest) {
     }
 
     const productsByKind = products.filter((p) => {
+      const tags = p.tags ?? [];
+      // Quà tặng combo không hiện trên listing laptop/linh kiện (trừ khi lọc đúng tag).
+      if (
+        (tags.includes("qua-tang") || tags.includes("combo")) &&
+        tag !== "qua-tang" &&
+        tag !== "combo"
+      ) {
+        return false;
+      }
       if (!p.category_id) return kind === "laptop"; // mặc định: không có category → laptop
       return kindByCategory.get(p.category_id) === kind;
     });

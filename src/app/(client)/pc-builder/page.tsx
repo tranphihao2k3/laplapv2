@@ -37,6 +37,7 @@ import { ComponentPicker } from "@/components/client/pc-builder/component-picker
 import { BuildSummary } from "@/components/client/pc-builder/build-summary";
 import { SaveShareBar } from "@/components/client/pc-builder/save-share-bar";
 import { BuildReceipt } from "@/components/client/pc-builder/build-receipt";
+import { SendBuildToShop } from "@/components/client/pc-builder/send-build-to-shop";
 import { GuestMigratePrompt } from "@/components/client/pc-builder/guest-migrate-prompt";
 import {
   loadGuestBuild,
@@ -217,11 +218,11 @@ export default function PcBuilderPage() {
             PC Builder
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            Xây dựng cấu hình PC của bạn
+            Dựng cấu hình PC tham khảo
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Chọn từng linh kiện theo nhu cầu — hệ thống tự kiểm tra tương thích
-            socket, RAM, nguồn… và báo giá tức thì.
+            Linh kiện lấy trực tiếp từ kho shop. Không hiện giá trên web —
+            chọn xong hãy chụp / gửi cấu hình qua Zalo để shop báo giá lắp ráp.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -278,13 +279,7 @@ export default function PcBuilderPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-[11px] text-slate-500">
-                  Khoảng giá dự kiến:{" "}
-                  <span className="font-semibold text-slate-700">
-                    {sample.estimatedBudget.toLocaleString("vi-VN")} đ
-                  </span>
-                </p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {sample.slots.length} linh kiện
+                  {sample.slots.length} linh kiện gợi ý · giá do shop báo
                 </p>
                 <p className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary group-hover:underline">
                   Bắt đầu từ mẫu này
@@ -316,6 +311,9 @@ export default function PcBuilderPage() {
               onRemoveItem={handleRemoveItem}
               onUpdateQty={handleUpdateQty}
             />
+          </div>
+          <div data-pc-builder-no-print>
+            <SendBuildToShop build={build} />
           </div>
           <div data-pc-builder-no-print>
             <SaveShareBar

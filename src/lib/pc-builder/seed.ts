@@ -21,7 +21,7 @@ export type SampleBuild = {
 export const SAMPLE_BUILDS: SampleBuild[] = [
   {
     id: "gaming-mid",
-    name: "Gaming tầm trung 25 triệu",
+    name: "Gaming tầm trung",
     description: "Chơi game AAA ở 1080p, thiết kế đồ hoạ nhẹ.",
     estimatedBudget: 25_000_000,
     slots: [
@@ -38,7 +38,7 @@ export const SAMPLE_BUILDS: SampleBuild[] = [
   },
   {
     id: "office-budget",
-    name: "Văn phòng 8 triệu",
+    name: "Văn phòng",
     description: "Làm việc văn phòng, lướt web, học online.",
     estimatedBudget: 8_000_000,
     slots: [
@@ -55,7 +55,7 @@ export const SAMPLE_BUILDS: SampleBuild[] = [
   },
   {
     id: "design-pro",
-    name: "Đồ hoạ & dựng phim 35 triệu",
+    name: "Đồ hoạ & dựng phim",
     description: "Thiết kế 2D/3D, edit video 4K, render nặng.",
     estimatedBudget: 35_000_000,
     slots: [

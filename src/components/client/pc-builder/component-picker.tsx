@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { fetchComponents } from "@/lib/pc-builder/api";
 import {
   SLOT_LABEL,
@@ -222,10 +222,8 @@ export function ComponentPicker({
                             </p>
                           ) : null}
                         </div>
-                        <p className="shrink-0 text-sm font-bold text-slate-900">
-                          {item.product.price > 0
-                            ? formatCurrency(item.product.price)
-                            : "Liên hệ"}
+                        <p className="shrink-0 text-[11px] font-medium text-slate-400">
+                          Tham khảo
                         </p>
                       </div>
                       {chips.length > 0 ? (

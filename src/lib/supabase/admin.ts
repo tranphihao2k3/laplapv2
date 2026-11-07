@@ -10,13 +10,21 @@ import { getServerEnv } from "@/lib/env";
 export function createAdminClient() {
   const serverEnv = getServerEnv();
 
-  if (!serverEnv.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY chưa được set trong .env.local");
+  // Dev local đôi khi thiếu SERVICE_ROLE — fallback anon (vẫn đọc được catalog
+  // public nhờ RLS). Production nên luôn set SERVICE_ROLE_KEY.
+  const key =
+    serverEnv.SUPABASE_SERVICE_ROLE_KEY ||
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!key) {
+    throw new Error(
+      "Thiếu SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_ANON_KEY trong .env.local",
+    );
   }
 
   return createClient<Database, "public", any>(
     serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.SUPABASE_SERVICE_ROLE_KEY,
+    key,
     {
       auth: {
         autoRefreshToken: false,

@@ -25,7 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   SLOT_LABEL,
   SLOT_ORDER,
@@ -57,11 +57,6 @@ type Props = {
   onSelect: (slot: SlotKey) => void;
 };
 
-function getSlotTotal(state: BuildState, slot: SlotKey): number {
-  const items = state[slot] ?? [];
-  return items.reduce((sum, it) => sum + (it.unitPrice || 0) * (it.qty || 0), 0);
-}
-
 function getSlotCount(state: BuildState, slot: SlotKey): number {
   const items = state[slot] ?? [];
   return items.reduce((sum, it) => sum + (it.qty || 0), 0);
@@ -75,8 +70,8 @@ export function CategoryRail({ build, issues, activeSlot, onSelect }: Props) {
     if (issue.relatedSlot) issueSlotSet.add(issue.relatedSlot);
   }
 
-  const totalEstimate = SLOT_ORDER.reduce(
-    (sum, slot) => sum + getSlotTotal(build, slot),
+  const filledCount = SLOT_ORDER.reduce(
+    (sum, slot) => sum + (getSlotCount(build, slot) > 0 ? 1 : 0),
     0,
   );
 
@@ -86,13 +81,13 @@ export function CategoryRail({ build, issues, activeSlot, onSelect }: Props) {
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Linh kiện</h2>
           <p className="text-[11px] text-slate-500">
-            Chọn từng món để dựng cấu hình
+            Load từ kho shop · không hiện giá
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[11px] text-slate-500">Tạm tính</p>
+          <p className="text-[11px] text-slate-500">Đã chọn</p>
           <p className="text-sm font-bold text-slate-900">
-            {formatCurrency(totalEstimate)}
+            {filledCount}/{SLOT_ORDER.length}
           </p>
         </div>
       </div>
@@ -101,7 +96,6 @@ export function CategoryRail({ build, issues, activeSlot, onSelect }: Props) {
           {SLOT_ORDER.map((slot) => {
             const Icon = ICON_MAP[slot];
             const count = getSlotCount(build, slot);
-            const total = getSlotTotal(build, slot);
             const hasIssue = issueSlotSet.has(slot);
             const isActive = activeSlot === slot;
             const errorCount = issues.filter(
@@ -147,9 +141,7 @@ export function CategoryRail({ build, issues, activeSlot, onSelect }: Props) {
                       ) : null}
                     </div>
                     <p className="truncate text-[11px] text-slate-500">
-                      {count > 0
-                        ? `${count} món · ${formatCurrency(total)}`
-                        : "Chưa chọn"}
+                      {count > 0 ? `${count} món đã chọn` : "Chưa chọn"}
                     </p>
                   </div>
                   {hasIssue ? (
