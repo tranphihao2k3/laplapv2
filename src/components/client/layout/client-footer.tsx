@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { getStoreInfoCached } from "@/lib/store-info-cached";
 import { getFooterSettingsCached } from "@/lib/footer-settings-cached";
 import { telHref } from "@/lib/shop-info";

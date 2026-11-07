@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -26,9 +32,9 @@ type Props = {
   disabled?: boolean;
   className?: string;
   /**
-   * Bat o tim kiem phia tren danh sach.
-   * Dung khi danh sach option dai (VD: danh muc / thuong hieu) va nguoi dung
-   * can loc theo ten thay vi phai cuon/tra chu.
+   * Bat o tim kiem ngay trong dropdown.
+   * Dung khi danh sach option dai (VD: danh muc / thuong hieu) — go de loc,
+   * bam 1 lan de chon. KHONG tach o search ra ngoai Select.
    */
   searchable?: boolean;
   searchPlaceholder?: string;
@@ -40,21 +46,15 @@ function normalize(input: string) {
   return input
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/đ/g, "d");
 }
 
 /**
  * Select danh sach option, boc bang Radix Select (giong Select mac dinh cua app).
  *
- * Radix Select quet lý portal + focus-trap dung chuan, nen hoat dong on dinh
- * ben trong Dialog: mo dropdown, cuon danh sach va chon item deu khong lam
- * Dialog bi dong ngoai (vi khong dung portal tuy chon ra document.body nhu
- * SearchableSelect truoc day).
- *
- * Khong co o tim kiem mac dinh - dung native typeahead cua trinh duyet (go chu de
- * nhay den option khop). Hop khi danh sach vua phai chon. Bat `searchable` de
- * them o loc danh sach.
+ * Khi `searchable`: o search nam BEN TRONG dropdown (khong tach ra ngoai),
+ * nen chi can 1 thao tac: mo Select → go → chon.
  */
 export function OptionsSelect({
   options,
@@ -68,6 +68,8 @@ export function OptionsSelect({
   emptyText = "Không có kết quả",
 }: Props) {
   const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Render dong chu "chua chon" bang item dau tien de giu hinh dang cua Select.
   const items = useMemo(
@@ -82,7 +84,6 @@ export function OptionsSelect({
     if (!searchable) return items;
     const q = normalize(query.trim());
     if (!q) return items;
-    const selected = items.find((o) => o.value === value);
     return items.filter((o) => {
       if (o.value === NONE_VALUE) return true;
       if (o.value === value) return true;
@@ -90,47 +91,86 @@ export function OptionsSelect({
     });
   }, [items, query, searchable, value]);
 
-  const select = (
+  // Mo dropdown → focus o search; dong → xoa query de lan sau mo lai sach.
+  useEffect(() => {
+    if (!searchable) return;
+    if (open) {
+      const t = window.setTimeout(() => searchRef.current?.focus(), 0);
+      return () => window.clearTimeout(t);
+    }
+    setQuery("");
+  }, [open, searchable]);
+
+  return (
     <Select
       value={value || NONE_VALUE}
       onValueChange={(v) => onValueChange(v === NONE_VALUE ? "" : v)}
       disabled={disabled}
+      open={open}
+      onOpenChange={setOpen}
     >
       <SelectTrigger className={cn("h-9 text-sm", className)}>
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
-        {visibleItems.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            <span className="truncate">
-              {o.depth ? `${"\u00A0\u00A0".repeat(o.depth)}↳ ` : ""}
-              {o.label}
-              {o.keywords ? <span className="ml-1 text-xs text-muted-foreground">({o.keywords})</span> : null}
-            </span>
-          </SelectItem>
-        ))}
+      <SelectContent
+        // Khi co search: khong auto-focus item dau (de focus o input),
+        // va chan typeahead cua Radix de go chu khong bi "nhay" option.
+        onCloseAutoFocus={(e) => {
+          if (searchable) e.preventDefault();
+        }}
+      >
+        {searchable ? (
+          <div
+            className="sticky top-0 z-10 border-b bg-popover px-2 pb-2 pt-1"
+            // Chan click/keydown lan sang Select (tranh dong dropdown / typeahead).
+            onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="h-8 pl-8 text-sm"
+                // Enter chon item dau tien (khac NONE) neu dang loc.
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key !== "Enter") return;
+                  const first = visibleItems.find((o) => o.value !== NONE_VALUE);
+                  if (!first) return;
+                  e.preventDefault();
+                  onValueChange(first.value);
+                  setOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {searchable &&
+        query.trim() &&
+        visibleItems.filter((o) => o.value !== NONE_VALUE).length === 0 ? (
+          <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+            {emptyText}
+          </div>
+        ) : (
+          visibleItems.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              <span className="truncate">
+                {o.depth ? `${"\u00A0\u00A0".repeat(o.depth)}↳ ` : ""}
+                {o.label}
+                {o.keywords ? (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    ({o.keywords})
+                  </span>
+                ) : null}
+              </span>
+            </SelectItem>
+          ))
+        )}
       </SelectContent>
     </Select>
-  );
-
-  if (!searchable) return select;
-
-  return (
-    <div className="space-y-1.5">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={searchPlaceholder}
-          disabled={disabled}
-          className="h-8 pl-8 text-sm"
-        />
-      </div>
-      {select}
-      {searchable && query.trim() && visibleItems.filter((o) => o.value !== NONE_VALUE).length === 0 ? (
-        <p className="text-xs text-muted-foreground">{emptyText}</p>
-      ) : null}
-    </div>
   );
 }
