@@ -81,10 +81,10 @@ export const giftStockService = {
       .select("id, name")
       .in("id", giftProductIds);
     if (gpErr) throw gpErr;
-    const giftNameById = new Map(
+    const giftNameById = new Map<string, string>(
       (giftProducts ?? []).map((p: { id: string; name: string | null }) => [
-        p.id,
-        p.name ?? "Quà tặng",
+        p.id as string,
+        (p.name ?? "Quà tặng") as string,
       ]),
     );
 
