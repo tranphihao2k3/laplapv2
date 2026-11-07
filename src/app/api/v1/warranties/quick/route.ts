@@ -20,9 +20,9 @@
  */
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser, requirePermission } from "@/lib/api/guard";
-import { ok, handleError, Errors } from "@/lib/api/response";
+import { ok, fail, handleError, Errors } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/api/audit";
 import { uuid, isoDate } from "@/lib/validators/common";
 import {
@@ -30,6 +30,21 @@ import {
   buildDeviceNote,
   normalizePhone,
 } from "@/lib/warranties/quick-warranty";
+
+/**
+ * Lấy message từ lỗi Supabase/PostgREST (có thể là Error hoặc plain object
+ * `{ message, details, hint, code }` — không luôn `instanceof Error` sau minify).
+ */
+function extractErr(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message;
+  if (e && typeof e === "object") {
+    const err = e as { message?: unknown; details?: unknown; code?: unknown; hint?: unknown };
+    const parts = [err.message, err.details, err.hint, err.code ? `(${err.code})` : null]
+      .filter((p): p is string => typeof p === "string" && p.length > 0);
+    if (parts.length > 0) return parts.join(" — ");
+  }
+  return "Lỗi không xác định";
+}
 
 /** 1 dòng trong body (dùng cho cả single & bulk). */
 const quickWarrantyItemSchema = z.object({
@@ -122,16 +137,28 @@ async function findOrCreateCustomer(
  * Tìm serial_numbers theo serial/imei → tái sử dụng nếu đã có (KHÔNG tạo trùng).
  * Nếu chưa có thì tạo mới với product_variant_id = null (máy ngoài catalog).
  *
+ * Trả về `null` khi máy không có serial/IMEI nào — bảng `warranties.serial_number_id`
+ * NULLABLE nên vẫn tạo được bảo hành (tên máy nằm trong `note`).
+ *
  * Lưu ý: dùng 2 query `.eq()` riêng thay vì `.or("serial.eq.X,imei.eq.Y")` vì
  * dấu `|`/`,`/`(` trong serial dán tay sẽ làm hỏng cú pháp filter của PostgREST.
+ *
+ * Client dùng ở đây PHẢI bypass RLS (service role / admin client): policy insert
+ * của `serial_numbers` thường check qua `product_variant_id` → máy ngoài catalog
+ * (variant = null) bị chặn dù cột DB cho phép NULL.
  */
 async function findOrCreateSerial(
   supabase: SB,
   item: QuickItem,
   startDate: string,
-): Promise<string> {
+): Promise<string | null> {
   const serial = item.device.serial?.trim() || null;
   const imei = item.device.imei?.trim() || null;
+
+  // Không có định danh vật lý → không tạo serial_numbers row (tránh rác + NOT NULL ảo).
+  if (!serial && !imei && !item.device.product_variant_id) {
+    return null;
+  }
 
   // Trạng thái serial: máy đã bán (bán máy / gia hạn) hoặc đang sửa (sửa chữa).
   // `sold_at` chỉ set cho máy đã bán.
@@ -177,7 +204,18 @@ async function findOrCreateSerial(
     .insert(row)
     .select("id")
     .single();
-  if (createErr) throw createErr;
+  if (createErr) {
+    // Máy ngoài catalog: một số DB/RLS vẫn từ chối product_variant_id = NULL.
+    // Không chặn cả luồng tạo BH — trả null, caller sẽ ghi SN/IMEI vào note.
+    if (!item.device.product_variant_id) {
+      console.warn(
+        "[warranties/quick] không tạo được serial_numbers (bỏ qua):",
+        extractErr(createErr),
+      );
+      return null;
+    }
+    throw createErr;
+  }
   return created.id as string;
 }
 
@@ -236,7 +274,19 @@ async function createOne(
 
   // Tên máy (không có trong catalog) được lưu trong `note` theo quy ước
   // "Thiết bị: <tên>" — xem src/lib/warranties/quick-warranty.ts.
-  const note = buildDeviceNote(item.device.name, item.note);
+  // Nếu có serial/IMEI nhưng không tạo được serial_numbers row, vẫn ghi kèm
+  // vào note để tra cứu thủ công.
+  let extraNote = item.note ?? null;
+  if (!serialNumberId) {
+    const ids = [
+      item.device.serial?.trim() ? `SN: ${item.device.serial.trim()}` : null,
+      item.device.imei?.trim() ? `IMEI: ${item.device.imei.trim()}` : null,
+    ].filter(Boolean);
+    if (ids.length > 0) {
+      extraNote = [extraNote, ids.join(" · ")].filter(Boolean).join(" | ");
+    }
+  }
+  const note = buildDeviceNote(item.device.name, extraNote);
 
   const endDate =
     item.end_date ??
@@ -265,7 +315,7 @@ async function createOne(
   return {
     ok: true,
     warranty_id: warranty.id as string,
-    serial_number_id: serialNumberId,
+    serial_number_id: serialNumberId ?? undefined,
     customer_id: customerId,
   };
 }
@@ -282,7 +332,10 @@ export async function POST(req: NextRequest) {
     const { user } = await requireUser();
     // requirePermission trả về luôn orgId (qua requireOrg bên trong).
     const { orgId } = await requirePermission("warranties.create");
-    const supabase = await createClient();
+    // Service role: bypass RLS trên serial_numbers (policy insert thường
+    // kiểm tra qua product_variant_id → máy ngoài catalog bị chặn).
+    // Quyền đã được check ở trên nên an toàn khi dùng admin client.
+    const supabase = createAdminClient();
 
     const raw = await req.json();
     // Bulk: mỗi dòng validate RIÊNG → 1 dòng sai không làm hỏng cả batch.
@@ -306,8 +359,7 @@ export async function POST(req: NextRequest) {
         results.push(await createOne(supabase, orgId, parsed.data));
       } catch (e) {
         // Một dòng lỗi KHÔNG được làm hỏng cả batch → ghi lại lỗi dòng đó.
-        const message = e instanceof Error ? e.message : "Lỗi không xác định";
-        results.push({ ok: false, error: message });
+        results.push({ ok: false, error: extractErr(e) });
       }
     }
 
@@ -331,8 +383,19 @@ export async function POST(req: NextRequest) {
       failed,
       results,
     };
-    // Trả 201 khi tạo được ít nhất 1 bản ghi; nếu hỏng hết thì 422 để UI báo lỗi.
-    return ok(payload, { status: succeeded > 0 ? 201 : 422 });
+
+    // Hỏng hết → trả fail() (ok:false) để axios/http client hiện đúng message,
+    // không trả ok(payload, {status:422}) vì body vẫn ok:true → UI chỉ thấy "422".
+    if (succeeded === 0) {
+      const summary =
+        results
+          .map((r) => r.error)
+          .filter((m): m is string => !!m)
+          .slice(0, 3)
+          .join(" · ") || "Không tạo được bảo hành nào";
+      return fail("QUICK_WARRANTY_FAILED", summary, 422, payload);
+    }
+    return ok(payload, { status: 201 });
   } catch (e) {
     return handleError(e);
   }
