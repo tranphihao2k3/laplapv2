@@ -111,10 +111,15 @@ export function ClientHeader() {
   });
 
   const categories = categoriesData?.categories ?? [];
-  const catHref = (cat: CategoryOption) =>
-    cat.slug
-      ? `/products?category=${encodeURIComponent(cat.slug)}`
-      : `/products?category=${encodeURIComponent(cat.value)}`;
+  const catHref = (cat: CategoryOption) => {
+    // UUID ổn định hơn slug (slug "laptop" từng làm API trả 0 SP).
+    // Linh kiện luôn kèm kind=pc_component.
+    const isPc = cat.parentSlug === "pc-parts" || cat.slug === "pc-parts" || cat.kind === "pc_component";
+    const catParam = encodeURIComponent(cat.value);
+    return isPc
+      ? `/products?kind=pc_component&category=${catParam}`
+      : `/products?category=${catParam}`;
+  };
   const pcCategories = categories.filter((c) => c.parentSlug === "pc-parts");
   const laptopCategories = categories.filter((c) => c.parentSlug !== "pc-parts");
 

@@ -78,7 +78,9 @@ export async function GET(req: NextRequest) {
   const category = sp.get("category") ?? "";
   // kind mặc định là "laptop" vì đa số traffic là khách xem laptop; trang /pc-builder &
   // bất kỳ chỗ nào cần linh kiện sẽ chủ động truyền kind=pc_component.
-  const kind: ProductKind = parseProductKind(sp.get("kind")) ?? "laptop";
+  // Có thể bị ghi đè bởi alias category gốc (vd category=pc-parts → pc_component).
+  let kind: ProductKind = parseProductKind(sp.get("kind")) ?? "laptop";
+  const kindFromQuery = Boolean(parseProductKind(sp.get("kind")));
   const minPrice = Number(sp.get("minPrice") ?? "") || 0;
   const maxPrice = Number(sp.get("maxPrice") ?? "") || 0;
   const ram = (sp.get("ram") ?? "").toLowerCase();
@@ -115,68 +117,77 @@ export async function GET(req: NextRequest) {
     let categoryExpanded = false;
     if (category) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(category);
+      const needle = category.trim().toLowerCase();
 
-      // Lấy toàn bộ categories (bảng rất nhỏ) để resolve slug + dựng cây cha-con.
-      const { data: allCats } = await supabase
-        .from("categories")
-        .select("id,slug,name,parent_id");
-      const catRows = (allCats ?? []) as Array<{
-        id: string;
-        slug: string | null;
-        name: string | null;
-        parent_id: string | null;
-      }>;
-
-      let rootId: string | null = null;
-      if (isUuid) {
-        rootId = category;
+      // Alias nhóm gốc: `/products?category=laptop` = mọi SP kind=laptop
+      // (không lọc category_id). Tránh phụ thuộc slug DB trùng/lỗi resolve.
+      const KIND_ROOT_ALIAS: Record<string, ProductKind> = {
+        laptop: "laptop",
+        "pc-parts": "pc_component",
+        "linh-kien": "pc_component",
+        "linh-kien-pc": "pc_component",
+      };
+      const aliasKind = !isUuid ? KIND_ROOT_ALIAS[needle] : undefined;
+      if (aliasKind) {
+        // Bỏ filter category_id — listing theo kind (mọi laptop / mọi linh kiện).
+        resolvedCategoryIds = null;
+        if (!kindFromQuery) kind = aliasKind;
       } else {
-        const needle = category.trim().toLowerCase();
-        const bySlug = catRows.filter(
-          (c) => (c.slug ?? "").trim().toLowerCase() === needle,
-        );
-        // Ưu tiên node gốc (parent_id null) khi slug trùng nhiều dòng.
-        const preferred =
-          bySlug.find((c) => !c.parent_id) ??
-          bySlug[0] ??
-          catRows.find((c) => (c.name ?? "").trim().toLowerCase() === needle) ??
-          null;
-        rootId = preferred?.id ?? null;
-      }
-      if (!rootId) {
-        return NextResponse.json({
-          items: [],
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-          kind,
-        });
-      }
+        // Lấy toàn bộ categories (bảng rất nhỏ) để resolve slug + dựng cây cha-con.
+        const { data: allCats } = await supabase
+          .from("categories")
+          .select("id,slug,name,parent_id");
+        const catRows = (allCats ?? []) as Array<{
+          id: string;
+          slug: string | null;
+          name: string | null;
+          parent_id: string | null;
+        }>;
 
-      const childrenOf = new Map<string, string[]>();
-      for (const c of catRows) {
-        if (!c.parent_id) continue;
-        const arr = childrenOf.get(c.parent_id) ?? [];
-        arr.push(c.id);
-        childrenOf.set(c.parent_id, arr);
-      }
-      // DFS thu thập self + toàn bộ descendant
-      const idSet = new Set<string>([rootId]);
-      const stack: string[] = [rootId];
-      while (stack.length) {
-        const cur = stack.pop()!;
-        const kids = childrenOf.get(cur);
-        if (!kids) continue;
-        for (const k of kids) {
-          if (!idSet.has(k)) {
-            idSet.add(k);
-            stack.push(k);
-          }
+        let rootId: string | null = null;
+        if (isUuid) {
+          rootId = category;
+        } else {
+          const bySlug = catRows.filter(
+            (c) => (c.slug ?? "").trim().toLowerCase() === needle,
+          );
+          // Ưu tiên node gốc (parent_id null) khi slug trùng nhiều dòng.
+          const preferred =
+            bySlug.find((c) => !c.parent_id) ??
+            bySlug[0] ??
+            catRows.find((c) => (c.name ?? "").trim().toLowerCase() === needle) ??
+            null;
+          rootId = preferred?.id ?? null;
         }
+
+        if (rootId) {
+          const childrenOf = new Map<string, string[]>();
+          for (const c of catRows) {
+            if (!c.parent_id) continue;
+            const arr = childrenOf.get(c.parent_id) ?? [];
+            arr.push(c.id);
+            childrenOf.set(c.parent_id, arr);
+          }
+          // DFS thu thập self + toàn bộ descendant
+          const idSet = new Set<string>([rootId]);
+          const stack: string[] = [rootId];
+          while (stack.length) {
+            const cur = stack.pop()!;
+            const kids = childrenOf.get(cur);
+            if (!kids) continue;
+            for (const k of kids) {
+              if (!idSet.has(k)) {
+                idSet.add(k);
+                stack.push(k);
+              }
+            }
+          }
+          resolvedCategoryIds = Array.from(idSet);
+          categoryExpanded = resolvedCategoryIds.length > 1;
+        }
+        // Không tìm thấy category → bỏ lọc category (không trả rỗng cứng),
+        // vẫn lọc theo kind/brand/q phía dưới.
       }
-      resolvedCategoryIds = Array.from(idSet);
-      categoryExpanded = resolvedCategoryIds.length > 1;
     }
 
     if (resolvedCategoryIds && resolvedCategoryIds.length > 0) {

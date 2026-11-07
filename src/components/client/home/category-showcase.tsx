@@ -49,9 +49,9 @@ function iconFor(label: string, slug: string, parentSlug: string | null): Lucide
   return Laptop;
 }
 
-function categoryHref(slug: string | null | undefined, value: string, kind: "laptop" | "pc_component") {
-  const id = slug ? `category=${encodeURIComponent(slug)}` : `category=${encodeURIComponent(value)}`;
-  return `/products?kind=${kind}&${id}`;
+function categoryHref(_slug: string | null | undefined, value: string, kind: "laptop" | "pc_component") {
+  // UUID ổn định hơn slug (slug "laptop" từng làm API trả 0 sản phẩm).
+  return `/products?kind=${kind}&category=${encodeURIComponent(value)}`;
 }
 
 export function CategoryShowcase() {

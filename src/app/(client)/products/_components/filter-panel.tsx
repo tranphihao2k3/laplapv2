@@ -206,7 +206,9 @@ export function FilterPanel({ filters, query, setQuery, reset, activeCount }: Pr
           <OptionList
             options={(filters?.categories ?? []).map((c) => ({
               ...c,
-              value: c.slug ?? c.value,
+              // Luôn dùng UUID — slug "laptop" từng làm API resolve fail → 0 SP.
+              // Label vẫn hiện tên danh mục; slug chỉ dùng cho link SEO ở header.
+              value: c.value,
             }))}
             selected={query.category}
             onSelect={(category) => setQuery({ category })}

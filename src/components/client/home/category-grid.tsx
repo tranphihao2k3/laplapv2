@@ -70,9 +70,10 @@ function CategoryCard({
   isPc?: boolean;
 }) {
   const accent = getAccent(cat.label, isPc);
+  // Dùng UUID (value) — tránh slug gốc "laptop" làm API resolve fail.
   const href = isPc
-    ? `/products?kind=pc_component&category=${cat.slug ?? cat.value}`
-    : `/products?category=${cat.slug ?? cat.value}`;
+    ? `/products?kind=pc_component&category=${cat.value}`
+    : `/products?category=${cat.value}`;
 
   return (
     <Reveal variant="fade-up" delay={index * 50} threshold={0.05}>
