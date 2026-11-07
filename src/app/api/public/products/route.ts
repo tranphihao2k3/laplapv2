@@ -108,20 +108,40 @@ export async function GET(req: NextRequest) {
     // Mở rộng cha → con: nếu category truyền vào là node CÓ children (vd "laptop"
     // — cha của 5 mục con), API sẽ tự gộp toàn bộ hậu duệ. Khi muốn lấy 1 mục
     // con cụ thể, truyền slug/id của mục con đó (nó sẽ là lá → không mở rộng).
+    //
+    // Lưu ý: KHÔNG dùng `.maybeSingle()` theo slug — slug có thể trùng giữa shop/
+    // bản ghi cũ → PostgREST trả lỗi → rootId null → list rỗng (bug ?category=laptop).
     let resolvedCategoryIds: string[] | null = null;
     let categoryExpanded = false;
     if (category) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(category);
+
+      // Lấy toàn bộ categories (bảng rất nhỏ) để resolve slug + dựng cây cha-con.
+      const { data: allCats } = await supabase
+        .from("categories")
+        .select("id,slug,name,parent_id");
+      const catRows = (allCats ?? []) as Array<{
+        id: string;
+        slug: string | null;
+        name: string | null;
+        parent_id: string | null;
+      }>;
+
       let rootId: string | null = null;
       if (isUuid) {
         rootId = category;
       } else {
-        const { data: catRow } = await supabase
-          .from("categories")
-          .select("id")
-          .eq("slug", category)
-          .maybeSingle();
-        if (catRow?.id) rootId = catRow.id;
+        const needle = category.trim().toLowerCase();
+        const bySlug = catRows.filter(
+          (c) => (c.slug ?? "").trim().toLowerCase() === needle,
+        );
+        // Ưu tiên node gốc (parent_id null) khi slug trùng nhiều dòng.
+        const preferred =
+          bySlug.find((c) => !c.parent_id) ??
+          bySlug[0] ??
+          catRows.find((c) => (c.name ?? "").trim().toLowerCase() === needle) ??
+          null;
+        rootId = preferred?.id ?? null;
       }
       if (!rootId) {
         return NextResponse.json({
@@ -134,12 +154,8 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // Lấy toàn bộ categories (bảng rất nhỏ, < 200 rows) để dựng cây cha-con.
-      const { data: allCats } = await supabase
-        .from("categories")
-        .select("id,parent_id");
       const childrenOf = new Map<string, string[]>();
-      for (const c of (allCats ?? []) as Array<{ id: string; parent_id: string | null }>) {
+      for (const c of catRows) {
         if (!c.parent_id) continue;
         const arr = childrenOf.get(c.parent_id) ?? [];
         arr.push(c.id);
