@@ -1567,8 +1567,8 @@ export default function ProductsAdminPage() {
           </DialogHeader>
 
           <div className="grid gap-4 flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
-            {/* AI paste box — chỉ hiện khi tạo mới để tránh ghi đè nhầm khi edit */}
-            {!editingProduct && <AIPasteBox onApply={applyAISuggestions} />}
+            {/* AI paste box — tạm ẩn theo yêu cầu admin (bật lại: đổi false → true). */}
+            {false && !editingProduct && <AIPasteBox onApply={applyAISuggestions} />}
 
             {/* ============================================================
                 THÔNG TIN CƠ BẢN — luôn hiện. Đủ để tạo 1 sản phẩm đơn giản.

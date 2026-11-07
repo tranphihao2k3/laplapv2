@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  ChevronDown,
   Copy,
   Download,
   FileSpreadsheet,
@@ -28,6 +29,7 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +56,7 @@ import { useCrudList } from "@/lib/api/admin-crud";
 import { useStoreSettings } from "@/components/client/layout/use-store-settings";
 import {
   addMonthsIso,
+  diffMonthsIso,
   parseQuickBulkText,
   QUICK_BULK_TEMPLATE_EXAMPLE,
   QUICK_BULK_TEMPLATE_HEADER,
@@ -178,6 +181,8 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
   const [endDateTouched, setEndDateTouched] = useState(false);
   const [repairTicketId, setRepairTicketId] = useState("");
   const [note, setNote] = useState("");
+  /** Ẩn Serial/IMEI/liên kết SP/ghi chú… — chỉ hiện khi admin cần. */
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // ── Form nhiều dòng ──
   const [bulkText, setBulkText] = useState("");
@@ -223,6 +228,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
       setEndDateTouched(false);
       setRepairTicketId("");
       setNote("");
+      setShowAdvanced(false);
       setBulkText("");
       setBulkType("sold");
       setBulkMonths(defaultMonths);
@@ -243,7 +249,9 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
     setBulkMonths(defaultMonths);
   }, [defaultMonths]);
 
-  // Ngày hết hạn tự tính = start_date + số tháng (admin có thể sửa tay).
+  // Ngày hết hạn ↔ số tháng:
+  // - Sửa tháng / ngày bắt đầu (chưa đụng ngày hết hạn) → tự tính end_date.
+  // - Sửa tay ngày hết hạn → tự tính lại số tháng (máy còn BH tới ngày cụ thể).
   useEffect(() => {
     if (endDateTouched) return;
     if (!startDate || months <= 0) {
@@ -252,6 +260,14 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
     }
     setEndDate(addMonthsIso(startDate, months));
   }, [startDate, months, endDateTouched]);
+
+  useEffect(() => {
+    if (!endDateTouched) return;
+    if (!startDate || !endDate) return;
+    const next = diffMonthsIso(startDate, endDate);
+    setMonths(next);
+    monthsTouched.current = true;
+  }, [startDate, endDate, endDateTouched]);
 
   const productNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -353,20 +369,27 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
 
     setSubmitting(true);
     try {
-      const items = bulkRows.map((r) => ({
-        warranty_type: bulkType,
-        customer: { phone: r.phone, full_name: r.customerName },
-        device: {
-          name: r.name,
-          serial: r.serial,
-          imei: r.imei,
-          product_variant_id: null,
-        },
-        start_date: bulkStartDate,
-        warranty_months: r.months ?? bulkMonths,
-        status: "active",
-        note: null,
-      }));
+      const items = bulkRows.map((r) => {
+        const months =
+          r.months ??
+          (r.endDate ? diffMonthsIso(bulkStartDate, r.endDate) : null) ??
+          bulkMonths;
+        return {
+          warranty_type: bulkType,
+          customer: { phone: r.phone, full_name: r.customerName },
+          device: {
+            name: r.name,
+            serial: r.serial,
+            imei: r.imei,
+            product_variant_id: null,
+          },
+          start_date: bulkStartDate,
+          warranty_months: months > 0 ? months : bulkMonths,
+          end_date: r.endDate,
+          status: "active",
+          note: r.note,
+        };
+      });
 
       const res = await httpPost<QuickResponse>("/v1/warranties/quick", items);
       if (res.failed > 0) {
@@ -440,27 +463,9 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
         </div>
 
         {mode === "single" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {/* Loại bảo hành */}
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Loại bảo hành</Label>
-              <Select
-                value={warrantyType}
-                onValueChange={(v) => setWarrantyType(v as WarrantyType)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sold">Bán máy</SelectItem>
-                  <SelectItem value="repair">Sửa chữa</SelectItem>
-                  <SelectItem value="extension">Gia hạn</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Tên máy */}
-            <div className="space-y-2 sm:col-span-2">
+          /* 1 cột — Tab đi thẳng xuống: tên máy → SĐT → tên khách → mã máy → tháng BH */
+          <div className="flex flex-col gap-2.5">
+            <div className="space-y-1">
               <Label htmlFor="qw-device-name">
                 Tên máy <span className="text-destructive">*</span>
               </Label>
@@ -468,22 +473,46 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                 id="qw-device-name"
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
-                placeholder="VD: Dell Inspiron 15 3511"
+                placeholder="VD: HP 830G8"
                 aria-invalid={!!errors.deviceName}
+                autoFocus
               />
               {errors.deviceName ? (
                 <p className="text-xs text-destructive">{errors.deviceName}</p>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">
-                  Máy không có trong danh mục? Gõ tên tay, hệ thống sẽ lưu kèm bảo
-                  hành (không cần tạo sản phẩm).
-                </p>
-              )}
+              ) : null}
             </div>
 
-            {/* Serial / IMEI */}
-            <div className="space-y-2">
-              <Label htmlFor="qw-serial">Serial</Label>
+            <div className="space-y-1">
+              <Label htmlFor="qw-phone">SĐT</Label>
+              <Input
+                id="qw-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                placeholder="0901234567"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={11}
+                disabled={isGuest}
+                aria-invalid={!!errors.phone}
+              />
+              {errors.phone ? (
+                <p className="text-xs text-destructive">{errors.phone}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="qw-customer-name">Tên khách</Label>
+              <Input
+                id="qw-customer-name"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Nguyễn Văn A"
+                disabled={isGuest}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="qw-serial">Mã máy (Serial)</Label>
               <Input
                 id="qw-serial"
                 value={serial}
@@ -491,89 +520,8 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                 placeholder="Tuỳ chọn"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="qw-imei">IMEI</Label>
-              <Input
-                id="qw-imei"
-                value={imei}
-                onChange={(e) => setImei(e.target.value)}
-                placeholder="Tuỳ chọn"
-              />
-            </div>
 
-            {/* Liên kết sản phẩm (tuỳ chọn) */}
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Liên kết sản phẩm (tuỳ chọn)</Label>
-              <OptionsSelect
-                options={variantOptions}
-                value={productVariantId}
-                onValueChange={setProductVariantId}
-                placeholder="Không liên kết (máy ngoài danh mục)"
-                searchable
-                searchPlaceholder="Tìm tên sản phẩm / SKU..."
-                emptyText="Không tìm thấy sản phẩm"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Để trống nếu máy không có trong danh mục — bảo hành vẫn tạo được.
-              </p>
-            </div>
-
-            {/* Khách hàng */}
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Khách hàng</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Số điện thoại (dùng để tìm KH cũ)"
-                    inputMode="tel"
-                    disabled={isGuest}
-                    aria-invalid={!!errors.phone}
-                  />
-                  {errors.phone ? (
-                    <p className="text-xs text-destructive">{errors.phone}</p>
-                  ) : null}
-                </div>
-                <Input
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Tên khách (nếu tạo mới)"
-                  disabled={isGuest}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={isGuest}
-                  onChange={(e) => {
-                    setIsGuest(e.target.checked);
-                    if (e.target.checked) setPhone("");
-                  }}
-                />
-                Khách lẻ (không có SĐT)
-              </label>
-              <p className="text-[11px] text-muted-foreground">
-                Nhập SĐT đã có → hệ thống tự gắn vào khách cũ. SĐT mới → tự tạo
-                khách hàng.
-              </p>
-            </div>
-
-            {/* Ngày / tháng bảo hành */}
-            <div className="space-y-2">
-              <Label htmlFor="qw-start-date">Ngày bắt đầu</Label>
-              <Input
-                id="qw-start-date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                aria-invalid={!!errors.startDate}
-              />
-              {errors.startDate ? (
-                <p className="text-xs text-destructive">{errors.startDate}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label htmlFor="qw-months">Số tháng bảo hành</Label>
               <Input
                 id="qw-months"
@@ -592,52 +540,137 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                 <p className="text-xs text-destructive">{errors.months}</p>
               ) : null}
             </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="qw-end-date">Ngày hết hạn</Label>
-              <Input
-                id="qw-end-date"
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setEndDateTouched(true);
-                }}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Tự tính từ ngày bắt đầu + số tháng, có thể sửa tay.
-              </p>
-            </div>
 
-            {/* Phiếu sửa chữa (chỉ khi loại = sửa chữa) */}
-            {warrantyType === "repair" ? (
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Phiếu sửa chữa (tuỳ chọn)</Label>
-                <OptionsSelect
-                  options={ticketOptions}
-                  value={repairTicketId}
-                  onValueChange={setRepairTicketId}
-                  placeholder="Không liên kết phiếu nào"
-                  searchable
-                  searchPlaceholder="Tìm mã phiếu / thiết bị..."
-                  emptyText="Không tìm thấy phiếu"
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="qw-start-date">Ngày bắt đầu</Label>
+                <Input
+                  id="qw-start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  aria-invalid={!!errors.startDate}
                 />
-                <p className="text-[11px] text-muted-foreground">
-                  Bảo hành sửa chữa vẫn tạo được khi không có phiếu. Nếu muốn
-                  tạo phiếu mới, hãy vào mục Phiếu sửa chữa.
-                </p>
               </div>
-            ) : null}
+              <div className="space-y-1">
+                <Label htmlFor="qw-end-date">Ngày hết hạn</Label>
+                <Input
+                  id="qw-end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setEndDateTouched(true);
+                  }}
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Tab: tên máy → SĐT → tên khách → mã máy → tháng BH. Sửa hết hạn →
+              tháng tự điều chỉnh.
+            </p>
 
-            {/* Ghi chú */}
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="qw-note">Ghi chú</Label>
-              <Textarea
-                id="qw-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Tuỳ chọn (VD: bảo hành tặng kèm, thay màn hình...)"
-                rows={2}
-              />
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((v) => !v)}
+                className="flex w-full items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50"
+                aria-expanded={showAdvanced}
+                tabIndex={-1}
+              >
+                <span>
+                  Tuỳ chọn thêm
+                  <span className="ml-1 font-normal">(IMEI, loại BH, ghi chú…)</span>
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 shrink-0 transition-transform",
+                    showAdvanced && "rotate-180",
+                  )}
+                />
+              </button>
+
+              {showAdvanced ? (
+                <div className="mt-2.5 flex flex-col gap-2.5">
+                  <div className="space-y-1">
+                    <Label>Loại bảo hành</Label>
+                    <Select
+                      value={warrantyType}
+                      onValueChange={(v) => setWarrantyType(v as WarrantyType)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sold">Bán máy</SelectItem>
+                        <SelectItem value="repair">Sửa chữa</SelectItem>
+                        <SelectItem value="extension">Gia hạn</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="qw-imei">IMEI</Label>
+                    <Input
+                      id="qw-imei"
+                      value={imei}
+                      onChange={(e) => setImei(e.target.value)}
+                      placeholder="Tuỳ chọn"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Liên kết sản phẩm (tuỳ chọn)</Label>
+                    <OptionsSelect
+                      options={variantOptions}
+                      value={productVariantId}
+                      onValueChange={setProductVariantId}
+                      placeholder="Không liên kết (máy ngoài danh mục)"
+                      searchable
+                      searchPlaceholder="Tìm tên sản phẩm / SKU..."
+                      emptyText="Không tìm thấy sản phẩm"
+                    />
+                  </div>
+
+                  {warrantyType === "repair" ? (
+                    <div className="space-y-1">
+                      <Label>Phiếu sửa chữa (tuỳ chọn)</Label>
+                      <OptionsSelect
+                        options={ticketOptions}
+                        value={repairTicketId}
+                        onValueChange={setRepairTicketId}
+                        placeholder="Không liên kết phiếu nào"
+                        searchable
+                        searchPlaceholder="Tìm mã phiếu / thiết bị..."
+                        emptyText="Không tìm thấy phiếu"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-1">
+                    <Label htmlFor="qw-note">Ghi chú</Label>
+                    <Textarea
+                      id="qw-note"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Tuỳ chọn"
+                      rows={2}
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={isGuest}
+                      onChange={(e) => {
+                        setIsGuest(e.target.checked);
+                        if (e.target.checked) setPhone("");
+                      }}
+                    />
+                    Khách lẻ (không có SĐT)
+                  </label>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : (
@@ -725,9 +758,10 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                 </span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Dấu <code>|</code> tách các cột. Bỏ trống cột nào cũng được (trừ
-                cột tên máy). Cột &quot;số tháng&quot; để trống sẽ dùng số tháng mặc định.
-                Số điện thoại trùng sẽ tự gắn vào khách hàng đã có.
+                Có thể dán: (1) <code>tên máy | tên khách | SĐT | tháng</code>,
+                (2) tin Telegram 1 dòng <code>máy - tên SĐT</code>, hoặc (3) block
+                3 dòng <code>ngày hết hạn / mô tả máy bh2th / tên SĐT</code> copy
+                từ group BH–sửa chữa. SĐT trùng → gắn khách cũ.
               </p>
             </div>
 
@@ -737,18 +771,22 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                   <thead className="bg-muted/50">
                     <tr className="text-left">
                       <th className="px-2 py-1.5">Tên máy</th>
-                      <th className="px-2 py-1.5">Serial</th>
+                      <th className="px-2 py-1.5">Tên khách</th>
                       <th className="px-2 py-1.5">SĐT</th>
-                      <th className="px-2 py-1.5">Tháng</th>
+                      <th className="px-2 py-1.5">Hết hạn / tháng</th>
                     </tr>
                   </thead>
                   <tbody>
                     {bulkRows.slice(0, 50).map((r, i) => (
                       <tr key={i} className="border-t">
                         <td className="px-2 py-1.5">{r.name}</td>
-                        <td className="px-2 py-1.5 font-mono">{r.serial ?? "—"}</td>
+                        <td className="px-2 py-1.5">{r.customerName ?? "—"}</td>
                         <td className="px-2 py-1.5 font-mono">{r.phone ?? "—"}</td>
-                        <td className="px-2 py-1.5">{r.months ?? bulkMonths}</td>
+                        <td className="px-2 py-1.5">
+                          {r.endDate
+                            ? r.endDate.split("-").reverse().join("/")
+                            : `${r.months ?? bulkMonths} th`}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

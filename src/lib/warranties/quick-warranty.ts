@@ -86,6 +86,34 @@ export function addMonthsIso(startIso: string, months: number): string {
   return target.toISOString().slice(0, 10);
 }
 
+/**
+ * Ước số tháng bảo hành từ ngày bắt đầu → ngày hết hạn (đảo của `addMonthsIso`).
+ * Ưu tiên giá trị khiến `addMonthsIso(start, n) === end`; nếu không khớp (ngày
+ * cụ thể giữa 2 mốc tháng) thì làm tròn tới tháng gần nhất.
+ * @returns số tháng ≥ 0; 0 nếu end ≤ start hoặc ngày không hợp lệ.
+ */
+export function diffMonthsIso(startIso: string, endIso: string): number {
+  const s = /^(\d{4})-(\d{2})-(\d{2})/.exec(startIso);
+  const e = /^(\d{4})-(\d{2})-(\d{2})/.exec(endIso);
+  if (!s || !e) return 0;
+  if (endIso <= startIso) return 0;
+
+  let months =
+    (Number(e[1]) - Number(s[1])) * 12 + (Number(e[2]) - Number(s[2]));
+  if (Number(e[3]) < Number(s[3])) months -= 1;
+  months = Math.max(0, months);
+
+  if (addMonthsIso(startIso, months) === endIso) return months;
+  if (addMonthsIso(startIso, months + 1) === endIso) return months + 1;
+
+  const endMs = Date.parse(`${endIso}T00:00:00Z`);
+  const d0 = Math.abs(Date.parse(`${addMonthsIso(startIso, months)}T00:00:00Z`) - endMs);
+  const d1 = Math.abs(
+    Date.parse(`${addMonthsIso(startIso, months + 1)}T00:00:00Z`) - endMs,
+  );
+  return d1 < d0 ? months + 1 : months;
+}
+
 /** Ngày hôm nay theo định dạng YYYY-MM-DD (giờ địa phương). */
 export function todayIso(): string {
   const now = new Date();
@@ -107,7 +135,7 @@ export function normalizePhone(input: string | null | undefined): string | null 
   return digits;
 }
 
-/** 1 dòng trong chế độ nhập nhiều dòng. */
+/** 1 dòng trong chế độ nhập nhiều dòng / dán chat Telegram. */
 export type QuickBulkRow = {
   /** Tên máy (bắt buộc) */
   name: string;
@@ -117,17 +145,96 @@ export type QuickBulkRow = {
   customerName: string | null;
   /** Số tháng bảo hành — null nghĩa là dùng mặc định của form. */
   months: number | null;
+  /** Ngày hết hạn ISO (YYYY-MM-DD) — từ tin Telegram dạng `6/11/2026`. */
+  endDate: string | null;
+  /** Ghi chú thêm (VD: nội dung sửa / giá từ tin nhắn). */
+  note: string | null;
 };
 
+const VN_PHONE_TAIL = /(\+?84|0)?(\d{9,10})\s*$/;
+
+/** Parse `d/m/yyyy` hoặc `d-m-yyyy` → `YYYY-MM-DD`. */
+export function parseVnDate(input: string): string | null {
+  const m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/.exec(input.trim());
+  if (!m) return null;
+  const d = Number(m[1]);
+  const mo = Number(m[2]);
+  const y = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Lấy số tháng từ chuỗi kiểu `bh2th`, `2th`, `BH 2 tháng`. */
+export function extractWarrantyMonths(text: string): number | null {
+  const m =
+    /\bbh\s*(\d+)\s*th(?:áng)?\b/i.exec(text) ??
+    /\b(\d+)\s*th(?:áng)?\b/i.exec(text);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n > 0 ? n : null;
+}
+
+/** Tách tên khách + SĐT ở cuối dòng (`Khánh 0777645720`). */
+export function parseNamePhone(line: string): {
+  customerName: string | null;
+  phone: string | null;
+} {
+  const trimmed = line.trim();
+  const m = VN_PHONE_TAIL.exec(trimmed);
+  if (!m || m.index === undefined) {
+    return { customerName: trimmed || null, phone: null };
+  }
+  const phone = normalizePhone(m[0]);
+  const name = trimmed.slice(0, m.index).trim().replace(/[-–—]\s*$/, "").trim();
+  return { customerName: name || null, phone };
+}
+
 /**
- * Định dạng 1 dòng trong chế độ nhập nhiều dòng:
- *   `tên máy | serial | imei | số điện thoại | tên khách | số tháng`
- * Dấu `|` là dấu phân cách chính; nếu dòng KHÔNG có `|` thì fallback sang `,`
- * (tiện cho ai copy từ Google Sheets). Bỏ qua dòng rỗng và dòng bắt đầu bằng `#`.
+ * Dọn dòng mô tả máy từ Telegram (bỏ `bh2th`, giá `750k`/`1tr350k`).
+ * Giữ phần tên máy + mô tả sửa.
+ */
+export function cleanTelegramDeviceLine(line: string): string {
+  return line
+    .replace(/\bbh\s*\d+\s*th(?:áng)?\b/gi, " ")
+    .replace(/\b\d+\s*th(?:áng)?\b/gi, " ")
+    .replace(/\b\d+(?:[.,]\d+)?\s*tr(?:iệu)?(?:\d+)?k?\b/gi, " ")
+    .replace(/\b\d+[.,]?\d*\s*k\b/gi, " ")
+    .replace(/\b\d{1,3}(?:[.,]\d{3})+(?:\s*đ)?\b/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Định dạng pipe / CSV:
+ *   `tên máy | tên khách | số điện thoại | số tháng BH`
  */
 export function parseQuickBulkLine(line: string): QuickBulkRow | null {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith("#")) return null;
+
+  // Một dòng Telegram: `An515-58 - Phước Ân 0936393449`
+  if (!trimmed.includes("|") && /[-–—]/.test(trimmed) && VN_PHONE_TAIL.test(trimmed)) {
+    const dash = trimmed.search(/\s[-–—]\s/);
+    if (dash > 0) {
+      const device = trimmed.slice(0, dash).trim();
+      const rest = trimmed.slice(dash).replace(/^\s*[-–—]\s*/, "");
+      const { customerName, phone } = parseNamePhone(rest);
+      if (device && (phone || customerName)) {
+        return {
+          name: device,
+          serial: null,
+          imei: null,
+          customerName,
+          phone,
+          months: null,
+          endDate: null,
+          note: null,
+        };
+      }
+    }
+  }
+
+  if (!trimmed.includes("|") && !trimmed.includes(",")) return null;
 
   const parts = trimmed.includes("|")
     ? trimmed.split("|")
@@ -137,33 +244,87 @@ export function parseQuickBulkLine(line: string): QuickBulkRow | null {
   const name = cells[0] ?? "";
   if (!name) return null;
 
-  const monthsRaw = cells[5] ?? "";
+  const monthsRaw = cells[3] ?? "";
   const monthsNum = /^\d+$/.test(monthsRaw) ? Number(monthsRaw) : null;
 
   return {
     name,
-    serial: cells[1] || null,
-    imei: cells[2] || null,
-    phone: cells[3] || null,
-    customerName: cells[4] || null,
+    serial: null,
+    imei: null,
+    customerName: cells[1] || null,
+    phone: cells[2] || null,
     months: monthsNum !== null && monthsNum > 0 ? monthsNum : null,
+    endDate: null,
+    note: null,
   };
 }
 
-/** Parse cả khối text nhiều dòng → mảng row (bỏ dòng rỗng/ghi chú). */
+/**
+ * Parse cả khối text:
+ * 1) Định dạng `|` / CSV (1 dòng = 1 máy)
+ * 2) Copy từ Telegram — 1 dòng `máy - tên SĐT` hoặc block 3 dòng:
+ *      6/11/2026
+ *      Thinkbook IC sạc 750k bh2th
+ *      Khánh 0777645720
+ */
 export function parseQuickBulkText(text: string): QuickBulkRow[] {
-  return text
+  const lines = text
     .split(/\r?\n/)
-    .map(parseQuickBulkLine)
-    .filter((r): r is QuickBulkRow => r !== null);
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith("#"));
+
+  const rows: QuickBulkRow[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const dateIso = parseVnDate(lines[i]);
+    // Block Telegram 3 dòng: ngày hết hạn → mô tả máy → tên + SĐT
+    if (dateIso && i + 2 < lines.length) {
+      const deviceRaw = lines[i + 1];
+      const customerLine = lines[i + 2];
+      // Dòng kế phải giống "tên + SĐT", không phải ngày khác
+      if (!parseVnDate(customerLine) && VN_PHONE_TAIL.test(customerLine)) {
+        const months = extractWarrantyMonths(deviceRaw);
+        const name = cleanTelegramDeviceLine(deviceRaw) || deviceRaw;
+        const { customerName, phone } = parseNamePhone(customerLine);
+        rows.push({
+          name,
+          serial: null,
+          imei: null,
+          customerName,
+          phone,
+          months,
+          endDate: dateIso,
+          note: deviceRaw !== name ? deviceRaw : null,
+        });
+        i += 3;
+        continue;
+      }
+    }
+
+    const pipeOrOneLiner = parseQuickBulkLine(lines[i]);
+    if (pipeOrOneLiner) {
+      rows.push(pipeOrOneLiner);
+      i += 1;
+      continue;
+    }
+
+    // Bỏ qua dòng không nhận diện (timestamp Telegram, ảnh caption rỗng…)
+    i += 1;
+  }
+
+  return rows;
 }
 
 /** Mẫu định dạng để hiển thị trong UI + dùng cho file "Tải mẫu". */
 export const QUICK_BULK_TEMPLATE_HEADER =
-  "tên máy | serial | imei | số điện thoại | tên khách | số tháng";
+  "tên máy | tên khách | số điện thoại | số tháng BH";
 
 export const QUICK_BULK_TEMPLATE_EXAMPLE = [
-  "Dell Inspiron 15 3511 | SN-DELL-001 | 358938051234567 | 0901234567 | Nguyễn Văn A | 12",
-  "Asus Vivobook 15 | SN-ASUS-002 | | 0912345678 | Trần Thị B | 6",
-  "HP Pavilion 15 (sửa chữa) | | 358938051111111 | | | 3",
+  "Dell Inspiron 15 3511 | Nguyễn Văn A | 0901234567 | 12",
+  "Asus Vivobook 15 | Trần Thị B | 0912345678 | 6",
+  "# Hoặc dán nguyên tin Telegram:",
+  "An515-58 - Phước Ân 0936393449",
+  "6/11/2026",
+  "Thinkbook IC sạc 750k bh2th",
+  "Khánh 0777645720",
 ].join("\n");
