@@ -9,13 +9,33 @@ const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-sans" 
 
 export async function generateMetadata(): Promise<Metadata> {
   const brandName = await getBrandNameCached();
+  const titleDefault = `${brandName} - Laptop Cần Thơ`;
+  const description = `${brandName} — Laptop chính hãng, giá tốt tại Cần Thơ. Apple · Dell · ASUS · Lenovo — trả góp 0% 12 tháng.`;
+
   return {
+    // Chỉ khai báo title ở root. `(client)/layout` KHÔNG được set lại
+    // `title.default` — nếu set, template `%s | brand` sẽ bọc thêm lần nữa
+    // → Google từng hiện "LapLap - Laptop Cần Thơ | LapLap".
     title: {
-      default: `${brandName} - Laptop Cần Thơ`,
+      default: titleDefault,
       template: `%s | ${brandName}`,
     },
-    description: `${brandName} - Cửa hàng laptop uy tín tại Cần Thơ`,
+    description,
+    applicationName: brandName,
     metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
+    openGraph: {
+      type: "website",
+      locale: "vi_VN",
+      siteName: brandName,
+      title: titleDefault,
+      description,
+      url: env.NEXT_PUBLIC_APP_URL,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: titleDefault,
+      description,
+    },
   };
 }
 

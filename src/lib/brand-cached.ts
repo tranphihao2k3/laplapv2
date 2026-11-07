@@ -23,7 +23,7 @@ export const getBrandNameCached = unstable_cache(
   async (): Promise<string> => {
     return getBrandNameAsync();
   },
-  ["brand-name-v1"],
+  ["brand-name-v2"],
   {
     revalidate: 3600,
     tags: ["store-info"],

@@ -19,9 +19,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const FALLBACK_BRAND = "Laptop Thành Võ";
 const FALLBACK_EMAIL = "info@laplap.vn";
 
+/**
+ * Tên dự án cũ ("LapLap") còn sót trong env / settings → không dùng làm
+ * brand public (meta title/Google). Ép về tên cửa hàng thật.
+ */
+function normalizeBrandName(raw: string | null | undefined): string | null {
+  const v = raw?.trim();
+  if (!v) return null;
+  if (/^lap\s*lap$/i.test(v)) return FALLBACK_BRAND;
+  return v;
+}
+
 function safeEnvName(): string {
-  const v = env.NEXT_PUBLIC_APP_NAME?.trim();
-  return v && v.length > 0 ? v : FALLBACK_BRAND;
+  return normalizeBrandName(env.NEXT_PUBLIC_APP_NAME) ?? FALLBACK_BRAND;
 }
 
 async function readSettingsStoreValue(key: "name" | "email"): Promise<string | null> {
@@ -53,7 +63,7 @@ async function readSettingsStoreValue(key: "name" | "email"): Promise<string | n
  */
 export const getBrandNameAsync = cache(
   async (_shopId?: string | null): Promise<string> => {
-    const fromSettings = await readSettingsStoreValue("name");
+    const fromSettings = normalizeBrandName(await readSettingsStoreValue("name"));
     if (fromSettings) return fromSettings;
     return safeEnvName();
   },

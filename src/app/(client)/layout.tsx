@@ -1,5 +1,3 @@
-import type { Metadata } from "next";
-import { getBrandNameCached } from "@/lib/brand-cached";
 import { ClientHeader } from "@/components/client/layout/client-header";
 import { ClientFooter } from "@/components/client/layout/client-footer";
 import { CompareBar } from "@/components/client/compare/compare-bar";
@@ -30,16 +28,9 @@ import { CompareBar } from "@/components/client/compare/compare-bar";
  */
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const brandName = await getBrandNameCached();
-  return {
-    title: {
-      default: `${brandName} - Laptop Cần Thơ`,
-      template: `%s | ${brandName}`,
-    },
-    description: `${brandName} - Cửa hàng laptop uy tín tại Cần Thơ`,
-  };
-}
+// Metadata (title/description/OG) lấy từ root `src/app/layout.tsx`.
+// Không khai báo lại ở đây — nếu set `title.default` thêm lần nữa, template
+// `%s | brand` của root sẽ bọc thành "Brand - Laptop Cần Thơ | Brand".
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
