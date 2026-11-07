@@ -145,7 +145,9 @@ export type QuickBulkRow = {
   customerName: string | null;
   /** Số tháng bảo hành — null nghĩa là dùng mặc định của form. */
   months: number | null;
-  /** Ngày hết hạn ISO (YYYY-MM-DD) — từ tin Telegram dạng `6/11/2026`. */
+  /** Ngày bắt đầu BH ISO — từ tin Telegram / cột 5 (VD: `6/11/2026` = ngày bán/sửa). */
+  startDate: string | null;
+  /** Ngày hết hạn ISO — chỉ khi admin chỉ định tường minh (hiếm). */
   endDate: string | null;
   /** Ghi chú thêm (VD: nội dung sửa / giá từ tin nhắn). */
   note: string | null;
@@ -227,6 +229,7 @@ export function parseQuickBulkLine(line: string): QuickBulkRow | null {
           customerName,
           phone,
           months: null,
+          startDate: null,
           endDate: null,
           note: null,
         };
@@ -246,6 +249,11 @@ export function parseQuickBulkLine(line: string): QuickBulkRow | null {
 
   const monthsRaw = cells[3] ?? "";
   const monthsNum = /^\d+$/.test(monthsRaw) ? Number(monthsRaw) : null;
+  // Cột 5 (tuỳ chọn): ngày bắt đầu BH `d/m/yyyy` hoặc `YYYY-MM-DD`
+  const startRaw = cells[4] ?? "";
+  const startDate =
+    parseVnDate(startRaw) ??
+    (/^\d{4}-\d{2}-\d{2}$/.test(startRaw) ? startRaw : null);
 
   return {
     name,
@@ -254,6 +262,7 @@ export function parseQuickBulkLine(line: string): QuickBulkRow | null {
     customerName: cells[1] || null,
     phone: cells[2] || null,
     months: monthsNum !== null && monthsNum > 0 ? monthsNum : null,
+    startDate,
     endDate: null,
     note: null,
   };
@@ -263,7 +272,7 @@ export function parseQuickBulkLine(line: string): QuickBulkRow | null {
  * Parse cả khối text:
  * 1) Định dạng `|` / CSV (1 dòng = 1 máy)
  * 2) Copy từ Telegram — 1 dòng `máy - tên SĐT` hoặc block 3 dòng:
- *      6/11/2026
+ *      6/11/2026          ← ngày bắt đầu BH (ngày bán / sửa)
  *      Thinkbook IC sạc 750k bh2th
  *      Khánh 0777645720
  */
@@ -277,7 +286,7 @@ export function parseQuickBulkText(text: string): QuickBulkRow[] {
   let i = 0;
   while (i < lines.length) {
     const dateIso = parseVnDate(lines[i]);
-    // Block Telegram 3 dòng: ngày hết hạn → mô tả máy → tên + SĐT
+    // Block Telegram 3 dòng: ngày bắt đầu → mô tả máy → tên + SĐT
     if (dateIso && i + 2 < lines.length) {
       const deviceRaw = lines[i + 1];
       const customerLine = lines[i + 2];
@@ -293,7 +302,8 @@ export function parseQuickBulkText(text: string): QuickBulkRow[] {
           customerName,
           phone,
           months,
-          endDate: dateIso,
+          startDate: dateIso,
+          endDate: null,
           note: deviceRaw !== name ? deviceRaw : null,
         });
         i += 3;
@@ -317,12 +327,12 @@ export function parseQuickBulkText(text: string): QuickBulkRow[] {
 
 /** Mẫu định dạng để hiển thị trong UI + dùng cho file "Tải mẫu". */
 export const QUICK_BULK_TEMPLATE_HEADER =
-  "tên máy | tên khách | số điện thoại | số tháng BH";
+  "tên máy | tên khách | số điện thoại | số tháng BH | ngày bắt đầu";
 
 export const QUICK_BULK_TEMPLATE_EXAMPLE = [
-  "Dell Inspiron 15 3511 | Nguyễn Văn A | 0901234567 | 12",
+  "Dell Inspiron 15 3511 | Nguyễn Văn A | 0901234567 | 12 | 7/11/2026",
   "Asus Vivobook 15 | Trần Thị B | 0912345678 | 6",
-  "# Hoặc dán nguyên tin Telegram:",
+  "# Hoặc dán nguyên tin Telegram (dòng 1 = ngày bắt đầu BH):",
   "An515-58 - Phước Ân 0936393449",
   "6/11/2026",
   "Thinkbook IC sạc 750k bh2th",

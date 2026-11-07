@@ -370,9 +370,10 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
     setSubmitting(true);
     try {
       const items = bulkRows.map((r) => {
+        const start = r.startDate ?? bulkStartDate;
         const months =
           r.months ??
-          (r.endDate ? diffMonthsIso(bulkStartDate, r.endDate) : null) ??
+          (r.endDate ? diffMonthsIso(start, r.endDate) : null) ??
           bulkMonths;
         return {
           warranty_type: bulkType,
@@ -383,7 +384,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
             imei: r.imei,
             product_variant_id: null,
           },
-          start_date: bulkStartDate,
+          start_date: start,
           warranty_months: months > 0 ? months : bulkMonths,
           end_date: r.endDate,
           status: "active",
@@ -758,10 +759,13 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                 </span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Có thể dán: (1) <code>tên máy | tên khách | SĐT | tháng</code>,
+                Có thể dán: (1){" "}
+                <code>tên máy | tên khách | SĐT | tháng | ngày bắt đầu</code>,
                 (2) tin Telegram 1 dòng <code>máy - tên SĐT</code>, hoặc (3) block
-                3 dòng <code>ngày hết hạn / mô tả máy bh2th / tên SĐT</code> copy
-                từ group BH–sửa chữa. SĐT trùng → gắn khách cũ.
+                3 dòng{" "}
+                <code>ngày bắt đầu / mô tả máy bh2th / tên SĐT</code> copy từ
+                group. Không có ngày từng dòng → dùng ô &quot;Ngày bắt đầu&quot;
+                phía trên. SĐT trùng → gắn khách cũ.
               </p>
             </div>
 
@@ -773,22 +777,27 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                       <th className="px-2 py-1.5">Tên máy</th>
                       <th className="px-2 py-1.5">Tên khách</th>
                       <th className="px-2 py-1.5">SĐT</th>
-                      <th className="px-2 py-1.5">Hết hạn / tháng</th>
+                      <th className="px-2 py-1.5">Bắt đầu / tháng</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {bulkRows.slice(0, 50).map((r, i) => (
+                    {bulkRows.slice(0, 50).map((r, i) => {
+                      const start = r.startDate ?? bulkStartDate;
+                      const startLabel = start
+                        .split("-")
+                        .reverse()
+                        .join("/");
+                      return (
                       <tr key={i} className="border-t">
                         <td className="px-2 py-1.5">{r.name}</td>
                         <td className="px-2 py-1.5">{r.customerName ?? "—"}</td>
                         <td className="px-2 py-1.5 font-mono">{r.phone ?? "—"}</td>
                         <td className="px-2 py-1.5">
-                          {r.endDate
-                            ? r.endDate.split("-").reverse().join("/")
-                            : `${r.months ?? bulkMonths} th`}
+                          {`${startLabel} · ${r.months ?? bulkMonths} th`}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
                 {bulkRows.length > 50 ? (
