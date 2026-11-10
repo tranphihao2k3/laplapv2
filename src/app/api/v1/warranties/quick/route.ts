@@ -22,7 +22,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser, requirePermission } from "@/lib/api/guard";
-import { ok, handleError, Errors } from "@/lib/api/response";
+import { ok, handleError, Errors, isPostgrestError } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/api/audit";
 import { uuid, isoDate } from "@/lib/validators/common";
 import {
@@ -467,7 +467,10 @@ export async function POST(req: NextRequest) {
         results.push(await createOne(supabase, orgId, user.id, shopId, parsed.data));
       } catch (e) {
         // Một dòng lỗi KHÔNG được làm hỏng cả batch → ghi lại lỗi dòng đó.
-        const message = e instanceof Error ? e.message : "Lỗi không xác định";
+        let message: string;
+        if (e instanceof Error) message = e.message;
+        else if (isPostgrestError(e)) message = e.message ?? "Lỗi database";
+        else message = "Lỗi không xác định";
         results.push({ ok: false, error: message });
       }
     }

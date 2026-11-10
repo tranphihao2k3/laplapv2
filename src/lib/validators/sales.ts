@@ -88,6 +88,14 @@ export const checkoutSchema = z.object({
         quantity: z.number().int().min(1),
         unit_price: z.number().nonnegative().optional(),
         serial_id: uuid.nullable().optional(),
+        /**
+         * Bảo hành cho sản phẩm này — 1 trong 2 cách:
+         *   - `warranty_months` (số nguyên ≥ 0): cấp BH N tháng tính từ ngày bán.
+         *   - `warranty_end_date` (YYYY-MM-DD): ngày hết hạn cụ thể (ưu tiên hơn).
+         * Cả 2 đều optional; nếu không truyền → không tạo BH cho dòng này.
+         */
+        warranty_months: z.number().int().min(0).max(120).nullish(),
+        warranty_end_date: isoDate.nullish(),
       }),
     )
     .min(1),
@@ -98,6 +106,8 @@ export const checkoutSchema = z.object({
     transaction_code: z.string().nullable().optional(),
   }),
   note: z.string().nullable().optional(),
+  /** Dùng để đồng bộ ngày bắt đầu BH (mặc định = ngày bán = order.created_at). */
+  warranty_start: isoDate.nullish(),
 });
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>;

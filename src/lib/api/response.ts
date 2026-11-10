@@ -97,7 +97,7 @@ type PostgrestLikeError = {
   hint?: string | null;
 };
 
-function isPostgrestError(e: unknown): e is PostgrestLikeError {
+export function isPostgrestError(e: unknown): e is PostgrestLikeError {
   return (
     typeof e === "object" &&
     e !== null &&

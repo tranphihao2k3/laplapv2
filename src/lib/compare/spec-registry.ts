@@ -240,7 +240,7 @@ export const METRICS: Metric[] = [
     label: "Bảo hành",
     group: "Khác",
     iconName: "ShieldCheck",
-    keys: ["warranty", "bao_hanh"],
+    keys: ["warranty", "bao_hanh", "warranty_months"],
     kind: "info",
     scored: false,
   },

@@ -34,6 +34,7 @@ const QUICK_SPEC_META: Array<{ id: string; label: string }> = [
   { id: "storage", label: "SSD" },
   { id: "gpu", label: "VGA" },
   { id: "display", label: "Màn hình" },
+  { id: "warranty", label: "BH" },
 ];
 
 /** Cắt ngắn giá trị để không vỡ layout trên màn hình hẹp. */

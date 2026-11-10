@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Edit, Save, X, FileText, Cpu, Gift, Layers3, Eye, Pencil, ClipboardCopy, LayoutGrid, List, Package, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Plus, Trash2, Edit, Save, X, FileText, Cpu, Gift, Layers3, Eye, Pencil, ClipboardCopy, LayoutGrid, List, Package, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ShieldCheck, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -2020,6 +2020,47 @@ export default function ProductsAdminPage() {
                     ))}
                   </div>
                 )}
+                {/* Bảo hành — ô nhập số tháng / ngày hết hạn cụ thể.
+                    Dữ liệu lưu dưới dạng spec key "warranty_months" (số) và
+                    "warranty_end_date" (YYYY-MM-DD) để POS checkout tự tạo BH. */}
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t">
+                  <div className="space-y-1">
+                    <Label className="text-xs flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                      Bảo hành (tháng)
+                    </Label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={specValues["warranty_months"] ?? ""}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, "");
+                        setSpecValues((prev) => ({
+                          ...prev,
+                          warranty_months: raw,
+                          warranty: raw ? `${raw} tháng` : (prev.warranty ?? ""),
+                        }));
+                      }}
+                      placeholder="VD: 12"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-muted-foreground" />
+                      Ngày hết hạn cụ thể
+                    </Label>
+                    <Input
+                      type="date"
+                      value={(specValues["warranty_end_date"] as string) ?? ""}
+                      onChange={(e) =>
+                        setSpecValues((prev) => ({ ...prev, warranty_end_date: e.target.value }))
+                      }
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Nếu nhập ngày này, POS sẽ ưu tiên dùng thay vì tính từ số tháng.
+                    </p>
+                  </div>
+                </div>
               </div>
             </Section>
 

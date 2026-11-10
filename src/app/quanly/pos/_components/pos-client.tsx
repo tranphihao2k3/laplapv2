@@ -20,6 +20,8 @@ import {
   Percent,
   StickyNote,
   ScanLine,
+  ShieldCheck,
+  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -86,6 +88,10 @@ function PosClientInner() {
   const [discountInput, setDiscountInput] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [showNote, setShowNote] = useState(false);
+  /** Bảo hành theo dòng: variant_id → { months, endDate } */
+  const [warrantyDrafts, setWarrantyDrafts] = useState<
+    Record<string, { months: string; endDate: string }>
+  >({});
 
   // ===== Hold bills =====
   const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
@@ -215,6 +221,8 @@ function PosClientInner() {
         next[idx] = { ...current, quantity: current.quantity + 1, stock: hit.stock };
         return next;
       }
+      // Khởi tạo bảo hành theo spec của sản phẩm (nếu có) — parse "3 tháng" → 3
+      const specMonths = parseWarrantyMonthsFromSpec(hit.specs);
       return [
         ...prev,
         {
@@ -227,8 +235,18 @@ function PosClientInner() {
           unit_price: hit.selling_price,
           quantity: 1,
           stock: hit.stock,
+          warranty_months: specMonths,
         },
       ];
+    });
+    // Mở ô nhập bảo hành cho dòng vừa thêm (nếu có chỉ định)
+    setWarrantyDrafts((prev) => {
+      const next = { ...prev };
+      const hitSpec = parseWarrantyMonthsFromSpec(hit.specs);
+      if (hitSpec && hitSpec > 0) {
+        next[hit.variant_id] = { months: String(hitSpec), endDate: "" };
+      }
+      return next;
     });
   };
 
@@ -433,11 +451,20 @@ function PosClientInner() {
         shop_id: shopId,
         customer_id: customer?.id ?? null,
         channel: "pos" as const,
-        items: lines.map((l) => ({
-          product_variant_id: l.variant_id,
-          quantity: l.quantity,
-          unit_price: l.unit_price,
-        })),
+        items: lines.map((l) => {
+          const draft = warrantyDrafts[l.variant_id];
+          const monthsRaw = draft?.months?.trim() ?? "";
+          const months = /^\d+$/.test(monthsRaw) ? Number(monthsRaw) : (l.warranty_months ?? null);
+          const endDateRaw = draft?.endDate?.trim() ?? "";
+          const endDate = /^\d{4}-\d{2}-\d{2}$/.test(endDateRaw) ? endDateRaw : null;
+          return {
+            product_variant_id: l.variant_id,
+            quantity: l.quantity,
+            unit_price: l.unit_price,
+            warranty_months: months && months > 0 ? months : null,
+            warranty_end_date: endDate,
+          };
+        }),
         discount_amount: flatDiscount + loyaltyDiscount,
         payment: {
           method: primary.method,
@@ -905,6 +932,67 @@ function PosClientInner() {
                             <div className="min-w-0 flex-1 truncate text-right text-sm font-bold tabular-nums text-foreground sm:flex-none sm:min-w-[90px]">
                               {formatVND(lineTotal)}
                             </div>
+                            {/* Bảo hành — ô nhập số tháng + chọn ngày hết hạn */}
+                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                              <div className="flex items-center gap-1 rounded-md border bg-muted/40 px-1.5 py-0.5">
+                                <ShieldCheck className="h-3 w-3 shrink-0 text-emerald-600" />
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={
+                                    warrantyDrafts[l.variant_id]?.months ??
+                                    (l.warranty_months != null ? String(l.warranty_months) : "")
+                                  }
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(/\D/g, "");
+                                    setWarrantyDrafts((prev) => ({
+                                      ...prev,
+                                      [l.variant_id]: {
+                                        ...(prev[l.variant_id] ?? { months: "", endDate: "" }),
+                                        months: raw,
+                                      },
+                                    }));
+                                  }}
+                                  onBlur={() => {
+                                    const raw = (warrantyDrafts[l.variant_id]?.months ?? "").trim();
+                                    const n = /^\d+$/.test(raw) ? Number(raw) : null;
+                                    setLines((prev) =>
+                                      prev.map((x) =>
+                                        x.variant_id === l.variant_id
+                                          ? { ...x, warranty_months: n && n > 0 ? n : null }
+                                          : x,
+                                      ),
+                                    );
+                                  }}
+                                  placeholder="tháng"
+                                  className="h-7 w-12 border-0 bg-transparent p-0 text-right text-[11px] font-medium tabular-nums focus-visible:ring-0 focus-visible:ring-offset-0"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1 rounded-md border bg-muted/40 px-1.5 py-0.5">
+                                <Calendar className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                <Input
+                                  type="date"
+                                  value={warrantyDrafts[l.variant_id]?.endDate ?? ""}
+                                  onChange={(e) => {
+                                    setWarrantyDrafts((prev) => ({
+                                      ...prev,
+                                      [l.variant_id]: {
+                                        ...(prev[l.variant_id] ?? { months: "", endDate: "" }),
+                                        endDate: e.target.value,
+                                      },
+                                    }));
+                                    setLines((prev) =>
+                                      prev.map((x) =>
+                                        x.variant_id === l.variant_id
+                                          ? { ...x, warranty_end_date: e.target.value || null }
+                                          : x,
+                                      ),
+                                    );
+                                  }}
+                                  className="h-7 w-24 border-0 bg-transparent p-0 text-[11px] focus-visible:ring-0 focus-visible:ring-offset-0"
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1154,4 +1242,21 @@ function Kbd({ children }: { children: React.ReactNode }) {
       {children}
     </kbd>
   );
+}
+
+/**
+ * Parse số tháng bảo hành từ spec string (VD: "3 tháng", "3th", "12 tháng").
+ * Trả về số nguyên ≥ 0, hoặc null nếu không parse được.
+ */
+function parseWarrantyMonthsFromSpec(
+  specs?: { id: string; label: string; value: string; raw: string }[] | null,
+): number | null {
+  if (!specs?.length) return null;
+  const w = specs.find((s) => s.id === "warranty");
+  const raw = w?.raw || w?.value || "";
+  if (!raw) return null;
+  const m = /(\d+)\s*th(?:áng)?/i.exec(raw);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }

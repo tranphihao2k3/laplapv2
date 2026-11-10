@@ -47,6 +47,10 @@ export type CartLine = {
   stock: number;
   /** Ghi chú riêng cho dòng (vd: yêu cầu đặc biệt). */
   note?: string | null;
+  /** Bảo hành: số tháng (ưu tiên hơn là end_date nếu cả 2 đều set). */
+  warranty_months?: number | null;
+  /** Bảo hành: ngày hết hạn cụ thể (YYYY-MM-DD) — ưu tiên hơn warranty_months. */
+  warranty_end_date?: string | null;
 };
 
 export type PaymentMethod = "cash" | "card" | "transfer" | "ewallet";

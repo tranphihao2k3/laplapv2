@@ -6,6 +6,7 @@ import { writeAuditLog } from "@/lib/api/audit";
 import { checkoutSchema } from "@/lib/validators/sales";
 import { checkoutService } from "@/server/services";
 import { giftStockService } from "@/server/services/gift-stock-service";
+import { checkoutWarrantyService } from "@/server/services/checkout-warranty-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     const shopWarehouseIds = shopWarehouses.map((w) => w.id);
 
-    // Kiểm tra tồn kho — chỉ bán trong phạm vi tồn của cửa hàng đang chọn
+    // Kiểm tra tồn kho - chỉ bán trong phạm vi tồn của cửa hàng đang chọn
     for (const item of body.items) {
       const qty_needed = item.quantity;
 
@@ -74,10 +75,42 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Đồng bộ bảo hành: tạo/cập nhật warranty cho các dòng có chỉ định
+    // warranty_months / warranty_end_date (giống luồng "Tạo nhanh bảo hành").
+    let warrantySync: { created: number; updated: number; skipped: number; errors: string[] } | null = null;
+    if (orderId) {
+      try {
+        const orderRow = await supabase
+          .from("orders")
+          .select("created_at, customer_id")
+          .eq("id", orderId)
+          .maybeSingle();
+        const orderCreatedAt = (orderRow.data?.created_at as string) ?? new Date().toISOString();
+        const orderCustomerId = (orderRow.data?.customer_id as string | null) ?? body.customer_id ?? null;
+
+        warrantySync = await checkoutWarrantyService.sync({
+          db: supabase,
+          orderId,
+          orderCreatedAt,
+          customerId: orderCustomerId,
+          items: body.items.map((i) => ({
+            product_variant_id: i.product_variant_id,
+            serial_id: i.serial_id ?? null,
+            warranty_months: i.warranty_months ?? null,
+            warranty_end_date: i.warranty_end_date ?? null,
+          })),
+          warrantyStart: body.warranty_start ?? null,
+        });
+      } catch (wErr) {
+        console.warn("[checkout] đồng bộ bảo hành thất bại:", wErr);
+      }
+    }
+
     const payload = {
       ...(data as object),
       gift_deductions: giftDeduct?.deducted ?? [],
       gift_warnings: giftDeduct?.warnings ?? [],
+      warranty_sync: warrantySync,
     };
 
     await writeAuditLog({
