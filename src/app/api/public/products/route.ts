@@ -298,15 +298,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Liệt kê product có ít nhất 1 variant active — KHÔNG filter theo stock_levels.
-    // PC components thường chưa có dòng stock_levels (build-on-demand), laptop cũng có thể
-    // chưa seed stock; việc ẩn sản phẩm vì thiếu stock sẽ khiến khách không thấy catalog.
-    // Tồn kho thực được kiểm tra ở product detail / add-to-cart — UI listing chỉ cần biết
-    // sản phẩm có còn bán hay không (inStock = còn ít nhất 1 variant active).
-    const activeProductIds = new Set(
-      variants.filter((v) => v.is_active !== false).map((v) => v.product_id!).filter(Boolean),
+    // Chỉ hiển thị sản phẩm có ít nhất 1 variant active còn tồn kho (> 0) với client.
+    const inStockProductIds = new Set(
+      variants
+        .filter(
+          (v) =>
+            v.is_active !== false &&
+            v.product_id &&
+            (stockByVariant.get(v.id) ?? 0) > 0,
+        )
+        .map((v) => v.product_id!)
+        .filter(Boolean),
     );
-    const inStockProducts = productsByKind.filter((p) => activeProductIds.has(p.id));
+    const inStockProducts = productsByKind.filter((p) => inStockProductIds.has(p.id));
     if (inStockProducts.length === 0) {
       return NextResponse.json({ items: [], total: 0, page, limit, totalPages: 0, kind });
     }
@@ -353,10 +357,7 @@ export async function GET(req: NextRequest) {
         categoryId: p.category_id,
         tags: keepValidNeedTags(p.tags),
         specs: specsByProduct.get(p.id) ?? {},
-        // inStock = có variant active. PC components không có stock_levels vẫn là "in stock"
-        // vì catalog browseable; add-to-cart sẽ báo lỗi nếu variant thực sự hết.
-        inStock: activeProductIds.has(p.id),
-        // stockQty chỉ mang ý nghĩa tham khảo: 0 = chưa track / hết hàng.
+        inStock: inStockProductIds.has(p.id),
         stockQty: firstVariantId ? (stockByVariant.get(firstVariantId) ?? 0) : 0,
         variantId: firstVariantId,
         kind: p.category_id ? kindByCategory.get(p.category_id) ?? "laptop" : "laptop",

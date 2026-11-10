@@ -134,7 +134,7 @@ export function HeroSearch() {
   return (
     <div
       ref={rootRef}
-      className="mt-8 w-full max-w-2xl"
+      className={cn("relative mt-8 w-full max-w-2xl", showPanel ? "z-50" : "z-20")}
       style={{ animation: "fadeSlideUp 0.6s ease-out 260ms both" }}
     >
       <form onSubmit={onSubmit} className="relative">
@@ -195,7 +195,7 @@ export function HeroSearch() {
         </div>
 
         {showPanel && (
-          <div className="absolute left-0 right-0 top-full z-30 overflow-hidden rounded-b-2xl border border-t-0 bg-background/98 shadow-xl shadow-primary/5 backdrop-blur">
+          <div className="absolute left-0 right-0 top-full z-50 overflow-hidden rounded-b-2xl border border-t-0 bg-background/98 shadow-xl shadow-primary/5 backdrop-blur">
             {debounced.length >= 1 && !isFetching && items.length === 0 ? (
               <div className="px-4 py-8 text-center">
                 <p className="text-sm font-medium text-foreground">Không tìm thấy sản phẩm phù hợp</p>

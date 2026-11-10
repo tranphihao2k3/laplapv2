@@ -25,7 +25,7 @@ export function HeroSection() {
   );
 
   return (
-    <section className="relative w-full overflow-hidden bg-gradient-to-br from-primary/5 via-background to-accent/5">
+    <section className="relative w-full bg-gradient-to-br from-primary/5 via-background to-accent/5">
       {/* Subtle pattern */}
       <div className="absolute inset-0 opacity-[0.03]" style={{
         backgroundImage: `linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)`,
