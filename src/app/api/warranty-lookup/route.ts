@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("warranties")
       .select(`
-        id, start_date, end_date, status, note,
+        id, start_date, end_date, status, note, warranty_type,
         order:orders(id, order_number, created_at),
         serial:serial_numbers(id, serial, imei)
       `)
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("warranties")
       .select(`
-        id, start_date, end_date, status, note,
+        id, start_date, end_date, status, note, warranty_type,
         customer:customers(id, full_name, phone),
         order:orders(id, order_number, created_at),
         serial:serial_numbers(id, serial, imei)
@@ -204,12 +204,21 @@ export async function GET(req: NextRequest) {
       warranty_months: warrantyMonths,
       status: w.status,
       days_left: daysLeft,
+      warranty_type: w.warranty_type ?? "sold",
     };
   });
+
+  // Chia 2 nhóm: bán máy (sold) và sửa chữa (repair) / gia hạn (extension)
+  const soldWarranties = result.filter((w) => w.warranty_type === "sold");
+  const repairWarranties = result.filter((w) => w.warranty_type === "repair" || w.warranty_type === "extension");
 
   return NextResponse.json({
     customer: customerInfo,
     warranties: result,
     total: result.length,
+    sold_warranties: soldWarranties,
+    repair_warranties: repairWarranties,
+    sold_total: soldWarranties.length,
+    repair_total: repairWarranties.length,
   });
 }

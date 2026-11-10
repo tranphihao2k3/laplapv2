@@ -15,6 +15,10 @@ import {
   MapPin,
   Headphones,
   ScanLine,
+  ShoppingBag,
+  Wrench,
+  Timer,
+  ChevronDown,
 } from "lucide-react";
 
 type WarrantyItem = {
@@ -29,12 +33,17 @@ type WarrantyItem = {
   warranty_months: number;
   status: string;
   days_left: number | null;
+  warranty_type: "sold" | "repair" | "extension";
 };
 
 type WarrantyResponse = {
   customer: { full_name: string | null; phone: string | null } | null;
   warranties: WarrantyItem[];
   total: number;
+  sold_warranties: WarrantyItem[];
+  repair_warranties: WarrantyItem[];
+  sold_total: number;
+  repair_total: number;
 };
 
 function fmtDate(d: string) {
@@ -79,6 +88,123 @@ function elapsedPct(w: WarrantyItem): number {
   } catch {
     return 0;
   }
+}
+
+/** Card chi tiết 1 bảo hành — dùng chung cho 2 nhóm (bán máy / sửa chữa). */
+function WarrantyCard({ w }: { w: WarrantyItem }) {
+  const s = statusInfo(w.status, w.days_left);
+  const pct = elapsedPct(w);
+  const typeIcon =
+    w.warranty_type === "repair" ? (
+      <Wrench className="h-3.5 w-3.5" />
+    ) : w.warranty_type === "extension" ? (
+      <Timer className="h-3.5 w-3.5" />
+    ) : (
+      <ShoppingBag className="h-3.5 w-3.5" />
+    );
+  const typeLabel =
+    w.warranty_type === "repair"
+      ? "Sửa chữa"
+      : w.warranty_type === "extension"
+        ? "Gia hạn"
+        : "Bán máy";
+  return (
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md">
+      <div className={`absolute inset-y-0 left-0 w-1.5 ${s.bar}`} />
+      <div className="p-5 pl-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border">
+              <Package className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div className="min-w-0 pt-0.5">
+              <p className="font-bold leading-tight text-foreground sm:text-lg">{w.product_name}</p>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {w.product_sku && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">SKU: {w.product_sku}</span>}
+                {w.serial_number && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">S/N: {w.serial_number}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold shadow-sm ${s.badge}`}>
+              {s.label}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {typeIcon}
+              {typeLabel}
+            </span>
+          </div>
+        </div>
+
+        {/* Visual Timeline */}
+        <div className="mt-6 rounded-xl bg-muted/40 p-5 ring-1 ring-border">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Kích hoạt</p>
+              <p className="mt-0.5 font-semibold text-foreground">{fmtDate(w.warranty_start)}</p>
+            </div>
+
+            {w.days_left !== null && w.days_left >= 0 && (
+              <div className="text-center">
+                <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold shadow-sm ${s.badge}`}>
+                  <Clock className="h-4 w-4" />
+                  còn {w.days_left} ngày
+                </div>
+              </div>
+            )}
+
+            {w.days_left !== null && w.days_left < 0 && (
+              <div className="text-center">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-bold text-foreground shadow-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  Hết hạn {Math.abs(w.days_left)} ngày
+                </div>
+              </div>
+            )}
+
+            <div className="text-right">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Hết hạn</p>
+              <p className="mt-0.5 font-semibold text-foreground">{fmtDate(w.warranty_end)}</p>
+            </div>
+          </div>
+
+          <div className="relative pt-3 pb-1">
+            <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={`h-full ${s.bar} transition-all duration-1000 ease-out`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            {w.days_left !== null && w.days_left >= 0 && (
+              <div
+                className="absolute top-0 -ml-1.5 flex flex-col items-center"
+                style={{ left: `${pct}%` }}
+              >
+                <div className="h-4 w-3 rounded-t-sm bg-zinc-800 dark:bg-zinc-200" />
+                <div className="h-1 w-1 mt-0.5 rounded-full bg-zinc-800 dark:bg-zinc-200" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Info grid */}
+        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 text-sm sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Số hóa đơn</p>
+            <p className="font-medium font-mono text-foreground">{w.order_number || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Ngày mua</p>
+            <p className="font-medium text-foreground">{fmtDate(w.purchase_date)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Thời hạn</p>
+            <p className="font-medium text-foreground">{w.warranty_months} tháng</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function WarrantyLookupPage() {
@@ -183,8 +309,8 @@ export default function WarrantyLookupPage() {
         )}
 
         {/* Results */}
-        {result && (
-          <div className="mt-6 space-y-4">
+{result && (
+          <div className="mt-6 space-y-5">
             {result.customer && (
               <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-muted/40 p-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-foreground">
@@ -207,108 +333,47 @@ export default function WarrantyLookupPage() {
                 Không có sản phẩm bảo hành nào gắn với thông tin này.
               </div>
             ) : (
-              result.warranties.map((w) => {
-                const s = statusInfo(w.status, w.days_left);
-                const pct = elapsedPct(w);
-                return (
-                  <div
-                    key={w.id}
-                    className="group relative overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md"
-                  >
-                    <div className={`absolute inset-y-0 left-0 w-1.5 ${s.bar}`} />
-                    <div className="p-5 pl-6">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted ring-1 ring-border">
-                            <Package className="h-6 w-6 text-muted-foreground" />
-                          </div>
-                          <div className="min-w-0 pt-0.5">
-                            <p className="font-bold leading-tight text-foreground sm:text-lg">{w.product_name}</p>
-                            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                              {w.product_sku && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">SKU: {w.product_sku}</span>}
-                              {w.serial_number && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">S/N: {w.serial_number}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ${s.badge}`}>
-                          {s.label}
-                        </span>
+              <div className="space-y-6">
+                {/* MUA MÁY */}
+                {result.sold_warranties.length > 0 && (
+                  <section className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-950/40">
+                        <ShoppingBag className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                       </div>
-
-                      {/* Visual Timeline */}
-                      <div className="mt-6 rounded-xl bg-muted/40 p-5 ring-1 ring-border">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Kích hoạt</p>
-                            <p className="mt-0.5 font-semibold text-foreground">{fmtDate(w.warranty_start)}</p>
-                          </div>
-                          
-                          {w.days_left !== null && w.days_left >= 0 && (
-                            <div className="text-center animate-in fade-in zoom-in duration-500">
-                              <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold shadow-sm ${s.badge}`}>
-                                <Clock className="h-4 w-4" />
-                                Còn {w.days_left} ngày
-                              </div>
-                            </div>
-                          )}
-                          
-                          {w.days_left !== null && w.days_left < 0 && (
-                            <div className="text-center">
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm font-bold text-foreground shadow-sm">
-                                <AlertCircle className="h-4 w-4" />
-                                Hết hạn {Math.abs(w.days_left)} ngày
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="text-right">
-                            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Hết hạn</p>
-                            <p className="mt-0.5 font-semibold text-foreground">{fmtDate(w.warranty_end)}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="relative pt-3 pb-1">
-                          {/* Track */}
-                          <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted inset-shadow-sm">
-                            {/* Fill */}
-                            <div
-                              className={`h-full ${s.bar} transition-all duration-1000 ease-out`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          
-                          {/* Current Date Marker */}
-                          {w.days_left !== null && w.days_left >= 0 && (
-                            <div 
-                              className="absolute top-0 -ml-1.5 flex flex-col items-center"
-                              style={{ left: `${pct}%` }}
-                            >
-                              <div className="h-4 w-3 rounded-t-sm bg-zinc-800 dark:bg-zinc-200" />
-                              <div className="h-1 w-1 mt-0.5 rounded-full bg-zinc-800 dark:bg-zinc-200" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Info grid */}
-                      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 text-sm sm:grid-cols-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Số hóa đơn</p>
-                          <p className="font-medium font-mono text-foreground">{w.order_number || "—"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Ngày mua</p>
-                          <p className="font-medium text-foreground">{fmtDate(w.purchase_date)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Thời hạn</p>
-                          <p className="font-medium text-foreground">{w.warranty_months} tháng</p>
-                        </div>
+                      <div>
+                        <h2 className="text-base font-bold text-foreground">Bảo hành bán máy</h2>
+                        <p className="text-xs text-muted-foreground">
+                          {result.sold_total} sản phẩm · BH theo đơn mua hàng
+                        </p>
                       </div>
                     </div>
-                  </div>
-                );
-              })
+                    {result.sold_warranties.map((w) => (
+                      <WarrantyCard key={w.id} w={w} />
+                    ))}
+                  </section>
+                )}
+
+                {/* SỬA CHỮA / GIA HẠN */}
+                {result.repair_warranties.length > 0 && (
+                  <section className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-950/40">
+                        <Wrench className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-bold text-foreground">Bảo hành sửa chữa</h2>
+                        <p className="text-xs text-muted-foreground">
+                          {result.repair_total} phiếu · BH linh kiện / dịch vụ sau sửa
+                        </p>
+                      </div>
+                    </div>
+                    {result.repair_warranties.map((w) => (
+                      <WarrantyCard key={w.id} w={w} />
+                    ))}
+                  </section>
+                )}
+              </div>
             )}
 
             {/* Note */}
