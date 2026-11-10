@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
     // Supabase nested select: lấy customer, order, serial_number + product_variant + product
     const selectExpr = `
       id, serial_number_id, customer_id, order_id, repair_ticket_id, warranty_type, note,
+      device_name,
       start_date, end_date, status,
       customer:customers ( id, full_name, phone ),
       order:orders (
@@ -62,45 +63,38 @@ export async function GET(req: NextRequest) {
     if (status) q = q.eq("status", status);
     const warrantyType = sp.get("warranty_type");
     if (warrantyType) q = q.eq("warranty_type", warrantyType);
+
+    // Search server-side trên device_name + serial + khách + order_number
+    if (search) {
+      const needle = `%${search.replace(/[%_]/g, "")}%`;
+      q = q.or(
+        [
+          `device_name.ilike.${needle}`,
+          `customer.full_name.ilike.${needle}`,
+          `customer.phone.ilike.${needle}`,
+          `order.order_number.ilike.${needle}`,
+          `serial.serial.ilike.${needle}`,
+          `serial.imei.ilike.${needle}`,
+        ].join(","),
+      );
+    }
+
     q = q.order("start_date", { ascending: false }).range(from, to);
 
     const { data, error, count } = await q;
     if (error) throw error;
 
-    // Search client-side trong page hiện tại (không có cột text dễ search trong warranties)
     let items = (data ?? []) as Record<string, unknown>[];
     // Bảo hành tạo nhanh (máy không có trong catalog) lưu tên máy trong `note`
-    // theo quy ước "Thiết bị: <tên>" → expose ra field `device_name` cho UI hiển thị.
+    // theo quy ước "Thiết bị: <tên>" → expose ra field `device_name` cho UI hiển thị
+    // (nếu device_name column rỗng, fallback parse từ note).
     items = items.map((row) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = row as any;
-      return { ...r, device_name: parseDeviceName(r?.note ?? null) };
+      const deviceName =
+        (r?.device_name as string | null) ?? parseDeviceName(r?.note ?? null);
+      return { ...r, device_name: deviceName };
     });
-    if (search) {
-      const needle = search.toLowerCase();
-      items = items.filter((row) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const r = row as any;
-        const orderItems: any[] = Array.isArray(r?.order?.order_items) ? r.order.order_items : [];
-        const productNamesFromOrder = orderItems
-          .map((oi) =>
-            [oi?.product_variant?.product?.name, oi?.product_variant?.name].filter(Boolean).join(" "),
-          )
-          .join(" ")
-          .toLowerCase();
-        return (
-          String(r?.customer?.full_name ?? "").toLowerCase().includes(needle) ||
-          String(r?.customer?.phone ?? "").toLowerCase().includes(needle) ||
-          String(r?.order?.order_number ?? "").toLowerCase().includes(needle) ||
-          String(r?.serial?.serial ?? "").toLowerCase().includes(needle) ||
-          String(r?.serial?.imei ?? "").toLowerCase().includes(needle) ||
-          String(r?.serial?.product_variant?.name ?? "").toLowerCase().includes(needle) ||
-          String(r?.serial?.product_variant?.product?.name ?? "").toLowerCase().includes(needle) ||
-          String(r?.device_name ?? "").toLowerCase().includes(needle) ||
-          productNamesFromOrder.includes(needle)
-        );
-      });
-    }
 
     return ok(paginated(items, count ?? items.length, page, pageSize));
   } catch (e) {

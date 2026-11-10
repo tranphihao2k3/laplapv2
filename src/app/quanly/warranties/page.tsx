@@ -212,6 +212,12 @@ export default function WarrantiesAdminPage() {
       : {}),
   });
 
+  /** Sau khi tạo thành công bảo hành → reset về trang 1 + refetch để hiện mới. */
+  function refreshAfterCreate() {
+    if (page !== 1) setPage(1);
+    void list.refetch();
+  }
+
   const bulkDeleteMutation = useCrudBulkDelete("warranties");
   const deleteMutation = useCrudDelete("warranties");
   const selection = useBulkSelection();
@@ -618,6 +624,7 @@ export default function WarrantiesAdminPage() {
         open={quickOpen}
         onOpenChange={setQuickOpen}
         onCreated={() => {
+          if (page !== 1) setPage(1);
           void list.refetch();
         }}
       />

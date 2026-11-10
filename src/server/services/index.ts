@@ -220,6 +220,7 @@ export const returnOrderItemsService = createCrud({
 // ===== After-sale =====
 export const warrantiesService = createCrud({
   table: "warranties",
+  searchColumns: ["device_name", "serial_number_id", "customer_id", "order_id", "repair_ticket_id"],
   allowedSortColumns: ["start_date", "end_date"],
   defaultOrder: { column: "start_date", ascending: false },
 });

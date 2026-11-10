@@ -2648,6 +2648,7 @@ export type Database = {
       warranties: {
         Row: {
           customer_id: string | null
+          device_name: string | null
           end_date: string | null
           id: string
           note: string | null
@@ -2660,6 +2661,7 @@ export type Database = {
         }
         Insert: {
           customer_id?: string | null
+          device_name?: string | null
           end_date?: string | null
           id?: string
           note?: string | null
@@ -2672,6 +2674,7 @@ export type Database = {
         }
         Update: {
           customer_id?: string | null
+          device_name?: string | null
           end_date?: string | null
           id?: string
           note?: string | null

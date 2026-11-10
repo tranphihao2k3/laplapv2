@@ -404,6 +404,7 @@ async function createOne(
       start_date: item.start_date,
       end_date: endDate,
       status: item.status,
+      device_name: item.device.name.trim() || null,
       note,
     })
     .select("id")
