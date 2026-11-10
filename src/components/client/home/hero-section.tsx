@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Zap, Shield, Truck, Package } from "lucide-react";
 import { buildHeroSlide, type HomepageHeroSetting } from "@/lib/homepage-hero";
+import { HeroSearch } from "@/components/client/home/hero-search";
 
 export function HeroSection() {
   const defaultSlide = useMemo(() => buildHeroSlide(), []);
@@ -64,6 +65,9 @@ export function HeroSection() {
           >
             {slide.sub}
           </p>
+
+          {/* Search */}
+          <HeroSearch />
 
           {/* CTA Buttons */}
           <div

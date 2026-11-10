@@ -13,6 +13,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getShopInfoForRequest, getBrandNameForRequest } from "@/lib/request-shop";
 import { env } from "@/lib/env";
+import { formatCurrency } from "@/lib/utils";
 import { Breadcrumb } from "@/components/client/product/breadcrumb";
 import { ProductGallery } from "@/components/client/product/product-gallery";
 import { ProductInfo } from "@/components/client/product/product-info";
@@ -184,32 +185,69 @@ export async function generateMetadata({
   }
 
   const brandName = await getBrandNameForRequest();
+  const baseUrl = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  const productUrl = `${baseUrl}/products/${product.slug}`;
 
-  const description =
+  const rawDesc =
     product.short_description?.trim() ||
-    (product.description ? product.description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) : "") ||
-    `Mua ${product.name} chính hãng tại ${brandName} - Laptop Cần Thơ. Giá tốt, bảo hành uy tín.`;
+    (product.description ? product.description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "");
 
-  const ogImages = product.images.length > 0 ? product.images.map((i) => i.url) : undefined;
-  const canonical = `/products/${product.slug}`;
+  const hasPrice = product.price != null && product.price > 0;
+  const priceText = hasPrice ? `Giá: ${formatCurrency(product.price as number)}` : "Giá: Liên hệ";
+  const inStock = product.variants.length > 0;
+  const stockText = inStock ? "Còn hàng" : "Hết hàng";
+  const productBrand = product.brand?.name;
+
+  const infoParts = [priceText, stockText, productBrand ? `Hãng: ${productBrand}` : null].filter(
+    Boolean,
+  ) as string[];
+  const baseInfo = infoParts.join(" · ");
+  const description = rawDesc
+    ? `${baseInfo} · ${rawDesc}`.slice(0, 220)
+    : `${baseInfo}. Mua ${product.name} chính hãng tại ${brandName}, bảo hành uy tín.`.slice(0, 220);
+
+  const toAbsoluteUrl = (url: string) => {
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+  };
+
+  // Ưu tiên ảnh đại diện (thumbnail) cho preview link, fallback ảnh đầu tiên trong gallery.
+  const primaryImage = product.thumbnail_url || product.images[0]?.url || null;
+  const ogImageUrl = primaryImage ? toAbsoluteUrl(primaryImage) : null;
+  const ogImages = ogImageUrl
+    ? [{ url: ogImageUrl, alt: product.name, width: 1200, height: 630 }]
+    : undefined;
+
+  const other: Record<string, string> = {};
+  if (hasPrice) {
+    other["product:price:amount"] = String(product.price);
+    other["product:price:currency"] = "VND";
+    other["og:price:amount"] = String(product.price);
+    other["og:price:currency"] = "VND";
+  }
+  other["product:availability"] = inStock ? "in stock" : "out of stock";
+  if (productBrand) other["product:brand"] = productBrand;
 
   return {
     title: product.name,
     description,
-    alternates: { canonical },
+    alternates: { canonical: productUrl },
     openGraph: {
       title: `${product.name} | ${brandName}`,
       description,
-      url: canonical,
+      url: productUrl,
+      siteName: brandName,
+      locale: "vi_VN",
       type: "website",
       images: ogImages,
     },
     twitter: {
-      card: "summary_large_image",
-      title: product.name,
+      card: ogImageUrl ? "summary_large_image" : "summary",
+      title: `${product.name} - ${priceText}`,
       description,
-      images: ogImages,
+      images: ogImageUrl ? [ogImageUrl] : undefined,
     },
+    other,
   };
 }
 
