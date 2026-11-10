@@ -18,6 +18,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { cn, formatCurrency } from "@/lib/utils";
 import { CompareToggle } from "@/components/client/compare/compare-toggle";
 import type { CompareItem } from "@/stores/compare-store";
+import { ProductCardInstallment } from "@/components/client/product/product-card-installment";
 
 export type ProductCardV2Product = {
   id: string;
@@ -265,15 +266,18 @@ export function ProductCardV2({
         )}
 
         {/* Price */}
-        <div className="mt-auto flex flex-wrap items-baseline gap-x-2">
-          <span className="text-base font-bold">
-            {product.price > 0 ? formatCurrency(product.price) : "Liên hệ"}
-          </span>
-          {product.originalPrice != null && product.originalPrice > 0 && product.originalPrice > product.price && (
-            <span className="text-xs text-muted-foreground line-through">
-              {formatCurrency(product.originalPrice)}
+        <div className="mt-auto space-y-1.5">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <span className="text-base font-bold">
+              {product.price > 0 ? formatCurrency(product.price) : "Liên hệ"}
             </span>
-          )}
+            {product.originalPrice != null && product.originalPrice > 0 && product.originalPrice > product.price && (
+              <span className="text-xs text-muted-foreground line-through">
+                {formatCurrency(product.originalPrice)}
+              </span>
+            )}
+          </div>
+          <ProductCardInstallment price={product.price} />
         </div>
       </CardContent>
 
