@@ -134,14 +134,16 @@ export function HeroSearch() {
   return (
     <div
       ref={rootRef}
-      className={cn("relative mt-8 w-full max-w-2xl", showPanel ? "z-50" : "z-20")}
+      className={cn("relative mt-8 w-full max-w-2xl", showPanel ? "z-[60]" : "z-20")}
       style={{ animation: "fadeSlideUp 0.6s ease-out 260ms both" }}
     >
       <form onSubmit={onSubmit} className="relative">
         <div
           className={cn(
             "group relative flex items-center rounded-2xl border bg-background/95 shadow-lg shadow-primary/5 ring-1 ring-black/[0.03] backdrop-blur transition-all sm:rounded-full",
-            open && debounced ? "rounded-b-none sm:rounded-b-2xl sm:rounded-t-2xl border-b-transparent shadow-xl" : "hover:shadow-xl hover:shadow-primary/10",
+            open && debounced
+              ? "rounded-t-2xl rounded-b-none border-b-transparent shadow-xl sm:rounded-t-full sm:rounded-b-none"
+              : "hover:shadow-xl hover:shadow-primary/10",
             "focus-within:border-primary/40 focus-within:ring-4 focus-within:ring-primary/10",
           )}
         >
@@ -195,7 +197,7 @@ export function HeroSearch() {
         </div>
 
         {showPanel && (
-          <div className="absolute left-0 right-0 top-full z-50 overflow-hidden rounded-b-2xl border border-t-0 bg-background/98 shadow-xl shadow-primary/5 backdrop-blur">
+          <div className="absolute left-0 right-0 top-full z-50 overflow-hidden rounded-b-2xl border border-t-0 border-border bg-background shadow-xl shadow-primary/5 ring-1 ring-black/[0.03]">
             {debounced.length >= 1 && !isFetching && items.length === 0 ? (
               <div className="px-4 py-8 text-center">
                 <p className="text-sm font-medium text-foreground">Không tìm thấy sản phẩm phù hợp</p>

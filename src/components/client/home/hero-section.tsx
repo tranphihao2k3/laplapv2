@@ -71,7 +71,7 @@ export function HeroSection() {
 
           {/* CTA Buttons */}
           <div
-            className="mt-8 flex flex-col gap-3 sm:flex-row sm:gap-4"
+            className="relative z-0 mt-8 flex flex-col gap-3 sm:flex-row sm:gap-4"
             style={{ animation: `fadeSlideUp 0.6s ease-out 300ms both` }}
           >
             <Link
@@ -91,7 +91,7 @@ export function HeroSection() {
 
           {/* Trust Badges */}
           <div
-            className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4"
+            className="relative z-0 mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4"
             style={{ animation: `fadeSlideUp 0.6s ease-out 400ms both` }}
           >
             {[
