@@ -43,10 +43,12 @@ export default function RevenueReportPage() {
       }),
   });
 
+  const series = data?.series ?? [];
+
   const maxRevenue = useMemo(() => {
-    if (!data?.series.length) return 0;
-    return Math.max(...data.series.map((s) => s.revenue));
-  }, [data]);
+    if (!series.length) return 0;
+    return Math.max(...series.map((s) => s.revenue));
+  }, [series]);
 
   const summary = data?.summary;
 
@@ -112,13 +114,13 @@ export default function RevenueReportPage() {
         <CardContent>
           {isLoading ? (
             <div className="text-muted-foreground text-sm">Đang tải...</div>
-          ) : !data?.series.length ? (
+          ) : !series.length ? (
             <div className="text-muted-foreground text-sm">Không có dữ liệu trong khoảng đã chọn</div>
           ) : (
             <>
               {/* Bar chart đơn giản bằng div */}
               <div className="space-y-1 mb-4 max-h-64 overflow-y-auto">
-                {data.series.map((s) => (
+                {series.map((s) => (
                   <div key={s.bucket} className="flex items-center gap-2 text-xs">
                     <div className="w-24 text-muted-foreground">{s.bucket}</div>
                     <div className="flex-1 bg-muted rounded overflow-hidden h-5 relative">
@@ -145,7 +147,7 @@ export default function RevenueReportPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.series.map((s) => (
+                  {series.map((s) => (
                     <TableRow key={s.bucket}>
                       <TableCell className="font-mono text-xs">{s.bucket}</TableCell>
                       <TableCell className="text-right font-semibold">{vnd(s.revenue)}</TableCell>
