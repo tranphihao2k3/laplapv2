@@ -1,21 +1,21 @@
-/**
+﻿/**
  * Endpoint chung: POST /v1/admin/bulk-delete
  *
  * Body: { entity: string, ids: string[] }
  *
- * Hành vi mới (best-effort + archive fallback):
- *   - Với từng id, thử gọi svc.remove(db, id) RIÊNG LẺ (không atomic).
- *   - Nếu xoá thành công → thêm vào `deleted`.
- *   - Nếu xoá fail (FK constraint, không tồn tại, v.v.) VÀ entity thuộc
- *     ARCHIVABLE_ENTITIES (vd: products) → set status='archived' thay thế.
- *   - Cả hai fail → thêm vào `failed` với reason.
+ * HÃ nh vi má»›i (best-effort + archive fallback):
+ *   - Vá»›i tá»«ng id, thá»­ gá»i svc.remove(db, id) RIÃŠNG Láºº (khÃ´ng atomic).
+ *   - Náº¿u xoÃ¡ thÃ nh cÃ´ng â†’ thÃªm vÃ o `deleted`.
+ *   - Náº¿u xoÃ¡ fail (FK constraint, khÃ´ng tá»“n táº¡i, v.v.) VÃ€ entity thuá»™c
+ *     ARCHIVABLE_ENTITIES (vd: products) â†’ set status='archived' thay tháº¿.
+ *   - Cáº£ hai fail â†’ thÃªm vÃ o `failed` vá»›i reason.
  *
- * Trước đây route này gọi bulkRemove() 1 lần, nên chỉ 1 id fail là cả
- * batch fail (vd: products không có bulkRemove, hoặc 1 sản phẩm đang
- * được tham chiếu bởi order_items khiến FK 23503). Giờ mỗi id xử lý
- * riêng nên chỉ item lỗi bị archive/fail, phần còn lại xoá thành công.
+ * TrÆ°á»›c Ä‘Ã¢y route nÃ y gá»i bulkRemove() 1 láº§n, nÃªn chá»‰ 1 id fail lÃ  cáº£
+ * batch fail (vd: products khÃ´ng cÃ³ bulkRemove, hoáº·c 1 sáº£n pháº©m Ä‘ang
+ * Ä‘Æ°á»£c tham chiáº¿u bá»Ÿi order_items khiáº¿n FK 23503). Giá» má»—i id xá»­ lÃ½
+ * riÃªng nÃªn chá»‰ item lá»—i bá»‹ archive/fail, pháº§n cÃ²n láº¡i xoÃ¡ thÃ nh cÃ´ng.
  *
- * Whitelist entity → permission vẫn giữ nguyên để chống gọi nhầm.
+ * Whitelist entity â†’ permission váº«n giá»¯ nguyÃªn Ä‘á»ƒ chá»‘ng gá»i nháº§m.
  */
 import { z } from "zod";
 import { requireOrg, requirePermission } from "@/lib/api/guard";
@@ -37,8 +37,8 @@ const bodySchema = z.object({
 });
 
 /**
- * Whitelist entity → permission key cho bulk delete.
- * Nếu entity không nằm trong danh sách này → 403.
+ * Whitelist entity â†’ permission key cho bulk delete.
+ * Náº¿u entity khÃ´ng náº±m trong danh sÃ¡ch nÃ y â†’ 403.
  */
 const ENTITY_PERMISSIONS: Record<string, string> = {
   organizations: "organizations.delete",
@@ -72,11 +72,9 @@ const ENTITY_PERMISSIONS: Record<string, string> = {
   "repair-services": "repair_services.delete",
   settings: "settings.delete",
   "audit-logs": "audit_logs.delete",
-  "newsletter-subscribers": "newsletter_subscribers.delete",
-  "newsletter-outbox": "newsletter_outbox.delete",
 };
 
-/** Map từ URL entity sang key trong services. */
+/** Map tá»« URL entity sang key trong services. */
 const ENTITY_TO_SERVICE: Record<string, keyof typeof services> = {
   organizations: "organizationsService",
   warehouses: "warehousesService",
@@ -109,14 +107,12 @@ const ENTITY_TO_SERVICE: Record<string, keyof typeof services> = {
   "repair-services": "repairServicesService",
   settings: "settingsService",
   "audit-logs": "auditLogsService",
-  "newsletter-subscribers": "newsletterSubscribersService",
-  "newsletter-outbox": "newsletterOutboxService",
 };
 
 /**
- * Entity nào có thể "archive" thay vì xoá cứng khi xoá fail.
- * Mỗi entry định nghĩa: table DB, cột status, giá trị archive.
- * Chỉ áp dụng khi hard-delete fail (vd: FK constraint với order_items).
+ * Entity nÃ o cÃ³ thá»ƒ "archive" thay vÃ¬ xoÃ¡ cá»©ng khi xoÃ¡ fail.
+ * Má»—i entry Ä‘á»‹nh nghÄ©a: table DB, cá»™t status, giÃ¡ trá»‹ archive.
+ * Chá»‰ Ã¡p dá»¥ng khi hard-delete fail (vd: FK constraint vá»›i order_items).
  */
 const ARCHIVABLE_ENTITIES: Record<
   string,
@@ -144,8 +140,8 @@ async function tryArchive(
     .from(table)
     .update(update)
     .eq("id", id)
-    // Chỉ archive nếu đang ở trạng thái "active" — tránh ghi đè các status
-    // đặc biệt (vd: "draft", "out_of_stock") hoặc đã archived từ trước.
+    // Chá»‰ archive náº¿u Ä‘ang á»Ÿ tráº¡ng thÃ¡i "active" â€” trÃ¡nh ghi Ä‘Ã¨ cÃ¡c status
+    // Ä‘áº·c biá»‡t (vd: "draft", "out_of_stock") hoáº·c Ä‘Ã£ archived tá»« trÆ°á»›c.
     .eq(statusColumn, "active")
     .select("id")
     .maybeSingle();
@@ -153,8 +149,8 @@ async function tryArchive(
     return { ok: false, reason: extractPgMessage(error) ?? "archive_failed" };
   }
   if (!data) {
-    // Không match "active" → có thể đã archived, hoặc status khác.
-    // Thử update không điều kiện để xem row còn tồn tại không.
+    // KhÃ´ng match "active" â†’ cÃ³ thá»ƒ Ä‘Ã£ archived, hoáº·c status khÃ¡c.
+    // Thá»­ update khÃ´ng Ä‘iá»u kiá»‡n Ä‘á»ƒ xem row cÃ²n tá»“n táº¡i khÃ´ng.
     const { data: anyRow, error: anyErr } = await db
       .from(table)
       .update(update)
@@ -186,9 +182,9 @@ async function runBatched<T, R>(
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let cursor = 0;
-  // Chạy song song với concurrency cap để không overwhelm DB.
-  // Dùng worker pool size = batchSize; mỗi worker kéo job kế tiếp
-  // cho đến khi hết.
+  // Cháº¡y song song vá»›i concurrency cap Ä‘á»ƒ khÃ´ng overwhelm DB.
+  // DÃ¹ng worker pool size = batchSize; má»—i worker kÃ©o job káº¿ tiáº¿p
+  // cho Ä‘áº¿n khi háº¿t.
   const workers = Array.from({ length: Math.min(batchSize, items.length) }, async () => {
     while (true) {
       const idx = cursor++;
@@ -217,7 +213,7 @@ async function handlePost(req: Request) {
     return new Response(
       JSON.stringify({
         ok: false,
-        error: { message: `Bulk delete không hỗ trợ cho entity '${entity}'` },
+        error: { message: `Bulk delete khÃ´ng há»— trá»£ cho entity '${entity}'` },
       }),
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
@@ -231,7 +227,7 @@ async function handlePost(req: Request) {
     return new Response(
       JSON.stringify({
         ok: false,
-        error: { message: `Service '${entity}' không hỗ trợ delete` },
+        error: { message: `Service '${entity}' khÃ´ng há»— trá»£ delete` },
       }),
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
@@ -245,7 +241,7 @@ async function handlePost(req: Request) {
       await svc.remove!(supabase, id);
       return { id, outcome: "deleted" as const };
     } catch (err) {
-      // Xoá fail. Nếu entity có thể archive thì thử archive.
+      // XoÃ¡ fail. Náº¿u entity cÃ³ thá»ƒ archive thÃ¬ thá»­ archive.
       if (archiveConfig) {
         const archiveResult = await tryArchive(
           supabase,
@@ -302,9 +298,9 @@ async function handlePost(req: Request) {
     deleted,
     archived,
     failed,
-    // Backward-compat alias: route cũ trả `missing` (chỉ id), nhiều
-    // page admin UI vẫn đọc `result.missing?.length`. Giữ thêm để không
-    // phải sửa 15 trang cùng lúc — sau này migrate dần sang `failed`.
+    // Backward-compat alias: route cÅ© tráº£ `missing` (chá»‰ id), nhiá»u
+    // page admin UI váº«n Ä‘á»c `result.missing?.length`. Giá»¯ thÃªm Ä‘á»ƒ khÃ´ng
+    // pháº£i sá»­a 15 trang cÃ¹ng lÃºc â€” sau nÃ y migrate dáº§n sang `failed`.
     missing: failed.map((f) => f.id),
   });
 }

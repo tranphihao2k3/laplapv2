@@ -8,7 +8,7 @@ import { PriceRangeSection } from "@/components/client/home/price-range-section"
 import { PromoBanners } from "@/components/client/home/promo-banners";
 import { ServiceCards } from "@/components/client/home/service-cards";
 import { Testimonials } from "@/components/client/home/testimonials";
-import { Newsletter } from "@/components/client/home/newsletter";
+import { ContactCta } from "@/components/client/home/contact-cta";
 
 /**
  * Block ordering is intentional and conversion-driven.
@@ -22,8 +22,8 @@ import { Newsletter } from "@/components/client/home/newsletter";
  *  7. PriceRangeSection — budget filter (decision shortcut)
  *  8. PromoBanners      — trả góp + thu cũ đổi mới
  *  9. ServiceCards      — repair / trade-in / install — full-service ecosystem
- * 10. Testimonials      — social proof before email capture
- * 11. Newsletter        — last CTA: email capture
+ * 10. Testimonials      — social proof before final CTA
+ * 11. ContactCta        — final CTA: tư vấn / liên hệ
  *
  * Removed: AnimatedBackground (perf, visual noise on mobile), BrandStrip
  * (overlaps CategoryShowcase), NeedCollections (overlaps CategoryShowcase),
@@ -44,7 +44,7 @@ export default function ClientHomePage() {
       <PromoBanners />
       <ServiceCards />
       <Testimonials />
-      <Newsletter />
+      <ContactCta />
     </div>
   );
 }

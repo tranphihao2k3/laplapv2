@@ -1,7 +1,7 @@
-/**
- * Aggregated service registry. Mỗi entity = 1 export từ factory.
- * Entity nào cần logic riêng (orders checkout, inventory transfer...) thì
- * import service viết tay từ file riêng (xem cuối file).
+﻿/**
+ * Aggregated service registry. Má»—i entity = 1 export tá»« factory.
+ * Entity nÃ o cáº§n logic riÃªng (orders checkout, inventory transfer...) thÃ¬
+ * import service viáº¿t tay tá»« file riÃªng (xem cuá»‘i file).
  */
 import { createCrud, type ListQuery } from "./_crud-factory";
 import { rangeOf, paginated } from "@/lib/api/response";
@@ -14,10 +14,10 @@ export const organizationsService = createCrud({
   defaultOrder: { column: "created_at", ascending: false },
 });
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ── Multi-shop removed: shopsService đã bị xoá vì chỉ có 1 cửa hàng. ────────
-// Tất cả entities khác giờ dùng tổ chức để filter (organization_id).
+// â”€â”€ Multi-shop removed: shopsService Ä‘Ã£ bá»‹ xoÃ¡ vÃ¬ chá»‰ cÃ³ 1 cá»­a hÃ ng. â”€â”€â”€â”€â”€â”€â”€â”€
+// Táº¥t cáº£ entities khÃ¡c giá» dÃ¹ng tá»• chá»©c Ä‘á»ƒ filter (organization_id).
 
 export const warehousesService = createCrud({
   table: "warehouses",
@@ -156,10 +156,10 @@ export const stockLevelsService: any = {
     if (error) throw error;
     return paginated(data ?? [], count ?? 0, page, pageSize);
   },
-  getById: async () => { throw Object.assign(new Error("stock_levels không hỗ trợ getById"), { status: 400 }); },
-  create: async () => { throw Object.assign(new Error("stock_levels không hỗ trợ create, dùng /adjust"), { status: 400 }); },
-  update: async () => { throw Object.assign(new Error("stock_levels không hỗ trợ update, dùng /adjust"), { status: 400 }); },
-  remove: async () => { throw Object.assign(new Error("stock_levels không hỗ trợ delete"), { status: 400 }); },
+  getById: async () => { throw Object.assign(new Error("stock_levels khÃ´ng há»— trá»£ getById"), { status: 400 }); },
+  create: async () => { throw Object.assign(new Error("stock_levels khÃ´ng há»— trá»£ create, dÃ¹ng /adjust"), { status: 400 }); },
+  update: async () => { throw Object.assign(new Error("stock_levels khÃ´ng há»— trá»£ update, dÃ¹ng /adjust"), { status: 400 }); },
+  remove: async () => { throw Object.assign(new Error("stock_levels khÃ´ng há»— trá»£ delete"), { status: 400 }); },
 };
 
 // ===== Sales =====
@@ -233,14 +233,14 @@ export const repairTicketsService = createCrud({
 });
 
 /**
- * Override `list` để join khách hàng + bảo hành sửa chữa.
- * Trả về các trường bổ sung:
- *  - `customer_full_name`, `customer_phone`           (từ bảng customers)
- *  - `warranty_end_date`, `warranty_start_date`        (từ bảng warranties loại "repair")
- *  - `issue_description`, `repair_solution`            (đã có sẵn nhưng được expose rõ)
+ * Override `list` Ä‘á»ƒ join khÃ¡ch hÃ ng + báº£o hÃ nh sá»­a chá»¯a.
+ * Tráº£ vá» cÃ¡c trÆ°á»ng bá»• sung:
+ *  - `customer_full_name`, `customer_phone`           (tá»« báº£ng customers)
+ *  - `warranty_end_date`, `warranty_start_date`        (tá»« báº£ng warranties loáº¡i "repair")
+ *  - `issue_description`, `repair_solution`            (Ä‘Ã£ cÃ³ sáºµn nhÆ°ng Ä‘Æ°á»£c expose rÃµ)
  *
- * Dùng để hiển thị danh sách phiếu ở POS (chọn phiếu để tính tiền) mà không cần
- * gọi thêm 2-3 request phụ.
+ * DÃ¹ng Ä‘á»ƒ hiá»ƒn thá»‹ danh sÃ¡ch phiáº¿u á»Ÿ POS (chá»n phiáº¿u Ä‘á»ƒ tÃ­nh tiá»n) mÃ  khÃ´ng cáº§n
+ * gá»i thÃªm 2-3 request phá»¥.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const baseRepairList = repairTicketsService.list;
@@ -299,7 +299,7 @@ const baseRepairList = repairTicketsService.list;
   const { data, error, count } = await q.order(sortCol, { ascending: asc });
   if (error) throw error;
 
-  // Flatten cho gọn FE
+  // Flatten cho gá»n FE
   const items = (data ?? []).map((r: any) => {
     const w = Array.isArray(r.warranty) ? r.warranty[0] : r.warranty;
     return {
@@ -315,7 +315,7 @@ const baseRepairList = repairTicketsService.list;
   return paginated(items as any, count ?? 0, page, pageSize);
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
-// Giữ tham chiếu để tránh lỗi "unused" nếu eslint phàn nàn
+// Giá»¯ tham chiáº¿u Ä‘á»ƒ trÃ¡nh lá»—i "unused" náº¿u eslint phÃ n nÃ n
 void baseRepairList;
 
 export const tradeInService = createCrud({
@@ -335,15 +335,15 @@ export const repairServicesService = createCrud({
 
 // ===== Misc =====
 /**
- * `settingsService` ở đây dùng bản custom (xem ./settings-service.ts) thay vì
- * `createCrud` thuần, để khi admin thay đổi setting thuộc nhóm `store` /
- * `legal` / `contact` / `footer` thì server-side cache của
- * `/api/public/store-info` + `/api/public/footer` tự động bị invalidate
- * thông qua `revalidateTag(...)`.
+ * `settingsService` á»Ÿ Ä‘Ã¢y dÃ¹ng báº£n custom (xem ./settings-service.ts) thay vÃ¬
+ * `createCrud` thuáº§n, Ä‘á»ƒ khi admin thay Ä‘á»•i setting thuá»™c nhÃ³m `store` /
+ * `legal` / `contact` / `footer` thÃ¬ server-side cache cá»§a
+ * `/api/public/store-info` + `/api/public/footer` tá»± Ä‘á»™ng bá»‹ invalidate
+ * thÃ´ng qua `revalidateTag(...)`.
  *
- * Nếu dùng `createCrud` thuần thì setting đã đổi nhưng cache vẫn cũ
- * (Next.js `unstable_cache` TTL 1 giờ), dẫn đến header / footer / trang
- * liên hệ hiển thị sai cho đến khi cache hết hạn.
+ * Náº¿u dÃ¹ng `createCrud` thuáº§n thÃ¬ setting Ä‘Ã£ Ä‘á»•i nhÆ°ng cache váº«n cÅ©
+ * (Next.js `unstable_cache` TTL 1 giá»), dáº«n Ä‘áº¿n header / footer / trang
+ * liÃªn há»‡ hiá»ƒn thá»‹ sai cho Ä‘áº¿n khi cache háº¿t háº¡n.
  */
 export { settingsService } from "./settings-service";
 
@@ -352,22 +352,6 @@ export const auditLogsService = createCrud({
   allowedSortColumns: ["created_at"],
   defaultOrder: { column: "created_at", ascending: false },
   autoStampOrg: true,
-});
-
-// ===== Newsletter =====
-export const newsletterSubscribersService = createCrud({
-  table: "newsletter_subscribers",
-  searchColumns: ["email"],
-  allowedSortColumns: ["email", "created_at", "confirmed_at"],
-  defaultOrder: { column: "created_at", ascending: false },
-  autoStampOrg: false, // bang nay multi-tenant nhung khong can org (admin system-wide)
-});
-
-export const newsletterOutboxService = createCrud({
-  table: "newsletter_outbox",
-  allowedSortColumns: ["scheduled_at", "sent_at", "created_at", "attempts"],
-  defaultOrder: { column: "scheduled_at", ascending: true },
-  autoStampOrg: false,
 });
 
 // ===== Logic riêng — re-export từ file đặc thù =====

@@ -27,10 +27,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProductCard, ProductCardSkeleton, type ProductCardData } from "./_components/product-card";
 import { useVariantDraft } from "./_components/use-variant-draft";
 import { buildCompactConfigName } from "./_components/variant-autofill";
-import { ProductFilters, EMPTY_FILTER, type ProductFilterValue } from "./_components/products-filters";
+import { ProductFilters, EMPTY_FILTER, type ProductFilterValue, type ProductGroup } from "./_components/products-filters";
 import { ProductFilterChips } from "./_components/product-filter-chips";
 import { ProductStatsCards } from "./_components/product-stats-cards";
 import { useUrlFilters } from "./_components/use-url-filters";
@@ -52,6 +53,7 @@ type Product = {
   gift_product_ids?: string[];
   gifts?: Array<{ id: string; name: string; slug: string; thumbnail_url: string | null; status: string | null }>;
   variants_count?: number;
+  created_at?: string | null;
 };
 
 type VariantInput = {
@@ -279,9 +281,87 @@ export default function ProductsAdminPage() {
   const categories = categoriesQuery.data?.items ?? [];
   const brands = brandsQuery.data?.items ?? [];
 
+  const normCat = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+
+  // Phân nhóm danh mục cho tab: Laptop, Linh kiện PC, Phụ kiện/Gear, Khác
+  const categoryGroups = useMemo(() => {
+    const groups: Record<ProductGroup, Set<string>> = {
+      "": new Set(),
+      laptop: new Set(),
+      "pc-parts": new Set(),
+      gear: new Set(),
+      other: new Set(),
+    };
+    if (categories.length === 0) return groups;
+
+    const pcPartsRoot = categories.find((c) => {
+      const slug = normCat(c.slug ?? "");
+      const name = normCat(c.name ?? "");
+      return slug === "pc-parts" || slug === "linh-kien-pc" || name === "linh kien pc";
+    });
+
+    const laptopRootIds = categories
+      .filter((c) => {
+        const name = normCat(c.name ?? "");
+        const slug = normCat(c.slug ?? "");
+        return (
+          (name.includes("laptop") ||
+            slug.includes("laptop") ||
+            name.includes("macbook") ||
+            slug.includes("macbook") ||
+            name.includes("ultrabook") ||
+            slug.includes("ultrabook")) &&
+          !name.includes("phu kien")
+        );
+      })
+      .map((c) => c.id);
+
+    const laptopIds = new Set<string>();
+    for (const id of laptopRootIds) {
+      for (const d of getDescendantIds(id, categories)) laptopIds.add(d);
+    }
+    const pcPartsIds = pcPartsRoot ? getDescendantIds(pcPartsRoot.id, categories) : new Set<string>();
+
+    const gearKeywords = [
+      "phu kien", "chuot", "ban phim", "man hinh", "tai nghe", "loa",
+      "webcam", "balo", "tui", "gear", "gaming gear", "sac", "cap", "hub", "adapter",
+    ];
+    const gearIds = new Set<string>();
+    for (const c of categories) {
+      if (laptopIds.has(c.id) || pcPartsIds.has(c.id)) continue;
+      const name = normCat(c.name ?? "");
+      const slug = normCat(c.slug ?? "");
+      if (
+        gearKeywords.some(
+          (k) =>
+            name.includes(k) ||
+            slug.includes(k.replace(/\s+/g, "-")) ||
+            slug.includes(normCat(k).replace(/\s+/g, "-")),
+        )
+      ) {
+        for (const d of getDescendantIds(c.id, categories)) gearIds.add(d);
+      }
+    }
+
+    for (const id of laptopIds) if (!pcPartsIds.has(id)) groups.laptop.add(id);
+    for (const id of pcPartsIds) groups["pc-parts"].add(id);
+    for (const id of gearIds) if (!groups.laptop.has(id) && !groups["pc-parts"].has(id)) groups.gear.add(id);
+    for (const c of categories) {
+      if (!groups.laptop.has(c.id) && !groups["pc-parts"].has(c.id) && !groups.gear.has(c.id)) {
+        groups.other.add(c.id);
+      }
+    }
+    return groups;
+  }, [categories]);
+
   // Lọc tự động được serialize thành query param qua useCrudList (filters: { status, brand_id, category_id })
-  // Khi chọn 1 category (cha hoặc con), tự động mở rộng thành tất cả hậu duệ (kể cả chính nó)
-  // để chọn "Laptop" ra cả "Laptop Gaming / Văn phòng / Cũ..." thay vì chỉ 1 mục trùng tên.
+  // Khi chọn 1 category (cha hoặc con), tự động mở rộng thành tất cả hậu duệ (kể cả chính nó).
+  // Nếu không chọn category cụ thể nhưng đang ở 1 tab nhóm, áp dụng toàn bộ danh mục của nhóm đó.
   const filterParams = useMemo(
     () => {
       // Expand category cha → tất cả descendants (bao gồm cả chính nó)
@@ -291,8 +371,12 @@ export default function ProductsAdminPage() {
         if (allIds.size > 1) {
           categoryIdInFilter = [...allIds].join(",");
         } else {
-          // 1 id duy nhất → fallback sang eq (1 phần tử)
           categoryIdInFilter = undefined;
+        }
+      } else if (!filters.categoryId && filters.group) {
+        const groupIds = categoryGroups[filters.group as Exclude<ProductGroup, "">];
+        if (groupIds && groupIds.size > 0) {
+          categoryIdInFilter = [...groupIds].join(",");
         }
       }
       return {
@@ -303,16 +387,17 @@ export default function ProductsAdminPage() {
         filters: {
           status: filters.status || undefined,
           brand_id: filters.brandId || undefined,
-          // Ưu tiên __in (mở rộng cây con). Nếu chỉ 1 id thì factory sẽ tự fallback về eq.
           ...(filters.categoryId
             ? categoryIdInFilter
               ? { category_id__in: categoryIdInFilter }
               : { category_id: filters.categoryId }
-            : {}),
+            : categoryIdInFilter
+              ? { category_id__in: categoryIdInFilter }
+              : {}),
         },
       };
     },
-    [filters, page, categories],
+    [filters, page, categories, categoryGroups],
   );
   const productsQuery = useCrudList<Product>("products", filterParams);
   // 3 query phụ chỉ để lấy count theo status — pageSize: 1, nặng không đáng kể do React Query cache 5 phút
@@ -356,7 +441,7 @@ export default function ProductsAdminPage() {
   // Khi filter thay đổi (ngoài page), reset về trang 1
   useEffect(() => {
     setPage(1);
-  }, [filters.status, filters.brandId, filters.categoryId, filters.sort, filters.search]);
+  }, [filters.status, filters.brandId, filters.categoryId, filters.sort, filters.search, filters.group]);
 
   async function handleBulkDeleteProducts() {
     const ids = selection.array;
@@ -394,26 +479,18 @@ export default function ProductsAdminPage() {
   }
   // brands + categories đã được khai báo ở trên (cần sớm cho filterParams).
 
-  // ── Default filter: mở trang lần đầu (URL không có category) → tự chọn "Laptop" ──
-  // Chỉ chạy MỘT LẦN: nếu user xoá chip category, không tự apply lại.
-  const defaultCategoryAppliedRef = useRef(false);
+  // ── Default: mở trang lần đầu (URL không có group/category) → tab Laptop ──
+  const defaultGroupAppliedRef = useRef(false);
   useEffect(() => {
-    if (defaultCategoryAppliedRef.current) return;
+    if (defaultGroupAppliedRef.current) return;
     if (!filtersReady) return;
-    if (filters.categoryId) {
-      // URL đã có category từ share link / bookmark → không override
-      defaultCategoryAppliedRef.current = true;
+    if (filters.group || filters.categoryId) {
+      defaultGroupAppliedRef.current = true;
       return;
     }
-    if (categories.length === 0) return;
-
-    defaultCategoryAppliedRef.current = true;
-
-    const laptopCat = findLaptopCategory(categories);
-    if (laptopCat) {
-      setFilters({ ...filters, categoryId: laptopCat.id });
-    }
-  }, [filtersReady, categories, filters, setFilters]);
+    defaultGroupAppliedRef.current = true;
+    setFilters({ ...filters, group: "laptop" });
+  }, [filtersReady, filters, setFilters]);
 
   const specTemplates = specTemplatesQuery.data?.items ?? [];
   const myShops = useMemo(() => myShopsQuery.data ?? [], [myShopsQuery.data]);
@@ -450,29 +527,27 @@ export default function ProductsAdminPage() {
   }, [variantsQuery.data]);
 
   const sortedProducts = useMemo(() => {
-    const normalize = (value: string) =>
-      value
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
-
-    const getCategoryName = (prod: Product) => {
-      if (!prod.category_id) return "";
-      return categoryMap.get(prod.category_id) ?? "";
+    const isAvailable = (prod: Product) => {
+      const vInfo = variantInfoMap.get(prod.id);
+      const hasSellableVariant = (prod.variants_count ?? 0) > 0 || (vInfo?.price ?? 0) > 0;
+      return prod.status === "active" && hasSellableVariant;
+    };
+    const createdTime = (prod: Product) => {
+      const t = prod.created_at ? Date.parse(prod.created_at) : 0;
+      return Number.isFinite(t) ? t : 0;
     };
 
     return [...activeProducts].sort((a, b) => {
-      const catA = normalize(getCategoryName(a));
-      const catB = normalize(getCategoryName(b));
+      const aAvail = isAvailable(a) ? 1 : 0;
+      const bAvail = isAvailable(b) ? 1 : 0;
+      if (aAvail !== bAvail) return bAvail - aAvail;
 
-      const aIsLaptop = catA.includes("laptop");
-      const bIsLaptop = catB.includes("laptop");
-      if (aIsLaptop !== bIsLaptop) return aIsLaptop ? -1 : 1;
+      const dt = createdTime(b) - createdTime(a);
+      if (dt !== 0) return dt;
 
-      if (catA !== catB) return catA.localeCompare(catB, "vi");
       return a.name.localeCompare(b.name, "vi");
     });
-  }, [activeProducts, categoryMap]);
+  }, [activeProducts, variantInfoMap]);
 
   // Cây danh mục để dropdown có thụt lề cha-con
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
@@ -482,6 +557,24 @@ export default function ProductsAdminPage() {
     () => categoryTree.map((c) => ({ value: c.id, label: c.name, depth: c.depth })),
     [categoryTree],
   );
+
+  const currentGroup = (filters.group || "laptop") as ProductGroup;
+  const filteredCategoryOptions = useMemo<SelectOption[]>(() => {
+    const allowed = categoryGroups[currentGroup as Exclude<ProductGroup, "">] ?? null;
+    if (!allowed || allowed.size === 0) return categoryOptions;
+    return categoryTree.filter((c) => allowed.has(c.id)).map((c) => ({ value: c.id, label: c.name, depth: c.depth }));
+  }, [categoryGroups, currentGroup, categoryOptions, categoryTree]);
+
+  const activeTab = useMemo<ProductGroup>(() => {
+    if (filters.group) return filters.group as ProductGroup;
+    if (filters.categoryId) {
+      if (categoryGroups.laptop.has(filters.categoryId)) return "laptop";
+      if (categoryGroups["pc-parts"].has(filters.categoryId)) return "pc-parts";
+      if (categoryGroups.gear.has(filters.categoryId)) return "gear";
+      return "other";
+    }
+    return "laptop";
+  }, [filters.group, filters.categoryId, categoryGroups]);
   const brandOptions = useMemo<SelectOption[]>(
     () => brands.map((b) => ({ value: b.id, label: b.name })),
     [brands],
@@ -1149,7 +1242,7 @@ export default function ProductsAdminPage() {
                 Danh sách sản phẩm
               </CardTitle>
               <CardDescription>
-                Sản phẩm được sắp theo phân loại, ưu tiên nhóm Laptop hiển thị đầu tiên.
+                Quản lý theo nhóm: Laptop, Linh kiện PC, Phụ kiện & Gear và Khác.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -1197,12 +1290,24 @@ export default function ProductsAdminPage() {
         </CardHeader>
 
         <CardContent className="space-y-3 pt-0">
+          <Tabs
+            value={activeTab || "laptop"}
+            onValueChange={(v) => setFilters({ ...filters, group: v as ProductGroup, categoryId: "" })}
+          >
+            <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1">
+              <TabsTrigger value="laptop" className="px-3 py-1.5 text-xs sm:text-sm">Laptop</TabsTrigger>
+              <TabsTrigger value="pc-parts" className="px-3 py-1.5 text-xs sm:text-sm">Linh kiện PC</TabsTrigger>
+              <TabsTrigger value="gear" className="px-3 py-1.5 text-xs sm:text-sm">Phụ kiện & Gear</TabsTrigger>
+              <TabsTrigger value="other" className="px-3 py-1.5 text-xs sm:text-sm">Khác</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           {/* Filter bar */}
           <ProductFilters
             value={filters}
             onChange={setFilters}
             brandOptions={brandOptions}
-            categoryOptions={categoryOptions}
+            categoryOptions={filteredCategoryOptions}
             totalLabel={productsQuery.data?.total.toLocaleString("vi-VN")}
             filteredLabel={activeProducts.length > 0 ? activeProducts.length.toLocaleString("vi-VN") : undefined}
           />
@@ -1214,7 +1319,7 @@ export default function ProductsAdminPage() {
             categoryName={filters.categoryId ? categoryMap.get(filters.categoryId) : null}
             categoryChildCount={categoryChildCount}
             onRemove={(key) => setFilters({ ...filters, [key]: key === "sort" ? "created_at:desc" : "" })}
-            onClearAll={() => setFilters(EMPTY_FILTER)}
+            onClearAll={() => setFilters({ ...EMPTY_FILTER, group: (activeTab || "laptop") as ProductGroup })}
           />
 
           {viewMode === "grid" ? (

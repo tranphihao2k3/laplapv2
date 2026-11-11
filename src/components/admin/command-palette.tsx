@@ -105,7 +105,6 @@ const ADMIN_ITEMS: Item[] = [
   { id: "roles", title: "Vai trò", group: "Hệ thống", href: "/quanly/roles", icon: UserCogIcon },
   { id: "shop-staff", title: "Nhân sự shop", group: "Hệ thống", href: "/quanly/shop-staff", icon: UsersIcon },
   { id: "admin-users", title: "Tạo tài khoản", group: "Hệ thống", href: "/quanly/admin/users", icon: UserPlusIcon },
-  { id: "newsletter", title: "Newsletter", group: "Hệ thống", href: "/quanly/newsletter", icon: MailIcon },
   { id: "settings", title: "Cài đặt", group: "Hệ thống", href: "/quanly/settings", icon: SettingsIcon },
   { id: "about-page", title: "Trang About", group: "Hệ thống", href: "/quanly/about-page", icon: FileTextIcon },
   { id: "audit-logs", title: "Audit logs", group: "Hệ thống", href: "/quanly/audit-logs", icon: FileClockIcon, keywords: ["log", "nhật ký"] },

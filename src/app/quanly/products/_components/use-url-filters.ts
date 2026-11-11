@@ -30,6 +30,7 @@ export function useUrlFilters(): {
       brandId: sp.get("brand_id") ?? "",
       categoryId: sp.get("category_id") ?? "",
       sort: (sp.get("sort") as ProductFilterValue["sort"]) || "created_at:desc",
+      group: (sp.get("group") as ProductFilterValue["group"]) || "",
     };
     setFiltersState(next);
     setReady(true);
@@ -43,6 +44,7 @@ export function useUrlFilters(): {
     if (next.status) params.set("status", next.status);
     if (next.brandId) params.set("brand_id", next.brandId);
     if (next.categoryId) params.set("category_id", next.categoryId);
+    if (next.group) params.set("group", next.group);
     if (next.sort && next.sort !== "created_at:desc") params.set("sort", next.sort);
     const qs = params.toString();
     // replaceState thay vì router.push để không spam lịch sử + không scroll

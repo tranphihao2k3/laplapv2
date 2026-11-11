@@ -6,7 +6,7 @@ export { CategoryShowcase } from "./category-showcase";
 export { BestSellers } from "./best-sellers";
 export { PromoBanners } from "./promo-banners";
 export { TrustBar } from "./trust-bar";
-export { Newsletter } from "./newsletter";
+export { ContactCta } from "./contact-cta";
 export { Reveal } from "./reveal";
 export { ProductSection } from "./product-section";
 export { HomeProductCard } from "./home-product-card";

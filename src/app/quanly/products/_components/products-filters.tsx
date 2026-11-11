@@ -24,12 +24,15 @@ import {
 import { OptionsSelect, type SelectOption } from "@/components/ui/options-select";
 import { cn } from "@/lib/utils";
 
+export type ProductGroup = "" | "laptop" | "pc-parts" | "gear" | "other";
+
 export type ProductFilterValue = {
   search: string;
   status: "" | "active" | "draft" | "archived";
   brandId: string;
   categoryId: string;
   sort: "" | "name:asc" | "name:desc" | "created_at:desc" | "created_at:asc" | "price:asc" | "price:desc";
+  group: ProductGroup;
 };
 
 export const EMPTY_FILTER: ProductFilterValue = {
@@ -38,6 +41,7 @@ export const EMPTY_FILTER: ProductFilterValue = {
   brandId: "",
   categoryId: "",
   sort: "created_at:desc",
+  group: "",
 };
 
 type Props = {

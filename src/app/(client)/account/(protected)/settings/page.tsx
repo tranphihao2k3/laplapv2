@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import { Bell, LockKeyhole, Trash2 } from "lucide-react";
+import { LockKeyhole, Trash2 } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountPageHeader } from "@/components/client/account/account-page-header";
 import { requireCustomer } from "@/lib/account/customer";
-import { createClient } from "@/lib/supabase/server";
-import { NewsletterToggle } from "./_sections/newsletter-toggle";
 import { ChangePasswordForm } from "./_sections/change-password-form";
 import { DeleteAccountSection } from "./_sections/delete-account-section";
 
@@ -14,42 +12,14 @@ export const metadata: Metadata = {
 };
 
 export default async function SettingsPage() {
-  const me = await requireCustomer();
-
-  const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
-
-  // Newsletter status
-  const { data: nl } = await db
-    .from("newsletter_subscribers")
-    .select("is_active, confirmed, brand_ids")
-    .eq("email", (me.email ?? "").toLowerCase())
-    .maybeSingle();
+  await requireCustomer();
 
   return (
     <div className="space-y-5">
       <AccountPageHeader
         title="Cài đặt"
-        description="Quản lý thông báo, bảo mật và tuỳ chọn tài khoản."
+        description="Quản lý bảo mật và tuỳ chọn tài khoản."
       />
-
-      <Card className="rounded-2xl border-border/60">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Bell className="h-4 w-4 text-primary" />
-            Bản tin email
-          </CardTitle>
-          <CardDescription>
-            Nhận thông báo sản phẩm mới, khuyến mãi và tin tức từ Laptop Thành Võ qua email.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <NewsletterToggle
-            initial={!!(nl?.is_active && nl?.confirmed)}
-          />
-        </CardContent>
-      </Card>
 
       <Card className="rounded-2xl border-border/60">
         <CardHeader>
