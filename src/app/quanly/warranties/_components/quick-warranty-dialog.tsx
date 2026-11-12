@@ -202,7 +202,6 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
   // ── Form 1 máy ──
   const [warrantyType, setWarrantyType] = useState<WarrantyType>("sold");
   const [deviceName, setDeviceName] = useState("");
-  const [serial, setSerial] = useState("");
   const [imei, setImei] = useState("");
   const [productVariantId, setProductVariantId] = useState("");
   const [phone, setPhone] = useState("");
@@ -219,7 +218,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<
     "cash" | "card" | "transfer" | "ewallet"
   >("cash");
-  /** Ẩn Serial/IMEI/liên kết SP/ghi chú… — chỉ hiện khi admin cần. */
+  /** Ẩn IMEI/liên kết SP/ghi chú… — chỉ hiện khi admin cần. */
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // ── Form nhiều dòng ──
@@ -254,7 +253,6 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
       setMode("single");
       setWarrantyType("sold");
       setDeviceName("");
-      setSerial("");
       setImei("");
       setProductVariantId("");
       setPhone("");
@@ -424,7 +422,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
         },
         device: {
           name: deviceName.trim(),
-          serial: serial.trim() || null,
+          serial: null,
           imei: imei.trim() || null,
           product_variant_id: productVariantId || null,
         },
@@ -686,15 +684,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
               </div>
             ) : null}
 
-            <div className="space-y-1">
-              <Label htmlFor="qw-serial">Mã máy (Serial)</Label>
-              <Input
-                id="qw-serial"
-                value={serial}
-                onChange={(e) => setSerial(e.target.value)}
-                placeholder="Tuỳ chọn"
-              />
-            </div>
+
 
             <div className="space-y-1">
               <Label htmlFor="qw-months">
