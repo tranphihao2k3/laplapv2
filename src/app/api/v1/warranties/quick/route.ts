@@ -222,7 +222,8 @@ async function syncSerialStatus(
 
 /**
  * Tạo đơn hoàn tất + thanh toán + tích điểm khi admin nhập giá ở BH nhanh.
- * Không trừ kho (máy ngoài catalog / đã bán tay). Channel:
+ * Có liên kết sản phẩm (product_variant_id) + cửa hàng → trừ tồn và ghi giao dịch kho như POS.
+ * Không trừ kho nếu không liên kết variant catalog. Channel:
  *   repair → "repair" · sold/extension → "pos"
  */
 async function createQuickSaleOrder(
@@ -296,6 +297,81 @@ async function createQuickSaleOrder(
     paid_at: `${item.start_date}T12:00:00.000Z`,
   });
   if (payErr) throw payErr;
+
+  // Đồng bộ tồn kho như POS khi bán sản phẩm có trong catalog (có product_variant_id).
+  // Tạo BH nhanh trước đây chỉ tạo đơn/ghi doanh thu mà không trừ kho.
+  if (item.device.product_variant_id && shopId) {
+    const variantId = item.device.product_variant_id;
+    const { data: warehouses, error: whErr } = await supabase
+      .from("warehouses")
+      .select("id")
+      .eq("shop_id", shopId)
+      .eq("is_active", true)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true });
+    if (whErr) throw whErr;
+    const warehouseIds = (warehouses ?? []).map((w: { id: string }) => w.id);
+    if (warehouseIds.length === 0) {
+      throw new Error("Không tìm thấy kho của cửa hàng để trừ tồn");
+    }
+
+    const { data: stocks, error: stErr } = await supabase
+      .from("stock_levels")
+      .select("warehouse_id, available_qty")
+      .eq("product_variant_id", variantId)
+      .in("warehouse_id", warehouseIds);
+    if (stErr) throw stErr;
+    const rows = (stocks ?? []) as Array<{ warehouse_id: string; available_qty: number | null }>;
+    const primaryId = warehouseIds[0] as string;
+    rows.sort((a, b) => {
+      if (a.warehouse_id === primaryId) return -1;
+      if (b.warehouse_id === primaryId) return 1;
+      return 0;
+    });
+
+    let remaining = 1;
+    for (const row of rows) {
+      if (remaining <= 0) break;
+      const have = Number(row.available_qty ?? 0);
+      if (have <= 0) continue;
+      const take = Math.min(have, remaining);
+      const next = have - take;
+      const { error: updErr } = await supabase
+        .from("stock_levels")
+        .update({ available_qty: next })
+        .eq("warehouse_id", row.warehouse_id)
+        .eq("product_variant_id", variantId);
+      if (updErr) throw updErr;
+
+      await supabase.from("inventory_transactions").insert({
+        organization_id: orgId,
+        warehouse_id: row.warehouse_id,
+        product_variant_id: variantId,
+        type: "sale",
+        quantity: -take,
+        unit_cost: 0,
+        reference_type: "order",
+        reference_id: order.id,
+        note: `Bảo hành nhanh · ${item.device.name}`,
+        created_by: userId,
+      });
+      remaining -= take;
+    }
+
+    if (remaining > 0) {
+      if (rows.length === 0) {
+        await supabase.from("stock_levels").upsert(
+          {
+            warehouse_id: primaryId,
+            product_variant_id: variantId,
+            available_qty: 0,
+          },
+          { onConflict: "warehouse_id,product_variant_id" },
+        );
+      }
+      throw new Error("Không đủ tồn kho tại cửa hàng để tạo đơn như POS");
+    }
+  }
 
   let loyaltyPoints = 0;
   if (customerId) {

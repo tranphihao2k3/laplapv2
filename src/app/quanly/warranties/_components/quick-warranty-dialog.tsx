@@ -66,6 +66,7 @@ import {
   QUICK_BULK_TEMPLATE_HEADER,
   todayIso,
 } from "@/lib/warranties/quick-warranty";
+import { extractQuickSpecs, mergeSpecSources } from "@/lib/products/quick-specs";
 
 type WarrantyType = "sold" | "repair" | "extension";
 
@@ -74,6 +75,9 @@ type ProductVariant = {
   sku: string | null;
   name: string | null;
   product_id: string | null;
+  selling_price?: number | null;
+  specs?: Record<string, unknown> | null;
+  attributes?: Record<string, unknown> | null;
 };
 
 type Product = {
@@ -336,6 +340,37 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
     [variantsQ.data, productNameById],
   );
 
+  function handleLinkedVariantChange(id: string) {
+    setProductVariantId(id);
+    if (!id) return;
+    const v = (variantsQ.data?.items ?? []).find((x) => x.id === id);
+    if (!v) return;
+
+    const productName = v.product_id ? productNameById.get(v.product_id) : null;
+    const label =
+      [productName, v.name].filter(Boolean).join(" — ") ||
+      v.sku ||
+      "";
+    setDeviceName((prev) => (prev.trim() ? prev : label));
+
+    if (typeof v.selling_price === "number" && v.selling_price > 0) {
+      setSaleAmountInput(String(v.selling_price));
+    }
+
+    const specs = extractQuickSpecs(mergeSpecSources(v.specs, v.attributes));
+    const w = specs.find((s) => s.id === "warranty");
+    const raw = w?.raw || w?.value || "";
+    const m = /(\d+)\s*th/i.exec(raw);
+    if (m && !monthsTouched.current) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > 0) {
+        setMonths(n);
+        setBulkMonths(n);
+        setEndDateTouched(false);
+      }
+    }
+  }
+
   const ticketOptions: SelectOption[] = useMemo(
     () =>
       (ticketsQ.data?.items ?? []).map((t) => ({
@@ -565,6 +600,24 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
 
         {mode === "single" ? (
           <div className="flex flex-col gap-2.5">
+            {warrantyType !== "repair" ? (
+              <div className="space-y-1">
+                <Label>Sản phẩm liên kết (tuỳ chọn)</Label>
+                <OptionsSelect
+                  options={variantOptions}
+                  value={productVariantId}
+                  onValueChange={handleLinkedVariantChange}
+                  placeholder="Chọn sản phẩm trong danh mục để tự điền giá/BH"
+                  searchable
+                  searchPlaceholder="Tìm tên sản phẩm / SKU..."
+                  emptyText="Không tìm thấy sản phẩm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Chọn SP trong catalog: tự điền tên máy, giá và số tháng BH; có giá sẽ tạo đơn và trừ tồn như POS.
+                </p>
+              </div>
+            ) : null}
+
             <div className="space-y-1">
               <Label htmlFor="qw-device-name">
                 {warrantyType === "repair" ? "Nội dung sửa / tên máy" : "Tên máy"}{" "}
@@ -582,7 +635,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                       : "VD: HP 830G8"
                 }
                 aria-invalid={!!errors.deviceName}
-                autoFocus
+                autoFocus={warrantyType === "repair"}
               />
               {errors.deviceName ? (
                 <p className="text-xs text-destructive">{errors.deviceName}</p>
@@ -785,20 +838,7 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
                     />
                   </div>
 
-                  {warrantyType !== "repair" ? (
-                    <div className="space-y-1">
-                      <Label>Liên kết sản phẩm (tuỳ chọn)</Label>
-                      <OptionsSelect
-                        options={variantOptions}
-                        value={productVariantId}
-                        onValueChange={setProductVariantId}
-                        placeholder="Không liên kết (máy ngoài danh mục)"
-                        searchable
-                        searchPlaceholder="Tìm tên sản phẩm / SKU..."
-                        emptyText="Không tìm thấy sản phẩm"
-                      />
-                    </div>
-                  ) : null}
+
 
                   <div className="space-y-1">
                     <Label htmlFor="qw-note">Ghi chú</Label>
