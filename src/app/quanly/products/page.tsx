@@ -276,7 +276,7 @@ export default function ProductsAdminPage() {
   // Queries & Mutations
   // Categories + Brands cần có sẵn TRƯỚC khi build filterParams, vì filter có thể
   // mở rộng category cha → tất cả hậu duệ (xem `getDescendantIds` bên dưới).
-  const categoriesQuery = useCrudList<{ id: string; name: string; parent_id: string | null; position?: number | null }>("categories", { pageSize: 100 });
+  const categoriesQuery = useCrudList<{ id: string; name: string; slug?: string | null; parent_id: string | null; position?: number | null }>("categories", { pageSize: 100 });
   const brandsQuery = useCrudList<{ id: string; name: string }>("brands", { pageSize: 100 });
   const categories = categoriesQuery.data?.items ?? [];
   const brands = brandsQuery.data?.items ?? [];
