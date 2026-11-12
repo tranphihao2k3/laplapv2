@@ -307,7 +307,6 @@ async function createQuickSaleOrder(
       .select("id")
       .eq("shop_id", shopId)
       .eq("is_active", true)
-      .order("is_default", { ascending: false })
       .order("created_at", { ascending: true });
     if (whErr) throw whErr;
     const warehouseIds = (warehouses ?? []).map((w: { id: string }) => w.id);
