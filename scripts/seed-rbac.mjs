@@ -124,6 +124,11 @@ const PERMISSIONS = [
   { code: "pos_sessions.update", description: "Cập nhật phiên POS" },
   { code: "loyalty_transactions.read", description: "Xem giao dịch tích/đổi điểm" },
   { code: "loyalty_transactions.create", description: "Tạo giao dịch điểm thưởng" },
+  // Voucher
+  { code: "vouchers.read", description: "Xem voucher" },
+  { code: "vouchers.create", description: "Tạo voucher" },
+  { code: "vouchers.update", description: "Cập nhật voucher" },
+  { code: "vouchers.delete", description: "Xóa voucher" },
   // Trả hàng
   { code: "returns.read", description: "Xem đơn trả" },
   { code: "returns.create", description: "Tạo đơn trả" },
@@ -201,7 +206,7 @@ const PERMISSION_CODES = PERMISSIONS.map((p) => p.code);
 // --- Roles ---
 const ROLES = [
   { code: "admin", name: "Quản trị hệ thống", perms: "all" },
-  { code: "manager", name: "Quản lý cửa hàng", perms: ["products.*", "brands.*", "categories.*", "spec_templates.*", "inventory.*", "stock_levels.*", "inventory_transactions.*", "purchase_orders.*", "purchase_order_items.*", "warehouses.*", "serial_numbers.*", "orders.*", "order_items.*", "payments.*", "pos_sessions.*", "loyalty_transactions.*", "returns.*", "customers.*", "suppliers.*", "warranties.*", "repair_tickets.*", "repair_services.*", "trade_in_requests.*", "shops.*", "settings.*", "audit_logs.*", "publisher.use"] },
+  { code: "manager", name: "Quản lý cửa hàng", perms: ["products.*", "brands.*", "categories.*", "spec_templates.*", "inventory.*", "stock_levels.*", "inventory_transactions.*", "purchase_orders.*", "purchase_order_items.*", "warehouses.*", "serial_numbers.*", "orders.*", "order_items.*", "payments.*", "pos_sessions.*", "loyalty_transactions.*", "vouchers.*", "returns.*", "customers.*", "suppliers.*", "warranties.*", "repair_tickets.*", "repair_services.*", "trade_in_requests.*", "shops.*", "settings.*", "audit_logs.*", "publisher.use"] },
   { code: "staff_sales", name: "Nhân viên bán hàng", perms: ["products.read", "product_variants.read", "categories.read", "brands.read", "orders.read", "orders.create", "order_items.*", "payments.create", "payments.read", "customers.*", "pos_sessions.read", "pos.open_session", "pos.close_session", "loyalty_transactions.read", "loyalty_transactions.create"] },
   { code: "staff_warehouse", name: "Nhân viên kho", perms: ["products.read", "product_variants.read", "inventory.*", "stock_levels.*", "inventory_transactions.*", "purchase_orders.*", "purchase_order_items.*", "warehouses.*", "serial_numbers.*", "serial_numbers.bulk_create"] },
   { code: "staff_repair", name: "Nhân viên kỹ thuật/sửa chữa", perms: ["products.read", "customers.read", "customers.create", "repair_tickets.*", "repair_services.*", "warranties.*"] },

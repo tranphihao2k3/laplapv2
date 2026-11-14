@@ -84,6 +84,7 @@ const documents = [
   { name: "Specs linh kiện PC", url: "/quanly/pc-components-specs", icon: Settings2, group: "PC Builder" },
 
   { name: "Quản lý đơn hàng", url: "/quanly/orders", icon: ShoppingCart, group: "Bán hàng" },
+  { name: "Voucher", url: "/quanly/vouchers", icon: Ticket, group: "Bán hàng" },
   { name: "POS hôm nay", url: "/quanly/pos-sessions", icon: Calculator, group: "Bán hàng" },
   { name: "Thanh toán", url: "/quanly/payments", icon: Receipt, group: "Bán hàng" },
   { name: "Đơn trả hàng", url: "/quanly/return-orders", icon: ShoppingCart, group: "Bán hàng" },
@@ -107,9 +108,6 @@ const documents = [
   { name: "Công cụ kiểm tra", url: "/quanly/tools", icon: Cpu, group: "Hậu mãi" },
 
   { name: "Tổ chức", url: "/quanly/organizations", icon: Building2, group: "Hệ thống" },
-  { name: "Vai trò", url: "/quanly/roles", icon: UserCog, group: "Hệ thống" },
-  // "Quyền hạn" (/quanly/permissions) đã ẩn: danh mục quyền khoá cứng trong code
-  // (rbac-presets.ts + seed-rbac.mjs). Gán quyền cho vai trò làm ở "Vai trò" / "Phân quyền".
   { name: "Nhân sự shop", url: "/quanly/shop-staff", icon: Users, group: "Hệ thống" },
   { name: "Tạo tài khoản", url: "/quanly/admin/users", icon: UserPlus, group: "Hệ thống" },
   { name: "Cài đặt", url: "/quanly/settings", icon: Settings, group: "Hệ thống" },

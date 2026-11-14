@@ -79,6 +79,7 @@ const ADMIN_ITEMS: Item[] = [
   { id: "pc-components", title: "Specs linh kiện PC", group: "Sản phẩm", href: "/quanly/pc-components-specs", icon: FileTextIcon },
 
   { id: "orders", title: "Đơn hàng", group: "Bán hàng", href: "/quanly/orders", icon: ShoppingCartIcon },
+  { id: "vouchers", title: "Quản lý voucher", group: "Bán hàng", href: "/quanly/vouchers", icon: TicketIcon, keywords: ["voucher", "mã giảm giá", "khuyến mãi"] },
   { id: "pos", title: "POS bán hàng", group: "Bán hàng", href: "/quanly/pos", icon: CalculatorIcon, keywords: ["bán", "sell", "point of sale"] },
   { id: "pos-sessions", title: "Ca POS", group: "Bán hàng", href: "/quanly/pos-sessions", icon: CalculatorIcon },
   { id: "payments", title: "Thanh toán", group: "Bán hàng", href: "/quanly/payments", icon: ReceiptIcon },
@@ -102,7 +103,6 @@ const ADMIN_ITEMS: Item[] = [
   { id: "tools", title: "Công cụ kiểm tra", group: "Hậu mãi", href: "/quanly/tools", icon: CpuIcon },
 
   { id: "organizations", title: "Tổ chức", group: "Hệ thống", href: "/quanly/organizations", icon: Building2Icon },
-  { id: "roles", title: "Vai trò", group: "Hệ thống", href: "/quanly/roles", icon: UserCogIcon },
   { id: "shop-staff", title: "Nhân sự shop", group: "Hệ thống", href: "/quanly/shop-staff", icon: UsersIcon },
   { id: "admin-users", title: "Tạo tài khoản", group: "Hệ thống", href: "/quanly/admin/users", icon: UserPlusIcon },
   { id: "settings", title: "Cài đặt", group: "Hệ thống", href: "/quanly/settings", icon: SettingsIcon },

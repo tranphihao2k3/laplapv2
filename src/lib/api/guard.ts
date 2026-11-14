@@ -131,48 +131,18 @@ export async function requireShopAccess(shopId: string) {
   return { supabase, user, orgId, shopId, roleId: data.role_id ?? null };
 }
 
-/** Yêu cầu user có permission code (qua role → role_permissions → permissions). */
-export async function requirePermission(code: string) {
-  const { supabase, user, orgId } = await requireOrg();
-
-  const { data, error } = await supabase
-    .from("shop_staff")
-    .select("role_id, roles!inner(id, role_permissions!inner(permission_id, permissions!inner(code)))")
-    .eq("user_id", user.id)
-    .eq("is_active", true);
-
-  if (error) throw error;
-
-  const hasIt = (data ?? []).some((row) => {
-    const roles = (row as { roles?: { role_permissions?: { permissions?: { code: string } }[] } }).roles;
-    return roles?.role_permissions?.some((rp) => rp.permissions?.code === code);
-  });
-
-  if (!hasIt) throw Errors.forbidden(`Thiếu quyền ${code}`);
-  return { supabase, user, orgId };
+/**
+ * RBAC đã được rút gọn: chỉ còn 2 loại tài khoản.
+ *   - Admin/nhân sự: có `organization_id` trong user_profiles → toàn quyền.
+ *   - Khách: không có organization_id → bị chặn ở requireOrg().
+ *
+ * Giữ nguyên chữ ký để 30+ route đang gọi `requirePermission(code)` không phải sửa.
+ */
+export async function requirePermission(_code: string) {
+  return requireOrg();
 }
 
-/**
- * Yêu cầu user có permission code, hỗ trợ cả Bearer lẫn Cookie.
- * Dùng cho route `/api/v1/desktop-posting/*` — cả 40+ route web cũ vẫn xài
- * `requirePermission(code)` (cookie-only) mà không bị ảnh hưởng.
- */
-export async function requirePermissionFromRequest(req: Request, code: string) {
-  const ctx = await requireOrgFromRequest(req);
-
-  const { data, error } = await ctx.supabase
-    .from("shop_staff")
-    .select("role_id, roles!inner(id, role_permissions!inner(permission_id, permissions!inner(code)))")
-    .eq("user_id", ctx.user.id)
-    .eq("is_active", true);
-
-  if (error) throw error;
-
-  const hasIt = (data ?? []).some((row) => {
-    const roles = (row as { roles?: { role_permissions?: { permissions?: { code: string } }[] } }).roles;
-    return roles?.role_permissions?.some((rp) => rp.permissions?.code === code);
-  });
-
-  if (!hasIt) throw Errors.forbidden(`Thiếu quyền ${code}`);
-  return ctx;
+/** Bản hỗ trợ cả Bearer lẫn Cookie — cũng bỏ kiểm tra permission. */
+export async function requirePermissionFromRequest(req: Request, _code: string) {
+  return requireOrgFromRequest(req);
 }
