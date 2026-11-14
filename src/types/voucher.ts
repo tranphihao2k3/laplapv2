@@ -112,6 +112,9 @@ export interface ValidateVoucherResponse {
   voucher_id: string | null;
   voucher_type: VoucherType | null;
   voucher_name: string | null;
+  voucher_value: number | null;
+  voucher_min_order_amount: number | null;
+  voucher_max_discount_amount: number | null;
   discount_amount: number | null;
   error_message: string | null;
 }
@@ -123,6 +126,7 @@ export interface AppliedVoucher {
   name: string;
   type: VoucherType;
   value: number;
+  min_order_amount?: number;
   discount_amount: number;
   max_discount_amount: number | null;
 }

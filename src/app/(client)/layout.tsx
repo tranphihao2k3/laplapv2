@@ -1,6 +1,7 @@
 import { ClientHeader } from "@/components/client/layout/client-header";
 import { ClientFooter } from "@/components/client/layout/client-footer";
 import { CompareBar } from "@/components/client/compare/compare-bar";
+import { VoucherFloatingWidget } from "@/components/client/vouchers/voucher-floating-widget";
 import { PageViewTracker } from "@/components/client/analytics/page-view-tracker";
 
 /**
@@ -41,6 +42,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <ClientFooter />
       {/* Thanh so sánh nổi đáy màn hình — tự ẩn khi chưa chọn máy nào. */}
       <CompareBar />
+      {/* Banner voucher góc dưới phải — tự ẩn khi không có voucher. */}
+      <VoucherFloatingWidget />
       <PageViewTracker />
     </div>
   );

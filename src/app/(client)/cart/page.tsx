@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useCartStore } from "@/stores/cart-store";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
-import type { AppliedVoucher, ValidateVoucherResponse } from "@/types/voucher";
+import { validateVoucherForCart } from "@/lib/vouchers/client";
 
 function EmptyCart() {
   return (
@@ -144,39 +144,19 @@ function VoucherSection() {
     setError(null);
 
     try {
-      const supabase = createClient();
-      const response = await fetch("/api/public/vouchers/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: voucherCode.trim(),
-          order_amount: subtotal,
-          product_ids: items.map((i) => i.productId),
-        }),
+      const applied = await validateVoucherForCart({
+        code: voucherCode,
+        subtotal,
+        productIds: items.map((i) => i.productId),
       });
-
-      const result: ValidateVoucherResponse = await response.json();
-
-      if (!result.valid) {
-        setError(result.error_message || "Mã voucher không hợp lệ");
-        return;
-      }
-
-      const applied: AppliedVoucher = {
-        id: result.voucher_id!,
-        code: voucherCode.trim().toUpperCase(),
-        name: result.voucher_name!,
-        type: result.voucher_type!,
-        value: 0, // Value will be recalculated based on subtotal
-        discount_amount: result.discount_amount!,
-        max_discount_amount: null,
-      };
 
       applyVoucher(applied);
       setVoucherCode("");
       toast.success(`Đã áp dụng voucher "${applied.name}"`);
     } catch (err) {
-      setError("Có lỗi xảy ra. Vui lòng thử lại.");
+      setError(
+        err instanceof Error ? err.message : "Có lỗi xảy ra. Vui lòng thử lại.",
+      );
     } finally {
       setIsValidating(false);
     }

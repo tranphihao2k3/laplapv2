@@ -6,12 +6,11 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Ticket,
-  Copy,
   CheckCircle2,
   Plus,
   Sparkles,
   Calendar,
-  ShoppingBag,
+  ArrowRight,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useCartStore } from "@/stores/cart-store";
+import { validateVoucherForCart } from "@/lib/vouchers/client";
 
 type Voucher = {
   id: string;
@@ -28,10 +29,10 @@ type Voucher = {
   value: number;
   min_order_amount: number | null;
   max_discount_amount: number | null;
-  start_at: string;
-  end_at: string;
-  total_quantity: number | null;
-  used_quantity: number | null;
+  start_date: string;
+  end_date: string;
+  quantity_total: number | null;
+  quantity_used: number | null;
   description: string | null;
   is_active: boolean;
 };
@@ -64,6 +65,30 @@ export function VoucherWallet({
     "available",
   );
 
+  const cartItems = useCartStore((s) => s.items);
+  const subtotal = useCartStore((s) => s.subtotal());
+  const applyVoucher = useCartStore((s) => s.applyVoucher);
+
+  const useNow = useMutation({
+    mutationFn: (code: string) => {
+      if (cartItems.length === 0) {
+        throw new Error("Giỏ hàng đang trống — thêm sản phẩm rồi hãy áp dụng voucher.");
+      }
+      return validateVoucherForCart({
+        code,
+        subtotal,
+        productIds: cartItems.map((i) => i.productId),
+      });
+    },
+    onSuccess: (voucher) => {
+      applyVoucher(voucher);
+      toast.success(`Đã áp dụng voucher "${voucher.name}"`);
+      router.push("/cart");
+    },
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "Không áp dụng được voucher"),
+  });
+
   const claim = useMutation({
     mutationFn: async (voucherId: string) => {
       const res = await fetch("/api/v1/account/vouchers/claim", {
@@ -84,9 +109,9 @@ export function VoucherWallet({
     onError: (e) => toast.error(e instanceof Error ? e.message : "Lưu thất bại"),
   });
 
-  const savedActive = claimed.filter((c) => !c.used_at && c.voucher && new Date(c.voucher.end_at) > new Date());
+  const savedActive = claimed.filter((c) => !c.used_at && c.voucher && new Date(c.voucher.end_date) > new Date());
   const used = claimed.filter((c) => c.used_at);
-  const expired = claimed.filter((c) => !c.used_at && c.voucher && new Date(c.voucher.end_at) <= new Date());
+  const expired = claimed.filter((c) => !c.used_at && c.voucher && new Date(c.voucher.end_date) <= new Date());
 
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
@@ -123,8 +148,10 @@ export function VoucherWallet({
         <VoucherList
           vouchers={savedActive.map((c) => ({
             voucher: c.voucher!,
-            actionLabel: "Sao chép mã",
-            actionIcon: Copy,
+            actionLabel: "Dùng ngay",
+            actionIcon: ArrowRight,
+            onAction: () => useNow.mutate(c.voucher!.code),
+            busy: useNow.isPending && useNow.variables === c.voucher!.code,
             code: c.voucher?.code,
           }))}
           emptyTitle="Chưa lưu voucher nào"
@@ -213,7 +240,7 @@ function VoucherCard({
               ) : null}
               <span className="inline-flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                Đến {new Date(voucher.end_at).toLocaleDateString("vi-VN")}
+                Đến {new Date(voucher.end_date).toLocaleDateString("vi-VN")}
               </span>
             </div>
             {code && (

@@ -3,59 +3,73 @@
  * GET /api/v1/reports/vouchers
  */
 import { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/api/guard";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ok, handleError } from "@/lib/api/response";
 import { parseFilters, type ReportFilters } from "@/lib/reports/query";
 
-type Voucher = {
+type VoucherRow = {
   id: string;
   code: string;
   name: string;
   description: string | null;
-  discount_type: string;
-  discount_value: number;
-  min_order_value: number | null;
-  max_discount: number | null;
-  starts_at: string | null;
-  ends_at: string | null;
-  total_issued: number | null;
-  total_used: number | null;
-  usage_limit: number | null;
-  status: string | null;
+  type: "percent" | "fixed_amount" | "free_shipping";
+  value: number;
+  min_order_amount: number | null;
+  max_discount_amount: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  quantity_total: number | null;
+  quantity_used: number | null;
   is_active: boolean | null;
 };
 
 const TYPE_LABEL: Record<string, string> = {
   percent: "Giảm %",
-  fixed: "Giảm tiền",
+  fixed_amount: "Giảm tiền",
+  free_shipping: "Miễn phí ship",
 };
+
+function derivedStatus(v: VoucherRow, now = new Date()) {
+  if (!v.is_active) return "inactive";
+  if (v.start_date && new Date(v.start_date) > now) return "upcoming";
+  if (v.end_date && new Date(v.end_date) < now) return "expired";
+  if (
+    v.quantity_total != null &&
+    (v.quantity_used ?? 0) >= v.quantity_total
+  ) {
+    return "depleted";
+  }
+  return "active";
+}
 
 export async function GET(req: NextRequest) {
   try {
     await requireUser();
     const filters: ReportFilters = parseFilters(req.nextUrl.searchParams);
-    const supabase = await createClient();
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = supabase
+    const db = createAdminClient() as any;
+
+    const { data, error } = await db
       .from("vouchers")
-      .select("id, code, name, description, discount_type, discount_value, min_order_value, max_discount, starts_at, ends_at, total_issued, total_used, usage_limit, status, is_active")
+      .select(
+        "id, code, name, description, type, value, min_order_amount, max_discount_amount, start_date, end_date, quantity_total, quantity_used, is_active",
+      )
       .limit(10_000);
-    if (filters.status) q = q.eq("status", filters.status);
-    const { data, error } = await q;
     if (error) throw error;
-    const vouchers = (data ?? []) as Voucher[];
+    const vouchers = (data ?? []) as VoucherRow[];
 
     // Lấy orders trong kỳ để tính doanh thu từ voucher (nếu có filter ngày)
     const orderVoucherMap = new Map<string, { count: number; revenue: number; discount: number }>();
     if (vouchers.length > 0 && (filters.from || filters.to)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let oq: any = supabase.from("orders").select("id, voucher_id, voucher_discount, total_amount, created_at");
+      let oq: any = db
+        .from("orders")
+        .select("id, voucher_id, voucher_discount, total_amount, created_at")
+        .not("voucher_id", "is", null);
       if (filters.from) oq = oq.gte("created_at", filters.from);
       if (filters.to) oq = oq.lte("created_at", filters.to);
       if (filters.shop_id) oq = oq.eq("shop_id", filters.shop_id);
-      oq = oq.not("voucher_id", "is", null);
       const { data: oData } = await oq.limit(100_000);
       const orders = (oData ?? []) as Array<{ voucher_id: string | null; total_amount: number; voucher_discount: number | null }>;
       for (const o of orders) {
@@ -68,30 +82,36 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const rows = vouchers.map((v) => {
+    let rows = vouchers.map((v) => {
       const usage = orderVoucherMap.get(v.id);
-      const totalUsed = usage?.count ?? Number(v.total_used ?? 0);
-      const totalIssued = Number(v.total_issued ?? 0);
+      const totalUsed = Number(v.quantity_used ?? 0);
+      const totalIssued = Number(v.quantity_total ?? 0);
       const usageRate = totalIssued > 0 ? (totalUsed / totalIssued) * 100 : 0;
       return {
         id: v.id,
         code: v.code,
         name: v.name,
         description: v.description,
-        discount_type: TYPE_LABEL[v.discount_type] ?? v.discount_type,
-        discount_value: Number(v.discount_value),
-        min_order_value: v.min_order_value,
-        max_discount: v.max_discount,
-        starts_at: v.starts_at,
-        ends_at: v.ends_at,
+        discount_type: TYPE_LABEL[v.type] ?? v.type,
+        discount_value: Number(v.value),
+        min_order_value: v.min_order_amount,
+        max_discount: v.max_discount_amount,
+        starts_at: v.start_date,
+        ends_at: v.end_date,
         total_issued: totalIssued,
         total_used: totalUsed,
         usage_rate_pct: usageRate,
         revenue_generated: usage?.revenue ?? 0,
         total_discount: usage?.discount ?? 0,
-        status: v.status ?? (v.is_active ? "active" : "inactive"),
+        status: derivedStatus(v),
       };
-    }).sort((a, b) => b.revenue_generated - a.revenue_generated);
+    });
+
+    if (filters.status) {
+      rows = rows.filter((r) => r.status === filters.status);
+    }
+
+    rows.sort((a, b) => b.revenue_generated - a.revenue_generated);
 
     const totalIssued = rows.reduce((s, r) => s + r.total_issued, 0);
     const totalUsed = rows.reduce((s, r) => s + r.total_used, 0);

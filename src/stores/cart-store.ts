@@ -147,20 +147,28 @@ export const useCartStore = create<CartStore>()(
       discountAmount: () => {
         const state = get();
         if (!state.appliedVoucher) return 0;
-        
+
         const subtotal = state.subtotal();
         const voucher = state.appliedVoucher;
-        
+
+        if (subtotal < (voucher.min_order_amount ?? 0)) return 0;
+        if (subtotal <= 0) return 0;
+
         switch (voucher.type) {
           case "percent": {
-            let discount = Math.round(subtotal * voucher.value / 100);
+            // Voucher cũ (trước bản fix) có thể lưu value = 0 nhưng đã có
+            // discount_amount — dùng tạm giá trị đó thay vì giảm 0 đồng.
+            if (!voucher.value) {
+              return Math.min(voucher.discount_amount ?? 0, subtotal);
+            }
+            let discount = Math.round((subtotal * voucher.value) / 100);
             if (voucher.max_discount_amount !== null) {
               discount = Math.min(discount, voucher.max_discount_amount);
             }
             return discount;
           }
           case "fixed_amount":
-            return Math.min(voucher.value, subtotal);
+            return Math.min(voucher.value || voucher.discount_amount || 0, subtotal);
           case "free_shipping":
             return 0; // Free shipping handled separately
           default:
@@ -175,6 +183,16 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: "laplap-cart-v1",     // key trong localStorage
+      version: 2,
+      migrate: (persisted: any) => {
+        // Bản cũ lưu voucher với value = 0 → discount luôn 0. Bỏ voucher cũ
+        // để người dùng áp dụng lại (đúng value/max_discount).
+        const voucher = persisted?.appliedVoucher;
+        if (voucher && voucher.type !== "free_shipping" && !voucher.value) {
+          return { ...persisted, appliedVoucher: null };
+        }
+        return persisted;
+      },
       partialize: (s) => ({ items: s.items, appliedVoucher: s.appliedVoucher }), // chỉ persist items & voucher, not animation trigger
       onRehydrateStorage: () => (state) => {
         state?.markHydrated();

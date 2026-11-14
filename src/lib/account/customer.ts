@@ -17,6 +17,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AccountUser = {
   /** auth.users.id */
@@ -100,6 +101,57 @@ export const getCurrentCustomer = cache(async (): Promise<AccountUser | null> =>
     return null;
   }
 });
+
+/**
+ * Trả về customers.id của user đang đăng nhập, tự tạo/link nếu chưa có row.
+ *
+ * Dùng cho API route — nơi không thể `redirect()` như requireCustomer().
+ * Trước đây claim voucher trả 401 "Bạn cần đăng nhập" dù đã đăng nhập, vì
+ * tài khoản chưa có customers row (getCurrentCustomer chỉ đọc, không tạo).
+ */
+export async function ensureCustomerId(me: AccountUser): Promise<string | null> {
+  if (me.customerId) return me.customerId;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+
+  try {
+    const { data, error } = await db.rpc("ensure_customer_for_auth_user", {
+      p_auth_user_id: me.id,
+      p_email: me.email,
+      p_full_name: me.fullName,
+      p_phone: me.phone,
+      p_avatar_url: me.avatarUrl,
+    });
+    if (!error && data) return String(data);
+  } catch (err) {
+    console.error("[ensureCustomerId] rpc failed:", err);
+  }
+
+  try {
+    const { data } = await db
+      .from("customers")
+      .upsert(
+        {
+          auth_user_id: me.id,
+          email: me.email,
+          full_name: me.fullName,
+          phone: me.phone,
+          avatar_url: me.avatarUrl,
+          tier: "bronze",
+          loyalty_points: 0,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "auth_user_id", ignoreDuplicates: false },
+      )
+      .select("id")
+      .maybeSingle();
+    return (data?.id as string | undefined) ?? null;
+  } catch (err) {
+    console.error("[ensureCustomerId] upsert failed:", err);
+    return null;
+  }
+}
 
 /**
  * Throw redirect nếu user chưa login.

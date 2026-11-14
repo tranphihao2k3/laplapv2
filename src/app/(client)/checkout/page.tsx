@@ -3,16 +3,25 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Loader2, ShoppingBag } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Loader2,
+  ShoppingBag,
+  Tag,
+  Ticket,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { VoucherPickerDialog } from "@/components/client/vouchers/voucher-picker-dialog";
 import { useCartStore } from "@/stores/cart-store";
 import { formatCurrency } from "@/lib/utils";
+import { validateVoucherForCart } from "@/lib/vouchers/client";
 
 type PlacedOrder = {
   id: string;
@@ -23,13 +32,14 @@ type PlacedOrder = {
 };
 
 export default function CheckoutPage() {
-  const router = useRouter();
   const items = useCartStore((s) => s.items);
   const hydrated = useCartStore((s) => s.hydrated);
   const clearCart = useCartStore((s) => s.clearCart);
   const subtotal = useCartStore((s) => s.subtotal());
   const discountAmount = useCartStore((s) => s.discountAmount());
   const appliedVoucher = useCartStore((s) => s.appliedVoucher);
+  const applyVoucher = useCartStore((s) => s.applyVoucher);
+  const removeVoucher = useCartStore((s) => s.removeVoucher);
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -40,7 +50,36 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
 
+  const [voucherInput, setVoucherInput] = useState("");
+  const [voucherApplying, setVoucherApplying] = useState(false);
+  const [voucherError, setVoucherError] = useState<string | null>(null);
+  const [voucherPickerOpen, setVoucherPickerOpen] = useState(false);
+
   const total = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
+  const freeShipping =
+    appliedVoucher?.type === "free_shipping" || subtotal >= 5_000_000;
+
+  async function handleApplyVoucher(code: string) {
+    if (!code.trim() || voucherApplying) return;
+    setVoucherApplying(true);
+    setVoucherError(null);
+    try {
+      const voucher = await validateVoucherForCart({
+        code,
+        subtotal,
+        productIds: items.map((i) => i.productId),
+      });
+      applyVoucher(voucher);
+      setVoucherInput("");
+      toast.success(`Đã áp dụng voucher "${voucher.name}"`);
+    } catch (e) {
+      setVoucherError(
+        e instanceof Error ? e.message : "Không áp dụng được voucher",
+      );
+    } finally {
+      setVoucherApplying(false);
+    }
+  }
 
   useEffect(() => {
     if (hydrated && items.length === 0 && !placed) {
@@ -254,20 +293,113 @@ export default function CheckoutPage() {
               </div>
 
               <div className="h-px bg-border" />
+
+              {appliedVoucher ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-emerald-800">
+                          {appliedVoucher.name}
+                        </p>
+                        <p className="text-xs text-emerald-700">
+                          Mã {appliedVoucher.code}
+                          {discountAmount > 0
+                            ? ` · giảm ${formatCurrency(discountAmount)}`
+                            : appliedVoucher.type === "free_shipping"
+                              ? " · miễn phí vận chuyển"
+                              : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        removeVoucher();
+                        setVoucherError(null);
+                      }}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-emerald-700 hover:bg-emerald-100"
+                      aria-label="Bỏ voucher"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Ticket className="h-3.5 w-3.5" />
+                    Mã giảm giá
+                  </p>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Tag className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={voucherInput}
+                        onChange={(e) => {
+                          setVoucherInput(e.target.value.toUpperCase());
+                          setVoucherError(null);
+                        }}
+                        placeholder="Nhập mã"
+                        className="h-9 pl-8 font-mono text-sm"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void handleApplyVoucher(voucherInput);
+                          }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 shrink-0"
+                      disabled={!voucherInput.trim() || voucherApplying}
+                      onClick={() => void handleApplyVoucher(voucherInput)}
+                    >
+                      {voucherApplying ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Áp dụng"
+                      )}
+                    </Button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVoucherPickerOpen(true)}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Chọn từ voucher đang có →
+                  </button>
+                  {voucherError ? (
+                    <p className="text-xs text-red-500">{voucherError}</p>
+                  ) : null}
+                </div>
+              )}
+
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Tạm tính</span>
                 <span className="font-medium">{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Giảm giá</span>
-                <span className="font-medium text-emerald-600">-{formatCurrency(discountAmount)}</span>
+                <span className="font-medium text-emerald-600">
+                  -{formatCurrency(discountAmount)}
+                </span>
               </div>
-              {appliedVoucher ? (
-                <p className="text-xs text-muted-foreground">Voucher đã chọn: <span className="font-medium">{appliedVoucher.code}</span> (được ghi nhận trong đơn, cửa hàng sẽ xác nhận khi xử lý).</p>
-              ) : null}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Phí vận chuyển</span>
-                <span className="font-medium text-muted-foreground">Liên hệ xác nhận</span>
+                <span
+                  className={
+                    freeShipping
+                      ? "font-medium text-emerald-600"
+                      : "font-medium text-muted-foreground"
+                  }
+                >
+                  {freeShipping ? "Miễn phí" : "Liên hệ xác nhận"}
+                </span>
               </div>
               <div className="h-px bg-border" />
               <div className="flex justify-between text-base font-bold">
@@ -285,6 +417,16 @@ export default function CheckoutPage() {
           </Card>
         </div>
       </form>
+
+      <VoucherPickerDialog
+        open={voucherPickerOpen}
+        onOpenChange={setVoucherPickerOpen}
+        selectedCode={appliedVoucher?.code}
+        onSelect={(code) => {
+          setVoucherPickerOpen(false);
+          void handleApplyVoucher(code);
+        }}
+      />
     </div>
   );
 }

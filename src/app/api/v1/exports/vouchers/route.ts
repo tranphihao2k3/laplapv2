@@ -2,17 +2,18 @@
  * Excel export cho báo cáo voucher.
  */
 import { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/api/guard";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { excelResponse, buildWorkbook, type ExcelColumn } from "@/lib/excel/server";
 import { parseFilters, type ReportFilters } from "@/lib/reports/query";
 
 type Voucher = {
   id: string; code: string; name: string; description: string | null;
-  discount_type: string; discount_value: number; min_order_value: number | null;
-  starts_at: string | null; ends_at: string | null;
-  total_issued: number | null; usage_limit: number | null;
-  status: string | null; is_active: boolean | null;
+  type: string; value: number; min_order_amount: number | null;
+  max_discount_amount: number | null;
+  start_date: string | null; end_date: string | null;
+  quantity_total: number | null; quantity_used: number | null;
+  is_active: boolean | null;
 };
 
 const COLUMNS: ExcelColumn<{
@@ -36,40 +37,57 @@ const COLUMNS: ExcelColumn<{
   { header: "Trạng thái", key: "status", width: 14 },
 ];
 
-const TYPE_LABEL: Record<string, string> = { percent: "Giảm %", fixed: "Giảm tiền" };
+const TYPE_LABEL: Record<string, string> = {
+  percent: "Giảm %",
+  fixed_amount: "Giảm tiền",
+  free_shipping: "Miễn phí ship",
+};
+
+function derivedStatus(v: Voucher, now = new Date()) {
+  if (!v.is_active) return "inactive";
+  if (v.start_date && new Date(v.start_date) > now) return "upcoming";
+  if (v.end_date && new Date(v.end_date) < now) return "expired";
+  if (v.quantity_total != null && (v.quantity_used ?? 0) >= v.quantity_total) {
+    return "depleted";
+  }
+  return "active";
+}
 
 export async function GET(req: NextRequest) {
   await requireUser();
   const filters: ReportFilters = parseFilters(req.nextUrl.searchParams);
-  const supabase = await createClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q: any = supabase
+  const db = createAdminClient() as any;
+  const { data, error } = await db
     .from("vouchers")
-    .select("id, code, name, description, discount_type, discount_value, min_order_value, starts_at, ends_at, total_issued, usage_limit, status, is_active")
+    .select(
+      "id, code, name, description, type, value, min_order_amount, max_discount_amount, start_date, end_date, quantity_total, quantity_used, is_active",
+    )
     .limit(10_000);
-  if (filters.status) q = q.eq("status", filters.status);
-  const { data, error } = await q;
   if (error) throw error;
-  const vouchers = (data ?? []) as Voucher[];
+  let vouchers = (data ?? []) as Voucher[];
+  if (filters.status) {
+    vouchers = vouchers.filter((v) => derivedStatus(v) === filters.status);
+  }
 
   const detailRows = vouchers.map((v) => {
-    const totalIssued = Number(v.total_issued ?? 0);
-    const totalUsed = Number((v as { total_used?: number }).total_used ?? 0);
+    const totalIssued = Number(v.quantity_total ?? 0);
+    const totalUsed = Number(v.quantity_used ?? 0);
     const usageRate = totalIssued > 0 ? (totalUsed / totalIssued) * 100 : 0;
     return {
       code: v.code,
       name: v.name,
-      discount_type: TYPE_LABEL[v.discount_type] ?? v.discount_type,
-      discount_value: Number(v.discount_value),
-      min_order_value: Number(v.min_order_value ?? 0),
-      starts_at: v.starts_at ?? "",
-      ends_at: v.ends_at ?? "",
+      discount_type: TYPE_LABEL[v.type] ?? v.type,
+      discount_value: Number(v.value),
+      min_order_value: Number(v.min_order_amount ?? 0),
+      starts_at: v.start_date ?? "",
+      ends_at: v.end_date ?? "",
       total_issued: totalIssued,
       total_used: totalUsed,
       usage_rate_pct: usageRate,
       revenue_generated: 0,
       total_discount: 0,
-      status: v.status ?? (v.is_active ? "active" : "inactive"),
+      status: derivedStatus(v),
     };
   }).sort((a, b) => b.total_used - a.total_used);
 
