@@ -55,6 +55,10 @@ import {
 import { OptionsSelect, type SelectOption } from "@/components/ui/options-select";
 import { httpPost } from "@/lib/api/http";
 import { useCrudList } from "@/lib/api/admin-crud";
+import {
+  LinkableProductPicker,
+  type LinkableVariant,
+} from "./linkable-product-picker";
 import { useStoreSettings } from "@/components/client/layout/use-store-settings";
 import {
   addMonthsIso,
@@ -66,24 +70,8 @@ import {
   QUICK_BULK_TEMPLATE_HEADER,
   todayIso,
 } from "@/lib/warranties/quick-warranty";
-import { extractQuickSpecs, mergeSpecSources } from "@/lib/products/quick-specs";
 
 type WarrantyType = "sold" | "repair" | "extension";
-
-type ProductVariant = {
-  id: string;
-  sku: string | null;
-  name: string | null;
-  product_id: string | null;
-  selling_price?: number | null;
-  specs?: Record<string, unknown> | null;
-  attributes?: Record<string, unknown> | null;
-};
-
-type Product = {
-  id: string;
-  name: string | null;
-};
 
 type RepairTicket = {
   id: string;
@@ -232,12 +220,6 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
   const defaultMonths = settings?.warranty_months ?? 12;
 
   // Chỉ tải dữ liệu cần thiết khi dialog mở (tiết kiệm băng thông trên mobile).
-  const variantsQ = useCrudList<ProductVariant>(
-    "product-variants",
-    { page: 1, pageSize: 500 },
-    open,
-  );
-  const productsQ = useCrudList<Product>("products", { page: 1, pageSize: 500 }, open);
   const ticketsQ = useCrudList<RepairTicket>(
     "repair-tickets",
     { page: 1, pageSize: 200 },
@@ -317,46 +299,19 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
     monthsTouched.current = true;
   }, [startDate, endDate, endDateTouched]);
 
-  const productNameById = useMemo(() => {
-    const m = new Map<string, string>();
-    (productsQ.data?.items ?? []).forEach((p) => {
-      if (p.name) m.set(p.id, p.name);
-    });
-    return m;
-  }, [productsQ.data]);
-
-  const variantOptions: SelectOption[] = useMemo(
-    () =>
-      (variantsQ.data?.items ?? []).map((v) => {
-        const productName = v.product_id ? productNameById.get(v.product_id) : null;
-        const label =
-          [productName, v.name].filter(Boolean).join(" — ") ||
-          v.sku ||
-          v.id.slice(0, 8);
-        return { value: v.id, label, keywords: v.sku ?? "" };
-      }),
-    [variantsQ.data, productNameById],
-  );
-
-  function handleLinkedVariantChange(id: string) {
-    setProductVariantId(id);
-    if (!id) return;
-    const v = (variantsQ.data?.items ?? []).find((x) => x.id === id);
+  function handleLinkedVariant(v: LinkableVariant | null) {
+    setProductVariantId(v?.variant_id ?? "");
     if (!v) return;
 
-    const productName = v.product_id ? productNameById.get(v.product_id) : null;
     const label =
-      [productName, v.name].filter(Boolean).join(" — ") ||
-      v.sku ||
-      "";
+      [v.product_name, v.variant_name].filter(Boolean).join(" — ") || v.sku || "";
     setDeviceName((prev) => (prev.trim() ? prev : label));
 
-    if (typeof v.selling_price === "number" && v.selling_price > 0) {
+    if (v.selling_price > 0) {
       setSaleAmountInput(String(v.selling_price));
     }
 
-    const specs = extractQuickSpecs(mergeSpecSources(v.specs, v.attributes));
-    const w = specs.find((s) => s.id === "warranty");
+    const w = v.specs.find((s) => s.id === "warranty");
     const raw = w?.raw || w?.value || "";
     const m = /(\d+)\s*th/i.exec(raw);
     if (m && !monthsTouched.current) {
@@ -601,17 +556,14 @@ export function QuickWarrantyDialog({ open, onOpenChange, onCreated }: Props) {
             {warrantyType !== "repair" ? (
               <div className="space-y-1">
                 <Label>Sản phẩm liên kết (tuỳ chọn)</Label>
-                <OptionsSelect
-                  options={variantOptions}
+                <LinkableProductPicker
                   value={productVariantId}
-                  onValueChange={handleLinkedVariantChange}
-                  placeholder="Chọn sản phẩm trong danh mục để tự điền giá/BH"
-                  searchable
-                  searchPlaceholder="Tìm tên sản phẩm / SKU..."
-                  emptyText="Không tìm thấy sản phẩm"
+                  onSelect={handleLinkedVariant}
+                  enabled={open}
+                  placeholder="Chọn sản phẩm còn hàng để tự điền giá/BH"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Chọn SP trong catalog: tự điền tên máy, giá và số tháng BH; có giá sẽ tạo đơn và trừ tồn như POS.
+                  Tự điền tên máy, giá và số tháng BH · có giá sẽ tạo đơn và trừ tồn như POS.
                 </p>
               </div>
             ) : null}
