@@ -17,7 +17,6 @@ import {
   Banknote,
   AlertTriangle,
   Receipt,
-  Percent,
   StickyNote,
   ScanLine,
   ShieldCheck,
@@ -692,11 +691,9 @@ function PosClientInner() {
       {/* Mobile: cho phép trang cuộn tự nhiên (không khoá chiều cao cứng),
           nếu khoá h-full thì lưới bên dưới bị bóp và không cuộn được. */}
       <div className="flex w-full min-w-0 flex-col gap-3 pb-24 lg:h-full lg:pb-0">
-        {/* Banner ca POS */}
-        <PosSessionBanner shopId={shopId} />
         {/* ============== HEADER ============== */}
-        <header className="flex max-w-full min-w-0 flex-wrap items-center gap-2 rounded-lg border bg-card px-2 py-1.5 shadow-sm sm:flex-nowrap">
-          <div className="flex min-w-0 items-center gap-1.5 sm:w-[200px] sm:shrink-0">
+        <header className="flex max-w-full min-w-0 flex-wrap items-center gap-2 rounded-lg border bg-card px-2 py-1.5 shadow-sm">
+          <div className="order-1 flex min-w-0 flex-1 items-center gap-1.5 sm:w-[200px] sm:flex-none">
             <Store className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <OptionsSelect
               className="h-9 w-full min-w-0"
@@ -707,7 +704,10 @@ function PosClientInner() {
               disabled={shops.length === 0}
             />
           </div>
-          <div className="min-w-0 flex-1 basis-full sm:basis-auto">
+          {/* Ca POS gộp vào header thay vì 1 dải riêng phía trên.
+              Mobile: đứng cạnh ô cửa hàng để header chỉ còn 2 hàng. */}
+          <PosSessionBanner shopId={shopId} />
+          <div className="order-3 min-w-0 flex-1 basis-full sm:order-2 sm:basis-auto">
             <CustomerPicker value={customer} onChange={setCustomer} />
           </div>
           {!shopsQuery.isLoading && shops.length === 0 && (
@@ -721,7 +721,7 @@ function PosClientInner() {
           Các nút hành động nằm ở hàng riêng bên dưới, tự wrap, chiều cao thống nhất
           (h-11) để bấm bằng ngón tay dễ. */}
       <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border bg-card px-2 py-1.5 shadow-sm sm:w-auto sm:flex-1 sm:basis-0">
+        <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border bg-card px-2 py-1 shadow-sm sm:w-auto sm:flex-1 sm:basis-0">
           <ScanLine className="ml-1 h-4 w-4 shrink-0 text-primary" />
           <ProductSearch onPick={addLine} shopId={shopId} />
         </div>
@@ -743,7 +743,7 @@ function PosClientInner() {
         {/* ----- CART ----- */}
         <div className="flex min-w-0 min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
           {/* Cart header sticky */}
-          <div className="flex items-center justify-between gap-2 border-b bg-card/95 px-3 py-2.5 backdrop-blur sm:px-4">
+          <div className="flex items-center justify-between gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur sm:px-4">
             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
               <ShoppingCart className="h-4 w-4 shrink-0 text-primary" />
               <span className="truncate">Hóa đơn</span>
@@ -811,7 +811,7 @@ function PosClientInner() {
                   return (
                     <div
                       key={l.variant_id}
-                      className="group relative flex w-full min-w-0 items-start gap-2 px-3 py-3 transition-colors hover:bg-muted/30 sm:px-4"
+                      className="group relative flex w-full min-w-0 items-start gap-2 px-3 py-2.5 transition-colors hover:bg-muted/30 sm:px-4"
                     >
                       {/* Thumbnail placeholder */}
                       <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground sm:flex">
@@ -1006,14 +1006,15 @@ function PosClientInner() {
 
         {/* ----- TOTALS PANEL ----- */}
         <aside className="flex w-full min-w-0 flex-col gap-3">
-          {/* Tổng quan */}
-          <div className="max-w-full rounded-xl border bg-card p-4 shadow-sm">
-            <div className="space-y-2.5 text-sm">
+          {/* Một card duy nhất: tổng tiền + thanh toán + giữ đơn + ghi chú.
+              Các khối ít dùng (ghi chú, phím tắt) thu gọn để nhường chỗ cho giỏ hàng. */}
+          <div className="max-w-full overflow-hidden rounded-xl border bg-card shadow-sm">
+            <div className="space-y-2 p-3">
               <Row label="Tạm tính" value={formatVND(subtotal)} />
               <div className="flex items-center justify-between gap-2">
                 <Label
                   htmlFor="pos-discount"
-                  className="flex shrink-0 items-center gap-1 text-muted-foreground"
+                  className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
                 >
                   <Tag className="h-3.5 w-3.5" />
                   Giảm giá
@@ -1028,7 +1029,7 @@ function PosClientInner() {
                   }
                   onChange={(e) => setDiscountInput(e.target.value.replace(/\D/g, ""))}
                   placeholder="0"
-                  className="h-10 min-w-0 max-w-[140px] flex-1 text-right tabular-nums sm:h-8"
+                  className="h-8 min-w-0 max-w-[140px] flex-1 text-right tabular-nums"
                 />
               </div>
               {loyaltyDiscount > 0 && (
@@ -1040,90 +1041,64 @@ function PosClientInner() {
               )}
               <Separator />
               <div className="flex items-center justify-between gap-2">
-                <span className="shrink-0 text-base font-semibold">Tổng cộng</span>
-                <span className="min-w-0 truncate text-right text-xl font-extrabold text-primary tabular-nums sm:text-2xl">
+                <span className="shrink-0 text-sm font-semibold">Tổng cộng</span>
+                <span className="min-w-0 truncate text-right text-xl font-extrabold text-primary tabular-nums">
                   {formatVND(total)}
                 </span>
               </div>
             </div>
-          </div>
 
-          {/* Ghi chú */}
-          <div className="max-w-full rounded-xl border bg-card shadow-sm">
-            <button
-              type="button"
-              onClick={() => setShowNote((v) => !v)}
-              className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-medium"
-            >
-              <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-                <StickyNote className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">Ghi chú đơn hàng</span>
-                {note && <Badge variant="secondary" className="ml-1 shrink-0 text-[10px]">Có</Badge>}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">{showNote ? "Ẩn" : "Mở"}</span>
-            </button>
-            {showNote && (
-              <div className="border-t px-4 pb-3 pt-2">
+            <div className="space-y-2 border-t bg-muted/20 p-3">
+              <Button
+                size="lg"
+                className="hidden h-12 w-full truncate text-base font-bold shadow-sm lg:flex"
+                disabled={lines.length === 0 || !shopId}
+                onClick={() => setPayOpen(true)}
+              >
+                <Banknote className="mr-2 h-5 w-5 shrink-0" />
+                Thanh toán · {formatVND(total)}
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={lines.length === 0 || !shopId}
+                  onClick={holdBill}
+                  className="h-8 min-w-0 flex-1 gap-1 bg-background px-2 text-xs"
+                >
+                  <Pause className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Giữ đơn</span>
+                  <span className="ml-auto hidden text-[10px] font-normal text-muted-foreground sm:inline">
+                    F8
+                  </span>
+                </Button>
+                <Button
+                  variant={note ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setShowNote((v) => !v)}
+                  className="h-8 min-w-0 flex-1 gap-1 bg-background px-2 text-xs"
+                  aria-expanded={showNote}
+                >
+                  <StickyNote className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Ghi chú</span>
+                  {note ? (
+                    <Badge variant="secondary" className="ml-auto px-1 text-[9px]">
+                      Có
+                    </Badge>
+                  ) : null}
+                </Button>
+              </div>
+              {showNote ? (
                 <Input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Ghi chú nội bộ (nếu có)"
-                  className="h-10 w-full"
+                  className="h-9 w-full"
+                  autoFocus
                 />
-              </div>
-            )}
-          </div>
-
-          {/* Action buttons — sticky trên desktop, dính đáy mobile (bản mobile
-              nằm ở thanh fixed bottom bên dưới, xem thêm ở cuối component). */}
-          <div className="hidden w-full min-w-0 flex-col gap-2 lg:flex lg:sticky lg:bottom-3">
-            <Button
-              size="lg"
-              className="h-14 w-full truncate text-base font-bold shadow-md sm:text-lg"
-              disabled={lines.length === 0 || !shopId}
-              onClick={() => setPayOpen(true)}
-            >
-              <Banknote className="mr-2 h-5 w-5 shrink-0" />
-              Thanh toán · {formatVND(total)}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={lines.length === 0 || !shopId}
-              onClick={holdBill}
-              className="h-11 w-full sm:h-9"
-            >
-              <Pause className="mr-1.5 h-4 w-4" />
-              Giữ đơn tạm
-              <span className="ml-2 hidden text-[10px] text-muted-foreground sm:inline">
-                F8
-              </span>
-            </Button>
-          </div>
-
-          {/* Tip */}
-          {lines.length === 0 && (
-            <div className="max-w-full rounded-xl border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
-              <p className="mb-1 font-semibold">
-                <Percent className="mr-1 inline h-3 w-3" />
-                Phím tắt
-              </p>
-              <ul className="space-y-0.5">
-                <li>
-                  <Kbd>F2</Kbd> — Tìm sản phẩm
-                </li>
-                <li>
-                  <Kbd>/</Kbd> — Tìm nhanh
-                </li>
-                <li>
-                  <Kbd>F8</Kbd> — Giữ đơn
-                </li>
-                <li>
-                  <Kbd>F9</Kbd> — Thanh toán
-                </li>
-              </ul>
+              ) : null}
             </div>
-          )}
+          </div>
         </aside>
       </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, Clock4, XCircle } from "lucide-react";
+import { Banknote, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,26 +55,26 @@ export function PosSessionBanner({ shopId }: Props) {
 
   return (
     <>
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-emerald-200/60 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-        <Clock4 className="h-3.5 w-3.5 shrink-0" />
-        <span className="shrink-0 font-semibold">Ca đang mở</span>
-        <span className="shrink-0 opacity-70">·</span>
-        <span className="min-w-0 truncate">
-          Quỹ đầu:{" "}
-          <strong className="whitespace-nowrap">
-            {new Intl.NumberFormat("vi-VN").format(session.opening_cash ?? 0)}
-            ₫
-          </strong>
+      {/* Pill gọn — nằm chung hàng với cửa hàng/khách để tiết kiệm chiều cao. */}
+      <div className="order-2 flex w-auto min-w-0 shrink-0 items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50/70 py-1 pl-2.5 pr-1 text-[11px] leading-tight text-emerald-700 sm:order-3 sm:ml-auto dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
         </span>
-        <span className="hidden shrink-0 opacity-70 sm:inline">·</span>
-        <span className="min-w-0 truncate whitespace-nowrap">Đã mở: <strong>{elapsed}</strong></span>
+        <span className="shrink-0 font-semibold">Ca mở</span>
+        <span className="hidden shrink-0 opacity-40 sm:inline">·</span>
+        <span className="hidden min-w-0 truncate sm:inline">
+          Quỹ <strong className="whitespace-nowrap">{new Intl.NumberFormat("vi-VN").format(session.opening_cash ?? 0)}₫</strong>
+        </span>
+        <span className="hidden shrink-0 opacity-40 sm:inline">·</span>
+        <span className="hidden shrink-0 whitespace-nowrap sm:inline">{elapsed}</span>
         <Button
           size="sm"
-          variant="outline"
-          className="ml-auto h-9 shrink-0 border-emerald-300 bg-white/60 px-3 text-xs hover:bg-white sm:h-7 sm:px-2 dark:bg-emerald-950/40"
+          variant="ghost"
+          className="ml-auto h-6 shrink-0 gap-1 rounded-full px-2 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
           onClick={() => setClosingOpen(true)}
         >
-          <XCircle className="mr-1 h-3.5 w-3.5" />
+          <XCircle className="h-3 w-3" />
           Đóng ca
         </Button>
       </div>
