@@ -3,14 +3,7 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  ChevronDown,
-  ChevronRight,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -36,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -45,7 +39,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useCrudBulkDelete,
@@ -104,6 +97,9 @@ const EMPTY_FORM: VariantForm = {
   is_active: "true",
 };
 
+const TAB_ALL = "__all__";
+const TAB_NONE = "__none__";
+
 function slugify(value: string) {
   return value
     .normalize("NFD")
@@ -149,10 +145,8 @@ export default function ProductVariantsAdminPage() {
   const [form, setForm] = useState<VariantForm>(EMPTY_FORM);
   const [attrs, setAttrs] = useState<KeyValueItem[]>([{ key: "", value: "" }]);
   const [specs, setSpecs] = useState<KeyValueItem[]>([{ key: "", value: "" }]);
-  /** Card nào đang mở rộng (không collapse để dễ scan tất cả) */
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  /** Lọc theo sản phẩm cụ thể */
-  const [productFilter, setProductFilter] = useState<string>("__all__");
+  /** Tab danh mục đang chọn */
+  const [activeTab, setActiveTab] = useState(TAB_ALL);
 
   const list = useCrudList<VariantRow>("product-variants", { search, page: 1, pageSize: 200 });
   const products = useCrudList<ProductRow>("products", { page: 1, pageSize: 500 });
@@ -187,73 +181,38 @@ export default function ProductVariantsAdminPage() {
 
   const allRows = list.data?.items ?? [];
 
-  // ===== Gom variants theo sản phẩm =====
-  type VariantGroup = {
-    product: ProductRow | null;
-    productId: string;
-    brandName: string | null;
-    categoryName: string | null;
-    variants: VariantRow[];
-    totalStock: number;
-    priceMin: number;
-    priceMax: number;
-  };
+  // ===== Bảng phẳng: mỗi dòng = 1 biến thể + sản phẩm cha =====
+  type FlatRow = { variant: VariantRow; product: ProductRow | null };
 
-  const grouped = useMemo<VariantGroup[]>(() => {
-    const byProduct = new Map<string, VariantRow[]>();
-    const orphans: VariantRow[] = [];
-    for (const row of allRows) {
-      const pid = row.product_id ? String(row.product_id) : "";
-      if (pid && productMap.has(pid)) {
-        const arr = byProduct.get(pid) ?? [];
-        arr.push(row);
-        byProduct.set(pid, arr);
-      } else if (pid) {
-        orphans.push(row);
-      } else {
-        orphans.push(row);
-      }
-    }
-
-    const groups: VariantGroup[] = [];
-    for (const [productId, variants] of byProduct.entries()) {
-      const product = productMap.get(productId) ?? null;
-      const brandName = product?.brand_id ? brandMap.get(product.brand_id) ?? null : null;
-      const categoryName = product?.category_id ? categoryMap.get(product.category_id) ?? null : null;
-      const totalStock = variants.reduce((sum, v) => sum + (stockByVariant.get(String(v.id ?? "")) ?? 0), 0);
-      const prices = variants.map((v) => Number(v.selling_price ?? 0)).filter((n) => n > 0);
-      const priceMin = prices.length ? Math.min(...prices) : 0;
-      const priceMax = prices.length ? Math.max(...prices) : 0;
-      groups.push({ product, productId, brandName, categoryName, variants, totalStock, priceMin, priceMax });
-    }
-    // Sắp xếp theo tên SP A-Z, orphan xuống cuối
-    groups.sort((a, b) => {
-      const an = a.product?.name ?? `~~~${a.productId}`;
-      const bn = b.product?.name ?? `~~~${b.productId}`;
-      return an.localeCompare(bn, "vi");
+  const flatRows = useMemo<FlatRow[]>(() => {
+    return allRows.map((v) => {
+      const pid = v.product_id ? String(v.product_id) : "";
+      return { variant: v, product: pid ? productMap.get(pid) ?? null : null };
     });
-    if (orphans.length > 0) {
-      groups.push({
-        product: null,
-        productId: "__orphan__",
-        brandName: null,
-        categoryName: null,
-        variants: orphans,
-        totalStock: orphans.reduce((sum, v) => sum + (stockByVariant.get(String(v.id ?? "")) ?? 0), 0),
-        priceMin: 0,
-        priceMax: 0,
-      });
+  }, [allRows, productMap]);
+
+  // Đếm số biến thể trên mỗi tab danh mục
+  const tabCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of flatRows) {
+      const cid = r.product?.category_id ? String(r.product.category_id) : TAB_NONE;
+      counts.set(cid, (counts.get(cid) ?? 0) + 1);
+      counts.set(TAB_ALL, (counts.get(TAB_ALL) ?? 0) + 1);
     }
-    return groups;
-  }, [allRows, productMap, brandMap, categoryMap, stockByVariant]);
+    return counts;
+  }, [flatRows]);
 
-  // Áp dụng filter sản phẩm
-  const visibleGroups = useMemo(() => {
-    if (productFilter === "__all__") return grouped;
-    return grouped.filter((g) => g.productId === productFilter);
-  }, [grouped, productFilter]);
+  // Áp dụng tab đang chọn
+  const visibleRows = useMemo(() => {
+    if (activeTab === TAB_ALL) return flatRows;
+    if (activeTab === TAB_NONE) return flatRows.filter((r) => !r.product?.category_id);
+    return flatRows.filter((r) => r.product?.category_id === activeTab);
+  }, [flatRows, activeTab]);
 
-  const pageIds = useMemo(() => visibleGroups.flatMap((g) => g.variants.map((v) => String(v.id ?? ""))), [visibleGroups]);
+  const pageIds = useMemo(
+    () => visibleRows.map((r) => String(r.variant.id ?? "")).filter(Boolean),
+    [visibleRows],
+  );
   const allOnPageSelected =
     pageIds.length > 0 && pageIds.every((id: string) => selection.isSelected(id));
   const someOnPageSelected = pageIds.some((id: string) => selection.isSelected(id));
@@ -263,28 +222,11 @@ export default function ProductVariantsAdminPage() {
     const totalVariants = allRows.length;
     const totalStock = allRows.reduce((sum, v) => sum + (stockByVariant.get(String(v.id ?? "")) ?? 0), 0);
     const outOfStock = allRows.filter((v) => (stockByVariant.get(String(v.id ?? "")) ?? 0) === 0).length;
-    const productsWithVariants = grouped.filter((g) => g.productId !== "__orphan__").length;
+    const productsWithVariants = new Set(
+      allRows.map((v) => (v.product_id ? String(v.product_id) : "")).filter(Boolean),
+    ).size;
     return { totalVariants, totalStock, outOfStock, productsWithVariants };
-  }, [allRows, stockByVariant, grouped]);
-
-  // ===== Helpers cho mỗi group =====
-  function isGroupAllSelected(group: VariantGroup): boolean {
-    const ids = group.variants.map((v) => String(v.id ?? "")).filter(Boolean);
-    return ids.length > 0 && ids.every((id) => selection.isSelected(id));
-  }
-  function isGroupSomeSelected(group: VariantGroup): boolean {
-    return group.variants.some((v) => selection.isSelected(String(v.id ?? "")));
-  }
-  function toggleGroup(group: VariantGroup) {
-    const ids = group.variants.map((v) => String(v.id ?? "")).filter(Boolean);
-    if (isGroupAllSelected(group)) {
-      ids.forEach((id) => selection.toggle(id)); // bỏ chọn (sẽ xoá vì toggle đảo trạng thái)
-      // dùng clear-from-set pattern: gọi isSelected trước rồi bỏ chọn các id đang selected
-    } else {
-      const notSelected = ids.filter((id) => !selection.isSelected(id));
-      notSelected.forEach((id) => selection.toggle(id));
-    }
-  }
+  }, [allRows, stockByVariant]);
 
   async function handleBulkDelete() {
     const ids = selection.array;
@@ -418,20 +360,8 @@ export default function ProductVariantsAdminPage() {
     }
   }
 
-  // Khi toggle cả group, ta cần đảo ngược từng id đang có/không
-  function handleGroupToggle(group: VariantGroup) {
-    const ids = group.variants.map((v) => String(v.id ?? "")).filter(Boolean);
-    const allSel = ids.every((id) => selection.isSelected(id));
-    if (allSel) {
-      // bỏ chọn tất cả
-      const toUnselect = ids.filter((id) => selection.isSelected(id));
-      toUnselect.forEach((id) => selection.toggle(id));
-    } else {
-      // chọn những cái chưa chọn
-      const toSelect = ids.filter((id) => !selection.isSelected(id));
-      toSelect.forEach((id) => selection.toggle(id));
-    }
-  }
+  const categoryItems = categories.data?.items ?? [];
+  const noneCount = tabCounts.get(TAB_NONE) ?? 0;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -443,7 +373,7 @@ export default function ProductVariantsAdminPage() {
               <div>
                 <CardTitle>Biến thể sản phẩm</CardTitle>
                 <CardDescription>
-                  Mỗi sản phẩm gom thành 1 nhóm. Tồn kho là tổng across các kho.
+                  Bảng tất cả biến thể, chia sẵn theo danh mục. Tồn kho là tổng across các kho.
                 </CardDescription>
               </div>
               <Button onClick={() => openCreateForProduct()} className="w-full sm:w-auto">
@@ -459,9 +389,9 @@ export default function ProductVariantsAdminPage() {
               <StatBox label="Hết hàng" value={stats.outOfStock} accent={stats.outOfStock > 0 ? "text-destructive" : "text-muted-foreground"} />
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <div className="relative flex-1">
+            {/* Search */}
+            <div className="pt-2">
+              <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   value={search}
@@ -470,24 +400,26 @@ export default function ProductVariantsAdminPage() {
                   className="pl-8"
                 />
               </div>
-              <Select value={productFilter} onValueChange={setProductFilter}>
-                <SelectTrigger className="sm:w-64">
-                  <SelectValue placeholder="Lọc theo sản phẩm" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Tất cả sản phẩm ({grouped.length})</SelectItem>
-                  {grouped
-                    .filter((g) => g.product)
-                    .map((g) => (
-                      <SelectItem key={g.productId} value={g.productId}>
-                        {g.product?.name} ({g.variants.length})
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
             </div>
           </CardHeader>
         </Card>
+
+        {/* ===== Tabs danh mục ===== */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="h-auto flex-wrap justify-start w-full">
+            <TabsTrigger value={TAB_ALL}>
+              Tất cả ({tabCounts.get(TAB_ALL) ?? 0})
+            </TabsTrigger>
+            {categoryItems.map((c) => (
+              <TabsTrigger key={c.id} value={c.id}>
+                {c.name} ({tabCounts.get(c.id) ?? 0})
+              </TabsTrigger>
+            ))}
+            {noneCount > 0 && (
+              <TabsTrigger value={TAB_NONE}>Chưa phân loại ({noneCount})</TabsTrigger>
+            )}
+          </TabsList>
+        </Tabs>
 
         <BulkActionsToolbar
           count={selection.count}
@@ -501,16 +433,16 @@ export default function ProductVariantsAdminPage() {
           isPending={bulkDeleteMutation.isPending}
         />
 
-        {/* ===== Grouped variant cards ===== */}
+        {/* ===== Bảng phẳng ===== */}
         {list.isLoading ? (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">Đang tải...</CardContent>
           </Card>
-        ) : visibleGroups.length === 0 ? (
+        ) : visibleRows.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <div className="text-muted-foreground mb-3">
-                {search || productFilter !== "__all__"
+                {search || activeTab !== TAB_ALL
                   ? "Không có biến thể nào khớp bộ lọc"
                   : "Chưa có biến thể nào"}
               </div>
@@ -520,283 +452,202 @@ export default function ProductVariantsAdminPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
-            {visibleGroups.map((group) => {
-              const isCollapsed = collapsed[group.productId] ?? false;
-              const allGroupSelected = isGroupAllSelected(group);
-              const someGroupSelected = isGroupSomeSelected(group);
-              return (
-                <Card key={group.productId} className="overflow-hidden">
-                  {/* Group header */}
-                  <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
+          <Card className="overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="w-[40px]">
                     <Checkbox
-                      checked={allGroupSelected}
-                      onCheckedChange={() => handleGroupToggle(group)}
-                      aria-label={`Chọn tất cả biến thể của ${group.product?.name ?? "không xác định"}`}
+                      checked={allOnPageSelected}
+                      onCheckedChange={() => {
+                        if (allOnPageSelected) {
+                          pageIds.forEach((id) => selection.toggle(id));
+                        } else {
+                          pageIds
+                            .filter((id) => !selection.isSelected(id))
+                            .forEach((id) => selection.toggle(id));
+                        }
+                      }}
+                      aria-label="Chọn tất cả"
                       ref={(el) => {
                         if (el && "indeterminate" in el) {
-                          (el as HTMLInputElement).indeterminate = !allGroupSelected && someGroupSelected;
+                          (el as HTMLInputElement).indeterminate = !allOnPageSelected && someOnPageSelected;
                         }
                       }}
                     />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCollapsed((prev) => ({ ...prev, [group.productId]: !isCollapsed }))
-                      }
-                      className="flex items-center gap-2 min-w-0 flex-1 text-left"
-                    >
-                      {isCollapsed ? (
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      )}
-                      {group.product?.thumbnail_url ? (
-                        <Image
-                          src={group.product.thumbnail_url}
-                          alt=""
-                          width={32}
-                          height={32}
-                          className="h-8 w-8 rounded object-cover border shrink-0"
+                  </TableHead>
+                  <TableHead className="min-w-[220px]">Sản phẩm</TableHead>
+                  <TableHead>SKU / Barcode</TableHead>
+                  <TableHead className="min-w-[200px]">Cấu hình</TableHead>
+                  <TableHead className="text-right">Giá bán</TableHead>
+                  <TableHead className="text-right hidden md:table-cell">Giá vốn</TableHead>
+                  <TableHead className="text-right">Tồn</TableHead>
+                  <TableHead className="hidden md:table-cell">TT</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleRows.map(({ variant: row, product }, idx) => {
+                  const id = String(row.id ?? "");
+                  const sell = Number(row.selling_price ?? 0);
+                  const cost = Number(row.cost_price ?? 0);
+                  const stock = stockByVariant.get(id) ?? 0;
+                  const attrs = recordToEntries(row.attributes);
+                  const specs = recordToEntries(row.specs);
+                  const checked = selection.isSelected(id);
+                  const brandName = product?.brand_id ? brandMap.get(product.brand_id) : null;
+                  const categoryName = product?.category_id ? categoryMap.get(product.category_id) : null;
+                  return (
+                    <TableRow key={id || idx} data-state={checked ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => selection.toggle(id)}
+                          aria-label={`Chọn biến thể ${String(row.sku ?? id)}`}
                         />
-                      ) : (
-                        <div className="h-8 w-8 bg-muted rounded flex items-center justify-center border text-[9px] text-muted-foreground shrink-0">
-                          ?
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          {product?.thumbnail_url ? (
+                            <Image
+                              src={product.thumbnail_url}
+                              alt=""
+                              width={32}
+                              height={32}
+                              className="h-8 w-8 rounded object-cover border shrink-0"
+                            />
+                          ) : (
+                            <div className="h-8 w-8 bg-muted rounded flex items-center justify-center border text-[9px] text-muted-foreground shrink-0">
+                              ?
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm leading-tight truncate max-w-[260px]">
+                              {product?.name ?? (
+                                <span className="text-destructive italic">Sản phẩm đã xoá</span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {[brandName, categoryName].filter(Boolean).join(" · ") ||
+                                product?.slug ||
+                                String(row.name ?? "")}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-sm leading-tight truncate">
-                          {group.product?.name ?? (
-                            <span className="text-destructive italic">Sản phẩm không tồn tại / đã xoá</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-mono text-xs font-semibold">{String(row.sku ?? "—")}</div>
+                        {row.barcode ? (
+                          <div className="font-mono text-[10px] text-muted-foreground">{String(row.barcode)}</div>
+                        ) : null}
+                        {row.name && product ? (
+                          <div className="text-xs mt-0.5">{String(row.name)}</div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {attrs.map(([k, v]) => (
+                            <span
+                              key={`a-${k}`}
+                              className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900"
+                            >
+                              {k}: <strong className="ml-1">{v}</strong>
+                            </span>
+                          ))}
+                          {specs.slice(0, 3).map(([k, v]) => (
+                            <span
+                              key={`s-${k}`}
+                              className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground/80 border"
+                            >
+                              {k}: <strong className="ml-1">{v}</strong>
+                            </span>
+                          ))}
+                          {specs.length > 3 && (
+                            <span className="inline-flex items-center rounded-md bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground border">
+                              +{specs.length - 3}
+                            </span>
+                          )}
+                          {attrs.length === 0 && specs.length === 0 && !row.name && (
+                            <span className="text-[11px] text-muted-foreground italic">Không có cấu hình</span>
                           )}
                         </div>
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          {[group.brandName, group.categoryName].filter(Boolean).join(" · ") ||
-                            group.product?.slug ||
-                            ""}
-                        </div>
-                      </div>
-                    </button>
-
-                    <div className="hidden sm:flex items-center gap-2 shrink-0">
-                      <Badge variant="secondary" className="font-mono">
-                        {group.variants.length} biến thể
-                      </Badge>
-                      {group.totalStock > 0 && (
-                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">
-                          Tồn: {group.totalStock}
-                        </Badge>
-                      )}
-                      {group.totalStock === 0 && group.variants.length > 0 && (
-                        <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border-red-200 dark:border-red-800">
-                          Hết hàng
-                        </Badge>
-                      )}
-                      {group.priceMin > 0 && group.priceMax > 0 && (
-                        <Badge variant="outline" className="font-mono">
-                          {group.priceMin === group.priceMax
-                            ? formatVND(group.priceMin)
-                            : `${formatVND(group.priceMin)} – ${formatVND(group.priceMax)}`}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {group.productId !== "__orphan__" && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => openCreateForProduct(group.productId)}
-                            className="h-8 w-8 shrink-0"
-                            aria-label="Thêm biến thể cho sản phẩm này"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Thêm biến thể vào sản phẩm này</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-
-                  {/* Mobile stats (chỉ hiện trên mobile) */}
-                  <div className="sm:hidden flex items-center gap-2 px-4 py-2 text-xs border-b bg-muted/20 flex-wrap">
-                    <Badge variant="secondary" className="font-mono">{group.variants.length} biến thể</Badge>
-                    {group.totalStock > 0 && (
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200">
-                        Tồn {group.totalStock}
-                      </Badge>
-                    )}
-                    {group.priceMin > 0 && (
-                      <Badge variant="outline" className="font-mono">
-                        {formatVND(group.priceMin)}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Variant table */}
-                  {!isCollapsed && (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[40px]"></TableHead>
-                          <TableHead>SKU / Barcode</TableHead>
-                          <TableHead className="min-w-[200px]">Cấu hình</TableHead>
-                          <TableHead className="text-right">Giá bán</TableHead>
-                          <TableHead className="text-right hidden md:table-cell">Giá vốn</TableHead>
-                          <TableHead className="text-right hidden lg:table-cell">Lãi gộp</TableHead>
-                          <TableHead className="text-right">Tồn</TableHead>
-                          <TableHead className="hidden md:table-cell">TT</TableHead>
-                          <TableHead className="text-right">Thao tác</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {group.variants.map((row, idx) => {
-                          const id = String(row.id ?? "");
-                          const sell = Number(row.selling_price ?? 0);
-                          const cost = Number(row.cost_price ?? 0);
-                          const margin = sell - cost;
-                          const stock = stockByVariant.get(id) ?? 0;
-                          const attrs = recordToEntries(row.attributes);
-                          const specs = recordToEntries(row.specs);
-                          const checked = selection.isSelected(id);
-                          return (
-                            <TableRow key={id || idx} data-state={checked ? "selected" : undefined}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={checked}
-                                  onCheckedChange={() => selection.toggle(id)}
-                                  aria-label={`Chọn biến thể ${String(row.sku ?? id)}`}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <div className="font-mono text-xs font-semibold">{String(row.sku ?? "—")}</div>
-                                {row.barcode ? (
-                                  <div className="font-mono text-[10px] text-muted-foreground">📊 {String(row.barcode)}</div>
-                                ) : null}
-                                {row.name ? (
-                                  <div className="text-xs mt-0.5">{String(row.name)}</div>
-                                ) : null}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex flex-wrap gap-1">
-                                  {attrs.map(([k, v]) => (
-                                    <span
-                                      key={`a-${k}`}
-                                      className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900"
-                                    >
-                                      {k}: <strong className="ml-1">{v}</strong>
-                                    </span>
-                                  ))}
-                                  {specs.slice(0, 3).map(([k, v]) => (
-                                    <span
-                                      key={`s-${k}`}
-                                      className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground/80 border"
-                                    >
-                                      {k}: <strong className="ml-1">{v}</strong>
-                                    </span>
-                                  ))}
-                                  {specs.length > 3 && (
-                                    <span className="inline-flex items-center rounded-md bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground border">
-                                      +{specs.length - 3}
-                                    </span>
-                                  )}
-                                  {attrs.length === 0 && specs.length === 0 && !row.name && (
-                                    <span className="text-[11px] text-muted-foreground italic">Không có cấu hình</span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right font-semibold text-sm whitespace-nowrap">
-                                {formatVND(sell)}
-                              </TableCell>
-                              <TableCell className="text-right text-sm text-muted-foreground hidden md:table-cell whitespace-nowrap">
-                                {formatVND(cost)}
-                              </TableCell>
-                              <TableCell
-                                className={`text-right text-sm font-medium hidden lg:table-cell whitespace-nowrap ${
-                                  margin > 0
-                                    ? "text-emerald-600"
-                                    : margin < 0
-                                      ? "text-destructive"
-                                      : "text-muted-foreground"
-                                }`}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-sm whitespace-nowrap">
+                        {formatVND(sell)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground hidden md:table-cell whitespace-nowrap">
+                        {formatVND(cost)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span
+                          className={`inline-block min-w-[2rem] rounded-full px-2 py-0.5 text-xs font-bold ${
+                            stock === 0
+                              ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300"
+                              : stock < 5
+                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                                : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                          }`}
+                        >
+                          {stock}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                            row.is_active === false
+                              ? "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                              : "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300"
+                          }`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${row.is_active === false ? "bg-gray-500" : "bg-green-600"}`} />
+                          {row.is_active === false ? "Ẩn" : "Bán"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-7 w-7"
+                                onClick={() => startEdit(row)}
+                                aria-label="Sửa"
                               >
-                                {margin === 0 ? "—" : formatVND(margin)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <span
-                                  className={`inline-block min-w-[2rem] rounded-full px-2 py-0.5 text-xs font-bold ${
-                                    stock === 0
-                                      ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300"
-                                      : stock < 5
-                                        ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
-                                        : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
-                                  }`}
-                                >
-                                  {stock}
-                                </span>
-                              </TableCell>
-                              <TableCell className="hidden md:table-cell">
-                                <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                    row.is_active === false
-                                      ? "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                                      : "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300"
-                                  }`}
-                                >
-                                  <span className={`h-1.5 w-1.5 rounded-full ${row.is_active === false ? "bg-gray-500" : "bg-green-600"}`} />
-                                  {row.is_active === false ? "Ẩn" : "Bán"}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-1">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        size="icon"
-                                        variant="outline"
-                                        className="h-7 w-7"
-                                        onClick={() => startEdit(row)}
-                                        aria-label="Sửa"
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Sửa biến thể</TooltipContent>
-                                  </Tooltip>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        size="icon"
-                                        variant="destructive"
-                                        className="h-7 w-7"
-                                        onClick={() => handleDelete(row)}
-                                        aria-label="Xoá"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Xoá biến thể</TooltipContent>
-                                  </Tooltip>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Sửa biến thể</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                className="h-7 w-7"
+                                onClick={() => handleDelete(row)}
+                                aria-label="Xoá"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Xoá biến thể</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
         )}
 
         {/* Select-all bar ở footer cho trang dài */}
-        {visibleGroups.length > 0 && (
+        {visibleRows.length > 0 && (
           <div className="flex items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
             <span>
-              Tổng {stats.totalVariants} biến thể trong {visibleGroups.length} nhóm
+              {visibleRows.length} biến thể{activeTab !== TAB_ALL ? " trong tab này" : ""}
             </span>
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <Checkbox

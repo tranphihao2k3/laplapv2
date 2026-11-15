@@ -170,11 +170,32 @@ export async function GET() {
 
     const productSales = new Map<string, { qty: number; revenue: number; name: string }>();
     for (const i of items) {
-      const pid = i.product_variant_id ?? "unknown";
-      const e = productSales.get(pid) ?? { qty: 0, revenue: 0, name: pid };
+      const snap = i.product_snapshot as { name?: string } | null;
+      // Dòng không gắn variant (phí sửa chữa, ...) nhóm theo tên snapshot
+      const pid = i.product_variant_id ?? (snap?.name ? `snap:${snap.name}` : "unknown");
+      const e = productSales.get(pid) ?? { qty: 0, revenue: 0, name: snap?.name ?? "Dịch vụ / khác" };
       e.qty += i.quantity;
       e.revenue += i.total_price;
       productSales.set(pid, e);
+    }
+    // Bổ sung tên sản phẩm thật từ product_variants + products
+    const variantIds = [...productSales.keys()].filter(k => !k.startsWith("snap:") && k !== "unknown");
+    if (variantIds.length > 0) {
+      const { data: vRows } = await supabase
+        .from("product_variants")
+        .select("id, name, sku, product:products(name)")
+        .in("id", variantIds.slice(0, 500));
+      for (const v of (vRows ?? []) as Array<{
+        id: string; name: string | null; sku: string;
+        product: { name: string | null }[] | { name: string | null } | null;
+      }>) {
+        const pName = Array.isArray(v.product) ? v.product[0]?.name : v.product?.name;
+        const label = [pName, v.name].filter(Boolean).join(" - ");
+        productSales.set(v.id, {
+          ...productSales.get(v.id)!,
+          name: label || v.sku || v.id,
+        });
+      }
     }
     const topSelling = [...productSales.entries()]
       .map(([id, v]) => ({ id, ...v }))
@@ -235,11 +256,12 @@ export async function GET() {
     // ---------- Group 6: Khách hàng ----------
     const { data: customerRows } = await supabase
       .from("customers")
-      .select("id, tier, loyalty_points, total_spent, created_at")
+      .select("id, full_name, phone, tier, loyalty_points, created_at")
       .limit(10000);
     const custs = (customerRows ?? []) as Array<{
-      id: string; tier: string | null; loyalty_points: number | null;
-      total_spent: number | null; created_at: string | null;
+      id: string; full_name: string | null; phone: string | null;
+      tier: string | null; loyalty_points: number | null;
+      created_at: string | null;
     }>;
     const tierDist: Record<string, number> = {};
     let totalPoints = 0;
@@ -334,14 +356,14 @@ export async function GET() {
       [...orders.map(o => o.created_by), ...sessions.map(s => s.opened_by)]
         .filter((id): id is string => !!id),
     )];
-    const staffMap = new Map<string, { full_name: string | null; email: string | null }>();
+    const staffMap = new Map<string, { full_name: string | null; phone: string | null }>();
     if (staffIds.length > 0) {
       const { data: profiles } = await supabase
         .from("user_profiles")
-        .select("id, full_name, email")
+        .select("id, full_name, phone")
         .in("id", staffIds.slice(0, 200));
-      for (const p of (profiles ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>) {
-        staffMap.set(p.id, { full_name: p.full_name, email: p.email });
+      for (const p of (profiles ?? []) as Array<{ id: string; full_name: string | null; phone: string | null }>) {
+        staffMap.set(p.id, { full_name: p.full_name, phone: p.phone });
       }
     }
 
@@ -360,7 +382,7 @@ export async function GET() {
         const profile = staffMap.get(id);
         return {
           id,
-          name: profile?.full_name ?? profile?.email ?? v.name.slice(0, 8),
+          name: profile?.full_name ?? profile?.phone ?? v.name.slice(0, 8),
           orders: v.orders,
           revenue: v.revenue,
         };
@@ -510,10 +532,9 @@ export async function GET() {
     const topCustomersRaw = [...customerSpend.entries()]
       .map(([id, v]) => {
         const c = custs.find(x => x.id === id);
-        const profile = staffMap.get(id); // fallback id-keyed, có thể trùng nhưng ok
         return {
           id,
-          name: c ? c.id.slice(0, 8) : (profile?.full_name ?? v.name),
+          name: c?.full_name ?? c?.phone ?? `Khách #${id.slice(0, 8)}`,
           tier: c?.tier ?? "bronze",
           orders: v.orders,
           total: v.total,

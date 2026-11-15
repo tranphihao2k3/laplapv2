@@ -80,6 +80,11 @@ export const loyaltyAdjustSchema = z.object({
 export const checkoutSchema = z.object({
   shop_id: uuid,
   customer_id: uuid.nullable().optional(),
+  /**
+   * SĐT khách ở POS — dùng làm mốc giới hạn lượt dùng voucher theo khách
+   * (máy POS dùng chung tài khoản admin nên không thể tính theo user_id).
+   */
+  customer_phone: z.string().trim().max(20).optional().or(z.literal("")),
   channel: z.enum(["pos", "online", "marketplace", "wholesale"]).default("pos"),
   items: z
     .array(
@@ -100,6 +105,8 @@ export const checkoutSchema = z.object({
     )
     .min(1),
   discount_amount: z.number().nonnegative().default(0),
+  /** Mã voucher — server tự validate + tính giảm thêm (không tin client). */
+  voucher_code: z.string().trim().max(50).optional().or(z.literal("")),
   payment: z.object({
     method: z.enum(["cash", "card", "transfer", "ewallet", "cod", "credit"]),
     amount: z.number().nonnegative(),

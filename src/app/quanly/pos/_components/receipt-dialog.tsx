@@ -33,6 +33,10 @@ type Props = {
   subtotal: number;
   discount: number;
   loyaltyDiscount?: number;
+  /** Mã voucher đã áp dụng (nếu có). */
+  voucherCode?: string | null;
+  /** Số tiền voucher giảm (nếu có). */
+  voucherDiscount?: number;
   total: number;
   payments: PaymentPart[];
   received: number;
@@ -79,6 +83,8 @@ export function ReceiptDialog({
   subtotal,
   discount,
   loyaltyDiscount = 0,
+  voucherCode = null,
+  voucherDiscount = 0,
   total,
   payments,
   received,
@@ -333,6 +339,14 @@ export function ReceiptDialog({
                 <div className="flex justify-between">
                   <span className="text-neutral-500">Điểm thưởng</span>
                   <span className="tabular-nums">-{formatVND(loyaltyDiscount)}</span>
+                </div>
+              )}
+              {voucherDiscount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">
+                    Voucher {voucherCode ? `(${voucherCode})` : ""}
+                  </span>
+                  <span className="tabular-nums">-{formatVND(voucherDiscount)}</span>
                 </div>
               )}
               <div className="flex justify-between border-t pt-1 text-base font-bold">

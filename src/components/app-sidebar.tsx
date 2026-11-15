@@ -69,7 +69,6 @@ const documents = [
   { name: "Sản phẩm", url: "/quanly/bao-cao/san-pham", icon: Package, group: "Báo cáo" },
   { name: "Khách hàng", url: "/quanly/bao-cao/khach-hang", icon: Users, group: "Báo cáo" },
   { name: "Kho", url: "/quanly/bao-cao/kho", icon: Warehouse, group: "Báo cáo" },
-  { name: "Nhân viên", url: "/quanly/bao-cao/nhan-vien", icon: UserCog, group: "Báo cáo" },
   { name: "Sửa chữa", url: "/quanly/bao-cao/sua-chua", icon: Wrench, group: "Báo cáo" },
   { name: "Bảo hành", url: "/quanly/bao-cao/bao-hanh", icon: ShieldCheck, group: "Báo cáo" },
   { name: "Voucher", url: "/quanly/bao-cao/voucher", icon: Ticket, group: "Báo cáo" },
@@ -88,7 +87,6 @@ const documents = [
   { name: "POS hôm nay", url: "/quanly/pos-sessions", icon: Calculator, group: "Bán hàng" },
   { name: "Thanh toán", url: "/quanly/payments", icon: Receipt, group: "Bán hàng" },
   { name: "Đơn trả hàng", url: "/quanly/return-orders", icon: ShoppingCart, group: "Bán hàng" },
-  { name: "Báo cáo doanh thu", url: "/quanly/reports/revenue", icon: FileClock, group: "Bán hàng" },
 
   { name: "Quản lý kho", url: "/quanly/warehouses", icon: Warehouse, group: "Kho & Tồn" },
   { name: "Tồn kho", url: "/quanly/stock-levels", icon: ClipboardList, group: "Kho & Tồn" },
@@ -108,6 +106,7 @@ const documents = [
   { name: "Công cụ kiểm tra", url: "/quanly/tools", icon: Cpu, group: "Hậu mãi" },
 
   { name: "Tổ chức", url: "/quanly/organizations", icon: Building2, group: "Hệ thống" },
+  { name: "Quản lý nhân viên", url: "/quanly/nhan-vien", icon: UserCog, group: "Hệ thống" },
   { name: "Nhân sự shop", url: "/quanly/shop-staff", icon: Users, group: "Hệ thống" },
   { name: "Tạo tài khoản", url: "/quanly/admin/users", icon: UserPlus, group: "Hệ thống" },
   { name: "Cài đặt", url: "/quanly/settings", icon: Settings, group: "Hệ thống" },

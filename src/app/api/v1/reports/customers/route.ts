@@ -15,11 +15,7 @@ type Customer = {
   email: string | null;
   tier: string | null;
   loyalty_points: number | null;
-  total_spent: number | null;
-  total_orders: number | null;
-  last_order_at: string | null;
   created_at: string | null;
-  is_active: boolean | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -36,43 +32,40 @@ export async function GET(req: NextRequest) {
     const filters: ReportFilters = parseFilters(req.nextUrl.searchParams);
     const supabase = await createClient();
 
+    // Chỉ select các cột tồn tại trong DB (total_spent/total_orders/last_order_at/is_active KHÔNG có → query lỗi).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q: any = supabase
       .from("customers")
-      .select("id, full_name, phone, email, tier, loyalty_points, total_spent, total_orders, last_order_at, created_at, is_active")
+      .select("id, full_name, phone, email, tier, loyalty_points, created_at")
       .limit(50_000);
     if (filters.tier) q = q.eq("tier", filters.tier);
-    if (filters.status) q = q.eq("status", filters.status);
     const { data, error } = await q;
     if (error) throw error;
     const customers = (data ?? []) as Customer[];
 
-    // Lấy orders để tính số đơn trong kỳ (nếu có filter ngày)
-    let ordersInPeriod: Array<{ customer_id: string; total_amount: number; created_at: string }> = [];
-    if (filters.from || filters.to) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let oq: any = supabase.from("orders").select("customer_id, total_amount, created_at").in(
-        "status",
-        ["completed", "fulfilled"],
-      );
-      if (filters.from) oq = oq.gte("created_at", filters.from);
-      if (filters.to) oq = oq.lte("created_at", filters.to);
-      if (filters.shop_id) oq = oq.eq("shop_id", filters.shop_id);
-      const { data: od } = await oq.limit(100_000);
-      ordersInPeriod = (od ?? []) as Array<{ customer_id: string; total_amount: number; created_at: string }>;
-    }
-    const periodOrderMap = new Map<string, { count: number; total: number; lastAt: string | null }>();
+    // Luôn tính số đơn/tổng chi từ orders (đơn hoàn tất)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let oq: any = supabase.from("orders").select("customer_id, total_amount, created_at").in(
+      "status",
+      ["completed", "fulfilled"],
+    );
+    if (filters.from) oq = oq.gte("created_at", filters.from);
+    if (filters.to) oq = oq.lte("created_at", filters.to);
+    if (filters.shop_id) oq = oq.eq("shop_id", filters.shop_id);
+    const { data: od } = await oq.limit(100_000);
+    const ordersInPeriod = (od ?? []) as Array<{ customer_id: string; total_amount: number; created_at: string }>;
+    const orderMap = new Map<string, { count: number; total: number; lastAt: string | null }>();
     for (const o of ordersInPeriod) {
       if (!o.customer_id) continue;
-      const entry = periodOrderMap.get(o.customer_id) ?? { count: 0, total: 0, lastAt: null };
+      const entry = orderMap.get(o.customer_id) ?? { count: 0, total: 0, lastAt: null };
       entry.count += 1;
       entry.total += Number(o.total_amount ?? 0);
       if (!entry.lastAt || (o.created_at && o.created_at > entry.lastAt)) entry.lastAt = o.created_at;
-      periodOrderMap.set(o.customer_id, entry);
+      orderMap.set(o.customer_id, entry);
     }
 
     const rows = customers.map((c) => {
-      const period = periodOrderMap.get(c.id);
+      const o = orderMap.get(c.id);
       return {
         id: c.id,
         full_name: c.full_name ?? "Khách lẻ",
@@ -81,11 +74,12 @@ export async function GET(req: NextRequest) {
         tier: STATUS_LABEL[c.tier ?? ""] ?? c.tier ?? "—",
         tier_code: c.tier,
         loyalty_points: Number(c.loyalty_points ?? 0),
-        total_orders: c.total_orders ?? period?.count ?? 0,
-        total_spent: Number(c.total_spent ?? period?.total ?? 0),
-        last_order_at: c.last_order_at ?? period?.lastAt ?? null,
+        total_orders: o?.count ?? 0,
+        total_spent: o?.total ?? 0,
+        last_order_at: o?.lastAt ?? null,
         created_at: c.created_at,
-        is_active: c.is_active !== false,
+        // Không có cột is_active → coi khách có đơn trong 90 ngày là "đang hoạt động"
+        is_active: o?.lastAt ? (Date.now() - new Date(o.lastAt).getTime()) <= 90 * 86400000 : false,
       };
     }).sort((a, b) => b.total_spent - a.total_spent);
 

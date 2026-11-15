@@ -5,6 +5,7 @@ import { ok, handleError, Errors } from "@/lib/api/response";
 import type { ActiveVoucher, ValidateVoucherResponse, Voucher } from "@/types/voucher";
 import { validateVoucherSchema } from "@/lib/validators/voucher";
 import { calculateDiscount } from "@/types/voucher";
+import { parseUserIdentifier } from "@/lib/vouchers/identity";
 
 /**
  * GET /api/public/vouchers
@@ -45,8 +46,12 @@ export async function POST(req: NextRequest) {
       throw Errors.badRequest(parsed.error.message);
     }
 
-    const { code, order_amount, user_id, product_ids, category_ids } = parsed.data;
+    const { code, order_amount, user_id, user_identifier, product_ids, category_ids } = parsed.data;
     const admin = createAdminClient() as any;
+
+    // Mốc giới hạn lượt dùng: SĐT khách (POS) ưu tiên hơn tài khoản đăng nhập,
+    // vì máy POS dùng chung 1 tài khoản admin — phải tính theo khách.
+    const identifier = parseUserIdentifier(user_identifier);
 
     // User đang đăng nhập (nếu có) để check giới hạn lượt dùng mỗi user.
     let authUserId: string | null = user_id ?? null;
@@ -80,7 +85,9 @@ export async function POST(req: NextRequest) {
     const { data, error } = await admin.rpc("validate_voucher", {
       p_code: code.toUpperCase().trim(),
       p_order_amount: order_amount,
-      p_user_id: authUserId,
+      // Có identifier (SĐT khách) → bỏ qua check user_id của RPC,
+      // phần đếm theo identifier xử lý ở JS bên dưới.
+      p_user_id: identifier ? null : authUserId,
       p_product_ids: product_ids ?? [],
       p_category_ids: categoryIds,
     });
@@ -93,7 +100,8 @@ export async function POST(req: NextRequest) {
         return ok(await validateWithJs(admin, {
           code,
           orderAmount: order_amount,
-          userId: authUserId,
+          userId: identifier ? null : authUserId,
+          userIdentifier: identifier,
           productIds: product_ids ?? [],
           categoryIds,
         }));
@@ -120,13 +128,38 @@ export async function POST(req: NextRequest) {
     const voucher = result.voucher_id
       ? ((await admin
           .from("vouchers")
-          .select("value, min_order_amount, max_discount_amount")
+          .select("value, min_order_amount, max_discount_amount, user_usage_limit")
           .eq("id", result.voucher_id)
           .maybeSingle()).data as Pick<
             Voucher,
-            "value" | "min_order_amount" | "max_discount_amount"
+            "value" | "min_order_amount" | "max_discount_amount" | "user_usage_limit"
           > | null)
       : null;
+
+    // RPC không check được theo identifier (SĐT) → đếm lượt dùng ở JS.
+    if (result.valid && voucher && identifier) {
+      const { count } = await admin
+        .from("voucher_usages")
+        .select("id", { count: "exact", head: true })
+        .eq("voucher_id", result.voucher_id)
+        .eq("user_identifier", identifier);
+      if ((count ?? 0) >= Number(voucher.user_usage_limit ?? 1)) {
+        return ok<ValidateVoucherResponse>({
+          valid: false,
+          voucher_id: result.voucher_id ?? null,
+          voucher_type: result.voucher_type ?? null,
+          voucher_name: result.voucher_name ?? null,
+          voucher_value: voucher ? Number(voucher.value) : null,
+          voucher_min_order_amount: voucher ? Number(voucher.min_order_amount) : null,
+          voucher_max_discount_amount:
+            voucher?.max_discount_amount != null
+              ? Number(voucher.max_discount_amount)
+              : null,
+          discount_amount: null,
+          error_message: "Số điện thoại này đã sử dụng voucher này rồi",
+        });
+      }
+    }
 
     return ok<ValidateVoucherResponse>({
       valid: Boolean(result.valid),
@@ -154,6 +187,7 @@ async function validateWithJs(
     code: string;
     orderAmount: number;
     userId: string | null;
+    userIdentifier: string;
     productIds: string[];
     categoryIds: string[];
   },
@@ -195,7 +229,16 @@ async function validateWithJs(
     return invalid("Voucher đã hết lượt sử dụng");
   }
 
-  if (input.userId) {
+  if (input.userIdentifier) {
+    const { count } = await admin
+      .from("voucher_usages")
+      .select("id", { count: "exact", head: true })
+      .eq("voucher_id", voucher.id)
+      .eq("user_identifier", input.userIdentifier);
+    if ((count ?? 0) >= voucher.user_usage_limit) {
+      return invalid("Số điện thoại này đã sử dụng voucher này rồi");
+    }
+  } else if (input.userId) {
     const { count } = await admin
       .from("voucher_usages")
       .select("id", { count: "exact", head: true })

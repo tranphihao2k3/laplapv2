@@ -113,100 +113,102 @@ export function PosSessionGate({ shopId, children }: Props) {
     );
   }
 
-  if (!openForShop) {
-    if (!autoTried || autoBusy.current || submitting) {
-      return (
-        <div className="flex h-full min-h-[40vh] flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-          <Zap className="h-6 w-6 animate-pulse text-emerald-500" />
+  // UI-first: render POS ngay khi đã có shop — ca tự mở ngầm phía sau.
+  // Chỉ hiện dialog khi auto-open thất bại; khi đang mở ca thì hiện indicator
+  // nổi nhỏ (không chặn thao tác).
+  return (
+    <>
+      {children}
+
+      {!openForShop && (!autoTried || autoBusy.current || submitting) && (
+        <div className="pointer-events-none fixed bottom-20 right-3 z-50 flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-lg lg:bottom-4">
+          <Zap className="h-3.5 w-3.5 animate-pulse text-emerald-500" />
           Đang mở ca POS…
         </div>
-      );
-    }
+      )}
 
-    return (
-      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <PlayCircle className="h-5 w-5 text-emerald-500" />
-              Mở ca POS
-            </DialogTitle>
-            <DialogDescription>
-              Tự mở ca chưa thành công. Nhập quỹ đầu ca rồi thử lại — hoặc để 0đ
-              nếu chỉ dùng máy admin thanh toán nhanh.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-2">
-              <Label>Cửa hàng</Label>
-              <Select
-                value={selectedShop || shopId}
-                onValueChange={setSelectedShop}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn cửa hàng" />
-                </SelectTrigger>
-                <SelectContent>
-                  {shopOptions.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Quỹ tiền mặt đầu ca (VND)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={Number.isNaN(openingCash) ? 0 : openingCash}
-                onChange={(e) =>
-                  setOpeningCash(Number(e.target.value) || 0)
-                }
-                placeholder="0"
-              />
-              <p className="text-xs text-muted-foreground">
-                Đếm tiền trong két và nhập vào đây. Số này + tổng tiền mặt bán
-                trong ca = tiền mặt kỳ vọng cuối ca.
-              </p>
-            </div>
-            {user.data?.email && (
-              <div className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                Mở ca với tư cách: <strong>{user.data.email}</strong>
+      {!openForShop && autoTried && !autoBusy.current && !submitting && (
+        <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <PlayCircle className="h-5 w-5 text-emerald-500" />
+                Mở ca POS
+              </DialogTitle>
+              <DialogDescription>
+                Tự mở ca chưa thành công. Nhập quỹ đầu ca rồi thử lại — hoặc để 0đ
+                nếu chỉ dùng máy admin thanh toán nhanh.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-2">
+                <Label>Cửa hàng</Label>
+                <Select
+                  value={selectedShop || shopId}
+                  onValueChange={setSelectedShop}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn cửa hàng" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shopOptions.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              disabled={submitting || !selectedShop}
-              onClick={async () => {
-                setSubmitting(true);
-                try {
-                  const result = await openSession({
-                    shop_id: selectedShop || shopId,
-                    opening_cash: openingCash,
-                  });
-                  if (result) {
-                    toast.success("Đã mở ca POS");
-                    setOpenDialog(false);
-                  } else {
-                    toast.error("Không thể mở ca (bạn đã có ca đang mở?)");
+              <div className="space-y-2">
+                <Label>Quỹ tiền mặt đầu ca (VND)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={Number.isNaN(openingCash) ? 0 : openingCash}
+                  onChange={(e) =>
+                    setOpeningCash(Number(e.target.value) || 0)
                   }
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            >
-              <PlayCircle className="mr-2 h-4 w-4" />
-              Mở ca
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  // Có session mở → render POS
-  return <>{children}</>;
+                  placeholder="0"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Đếm tiền trong két và nhập vào đây. Số này + tổng tiền mặt bán
+                  trong ca = tiền mặt kỳ vọng cuối ca.
+                </p>
+              </div>
+              {user.data?.email && (
+                <div className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  Mở ca với tư cách: <strong>{user.data.email}</strong>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                disabled={submitting || !selectedShop}
+                onClick={async () => {
+                  setSubmitting(true);
+                  try {
+                    const result = await openSession({
+                      shop_id: selectedShop || shopId,
+                      opening_cash: openingCash,
+                    });
+                    if (result) {
+                      toast.success("Đã mở ca POS");
+                      setOpenDialog(false);
+                    } else {
+                      toast.error("Không thể mở ca (bạn đã có ca đang mở?)");
+                    }
+                  } finally {
+                    setSubmitting(false);
+                  }
+                }}
+              >
+                <PlayCircle className="mr-2 h-4 w-4" />
+                Mở ca
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
 }

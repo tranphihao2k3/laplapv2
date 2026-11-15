@@ -5,6 +5,11 @@ type ValidateForCartInput = {
   subtotal: number;
   productIds: string[];
   categoryIds?: string[];
+  /**
+   * Mốc giới hạn lượt dùng theo khách (SĐT ở POS). Truyền rỗng/undefined thì
+   * server check theo tài khoản đăng nhập.
+   */
+  userIdentifier?: string;
 };
 
 /**
@@ -17,6 +22,7 @@ export async function validateVoucherForCart({
   subtotal,
   productIds,
   categoryIds,
+  userIdentifier,
 }: ValidateForCartInput): Promise<AppliedVoucher> {
   const res = await fetch("/api/public/vouchers/validate", {
     method: "POST",
@@ -26,6 +32,7 @@ export async function validateVoucherForCart({
       order_amount: subtotal,
       product_ids: productIds,
       category_ids: categoryIds,
+      user_identifier: userIdentifier ?? null,
     }),
   });
 

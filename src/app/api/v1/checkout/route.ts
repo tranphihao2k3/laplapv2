@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePermission, requireOrg } from "@/lib/api/guard";
 import { ok, handleError, fail } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/api/audit";
@@ -7,6 +8,8 @@ import { checkoutSchema } from "@/lib/validators/sales";
 import { checkoutService } from "@/server/services";
 import { giftStockService } from "@/server/services/gift-stock-service";
 import { checkoutWarrantyService } from "@/server/services/checkout-warranty-service";
+import { resolveVoucher, type VoucherRow } from "@/lib/vouchers/resolve";
+import { posVoucherIdentity } from "@/lib/vouchers/identity";
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,11 +54,113 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Gọi RPC checkout
-    const data = await checkoutService.checkout(supabase, body);
+    // ===== Voucher: validate + tính giảm giá ở server =====
+    // Subtotal tính từ giá bán thật (unit_price từ POS, fallback selling_price)
+    // trừ giảm giá tay/loyalty → base để so min_order + tính % / số tiền voucher.
+    const admin = createAdminClient();
+    let appliedVoucher: VoucherRow | null = null;
+    let voucherDiscount = 0;
+    // Mốc giới hạn lượt dùng voucher tính theo KHÁCH (SĐT → cus:<id> →
+    // pos-walkin), không theo user_id — máy POS dùng chung 1 tài khoản admin.
+    // Phải khớp với mốc POS gửi khi validate lúc áp mã (lib/vouchers/identity).
+    let voucherIdentity = "";
+    if (body.voucher_code) {
+      const variantIds = body.items.map((i) => i.product_variant_id);
+      const { data: vRowsRaw } = await admin
+        .from("product_variants")
+        .select("id, product_id, selling_price, product:products(category_id)")
+        .in("id", variantIds);
+      type VRow = {
+        id: string;
+        product_id: string | null;
+        selling_price: number | null;
+        product:
+          | { category_id: string | null }[]
+          | { category_id: string | null }
+          | null;
+      };
+      const vRows = (vRowsRaw ?? []) as unknown as VRow[];
+      const vMap = new Map(vRows.map((v) => [v.id, v]));
+      const catOf = (p: VRow["product"]): string | null =>
+        Array.isArray(p) ? (p[0]?.category_id ?? null) : (p?.category_id ?? null);
+      const subtotal = body.items.reduce((s, i) => {
+        const v = vMap.get(i.product_variant_id);
+        const price = i.unit_price ?? Number(v?.selling_price ?? 0);
+        return s + price * i.quantity;
+      }, 0);
+      const base = Math.max(0, subtotal - body.discount_amount);
+      const productIds = [
+        ...new Set(
+          vRows
+            .map((v) => v.product_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const categoryIds = [
+        ...new Set(
+          vRows.map((v) => catOf(v.product)).filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      voucherIdentity = posVoucherIdentity(body.customer_phone, body.customer_id);
+      const result = await resolveVoucher(admin, {
+        code: body.voucher_code,
+        subtotal: base,
+        productIds,
+        categoryIds,
+        authUserId: user.id,
+        userIdentifier: voucherIdentity,
+      });
+      if (!result.ok) return fail("INVALID_VOUCHER", result.message, 400);
+      appliedVoucher = result.voucher;
+      voucherDiscount = result.discount;
+    }
+
+    // Gọi RPC checkout (đẩy voucher discount vào discount_amount chung)
+    const data = await checkoutService.checkout(supabase, {
+      ...body,
+      discount_amount: body.discount_amount + voucherDiscount,
+    });
 
     // Trừ tồn quà tặng kèm (RPC chỉ trừ máy chính)
     const orderId = String((data as { order_id?: string })?.order_id ?? "");
+
+    // Ghi nhận voucher sau khi đơn đã tạo thành công (best-effort — đơn đã
+    // hoàn tất nên không fail request nếu bước ghi nhận lỗi).
+    if (orderId && appliedVoucher) {
+      try {
+        await admin
+          .from("orders")
+          .update({ voucher_id: appliedVoucher.id, voucher_discount: voucherDiscount })
+          .eq("id", orderId);
+        await admin.from("voucher_usages").insert({
+          voucher_id: appliedVoucher.id,
+          user_id: user.id,
+          user_identifier: voucherIdentity,
+          order_id: orderId,
+          discount_amount: voucherDiscount,
+        });
+        const { data: vcur } = await admin
+          .from("vouchers")
+          .select("quantity_used")
+          .eq("id", appliedVoucher.id)
+          .maybeSingle();
+        await admin
+          .from("vouchers")
+          .update({ quantity_used: Number(vcur?.quantity_used ?? 0) + 1 })
+          .eq("id", appliedVoucher.id);
+        if (body.customer_id) {
+          await admin
+            .from("voucher_claims")
+            .update({ used_at: new Date().toISOString(), order_id: orderId })
+            .eq("customer_id", body.customer_id)
+            .eq("voucher_id", appliedVoucher.id)
+            .is("used_at", null);
+        }
+      } catch (vErr) {
+        console.warn("[checkout] ghi nhận voucher thất bại:", vErr);
+      }
+    }
+
     let giftDeduct: Awaited<ReturnType<typeof giftStockService.deductForSoldItems>> | null =
       null;
     if (orderId) {

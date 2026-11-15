@@ -64,7 +64,7 @@ const ADMIN_ITEMS: Item[] = [
   { id: "reports-product", title: "Báo cáo sản phẩm", group: "Báo cáo", href: "/quanly/bao-cao/san-pham", icon: PackageIcon },
   { id: "reports-customer", title: "Báo cáo khách hàng", group: "Báo cáo", href: "/quanly/bao-cao/khach-hang", icon: UsersIcon },
   { id: "reports-stock", title: "Báo cáo kho", group: "Báo cáo", href: "/quanly/bao-cao/kho", icon: WarehouseIcon },
-  { id: "reports-staff", title: "Báo cáo nhân viên", group: "Báo cáo", href: "/quanly/bao-cao/nhan-vien", icon: UserCogIcon },
+  { id: "staff-manage", title: "Quản lý nhân viên", group: "Hệ thống", href: "/quanly/nhan-vien", icon: UserCogIcon, keywords: ["staff", "nhân viên"] },
   { id: "reports-repair", title: "Báo cáo sửa chữa", group: "Báo cáo", href: "/quanly/bao-cao/sua-chua", icon: WrenchIcon },
   { id: "reports-warranty", title: "Báo cáo bảo hành", group: "Báo cáo", href: "/quanly/bao-cao/bao-hanh", icon: ShieldCheckIcon },
   { id: "reports-voucher", title: "Báo cáo voucher", group: "Báo cáo", href: "/quanly/bao-cao/voucher", icon: TicketIcon },

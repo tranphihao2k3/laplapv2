@@ -61,6 +61,8 @@ export const validateVoucherSchema = z.object({
   code: z.string().min(1),
   order_amount: z.number().nonnegative(),
   user_id: uuid.nullish(),
+  /** Mốc giới hạn lượt dùng theo khách (VD: SĐT) — ưu tiên hơn user_id. */
+  user_identifier: z.string().trim().max(50).nullish(),
   product_ids: z.array(uuid).nullable().optional(),
   category_ids: z.array(uuid).nullable().optional(),
 });

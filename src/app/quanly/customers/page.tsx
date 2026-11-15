@@ -52,7 +52,6 @@ import {
   Plus,
   Phone,
   Mail,
-  Cake,
   Star,
   Users,
   Award,
@@ -65,7 +64,7 @@ import {
   Trash2,
   MessageCircle,
 } from "lucide-react";
-import { IdCell, RowIndexCell } from "@/components/admin/table-cells";
+import { RowIndexCell } from "@/components/admin/table-cells";
 import { zaloLink } from "@/lib/contact";
 
 type Customer = {
@@ -85,6 +84,14 @@ type LoyaltyTx = {
   order_id: string | null;
   points: number | null;
   type: string | null;
+  created_at: string | null;
+};
+
+type OrderLite = {
+  id: string;
+  customer_id: string | null;
+  total_amount: number | null;
+  status: string | null;
   created_at: string | null;
 };
 
@@ -113,25 +120,13 @@ const SORT_OPTIONS = [
   { value: "full_name:desc", label: "Tên Z → A" },
 ];
 
-function fmtDate(d: string | null | undefined) {
-  if (!d) return "—";
-  try { return new Date(d).toLocaleDateString("vi-VN"); } catch { return d; }
-}
-
-function fmtDateTime(d: string | null | undefined) {
-  if (!d) return "—";
-  try { return new Date(d).toLocaleString("vi-VN"); } catch { return d; }
-}
-
-function thoiGianTuongDoi(iso: string | null | undefined) {
-  if (!iso) return "—";
-  const d = new Date(iso).getTime();
-  const diff = Math.floor((Date.now() - d) / 1000);
-  if (diff < 60) return "vừa xong";
-  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
-  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)} ngày trước`;
-  return fmtDate(iso);
+function fmtVnd(n: number) {
+  if (n >= 1_000_000) {
+    const v = n / 1_000_000;
+    return `${v % 1 === 0 ? v : v.toFixed(1)}tr`;
+  }
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return `${n}`;
 }
 
 /* ============================================================
@@ -175,6 +170,31 @@ export default function CustomersPage() {
     staleTime: 60_000,
   });
   const allTx = allTxQ.data?.items ?? [];
+
+  // Orders để tính số đơn / tổng chi / đơn gần nhất của từng khách
+  const ordersQ = useQuery({
+    queryKey: ["customer-stats-orders"],
+    queryFn: () =>
+      httpGet<Paginated<OrderLite>>("/v1/orders", {
+        page: 1,
+        pageSize: 1000,
+        sort: "created_at:desc",
+      }),
+    staleTime: 60_000,
+  });
+  const orderStatsMap = useMemo(() => {
+    const m = new Map<string, { count: number; total: number; lastAt: string | null }>();
+    for (const o of ordersQ.data?.items ?? []) {
+      if (!o.customer_id) continue;
+      if (o.status !== "completed" && o.status !== "fulfilled") continue;
+      const entry = m.get(o.customer_id) ?? { count: 0, total: 0, lastAt: null };
+      entry.count += 1;
+      entry.total += Number(o.total_amount ?? 0);
+      if (!entry.lastAt || (o.created_at && o.created_at > entry.lastAt)) entry.lastAt = o.created_at;
+      m.set(o.customer_id, entry);
+    }
+    return m;
+  }, [ordersQ.data]);
 
   // Áp dụng filter tier trên client
   const filteredItems = useMemo(() => {
@@ -469,11 +489,11 @@ export default function CustomersPage() {
                   <TableHead className="w-[56px] text-center">STT</TableHead>
                   <TableHead>Khách hàng</TableHead>
                   <TableHead>Liên hệ</TableHead>
-                  <TableHead>Ngày sinh</TableHead>
                   <TableHead className="text-center">Hạng</TableHead>
                   <TableHead className="text-right">Điểm</TableHead>
-                  <TableHead>Tham gia</TableHead>
-                  <TableHead>Mã</TableHead>
+                  <TableHead className="text-right">Số đơn</TableHead>
+                  <TableHead className="text-right">Tổng chi</TableHead>
+                  <TableHead>Mua gần nhất</TableHead>
                   <TableHead className="text-right w-32">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
@@ -497,6 +517,7 @@ export default function CustomersPage() {
                   filteredItems.map((c, idx) => {
                     const tier = TIER_MAP[c.tier ?? ""] ?? { label: c.tier ?? "—", cls: "bg-muted" };
                     const checked = selection.isSelected(c.id);
+                    const oStats = orderStatsMap.get(c.id);
                     return (
                       <TableRow
                         key={c.id}
@@ -535,13 +556,6 @@ export default function CustomersPage() {
                             {!c.phone && !c.email && <span className="text-muted-foreground">—</span>}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {c.birthday ? (
-                            <span className="flex items-center gap-1">
-                              <Cake className="h-3 w-3" />{fmtDate(c.birthday)}
-                            </span>
-                          ) : "—"}
-                        </TableCell>
                         <TableCell className="text-center">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${tier.cls}`}>
                             {tier.label}
@@ -553,11 +567,20 @@ export default function CustomersPage() {
                             {(c.loyalty_points ?? 0).toLocaleString("vi-VN")}
                           </span>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {thoiGianTuongDoi(c.created_at)}
+                        <TableCell className="text-right tabular-nums">
+                          {oStats ? oStats.count : <span className="text-muted-foreground">0</span>}
                         </TableCell>
-                        <TableCell>
-                          <IdCell id={c.id} />
+                        <TableCell className="text-right">
+                          {oStats && oStats.total > 0 ? (
+                            <span className="font-semibold tabular-nums" title={new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(oStats.total)}>
+                              {fmtVnd(oStats.total)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {oStats?.lastAt ? new Date(oStats.lastAt).toLocaleDateString("vi-VN") : "—"}
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-0.5">

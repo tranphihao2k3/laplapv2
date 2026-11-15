@@ -367,7 +367,7 @@ export default function OrdersAdminPage() {
                 <Link href="/quanly/return-orders">Đơn trả hàng</Link>
               </Button>
               <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-initial">
-                <Link href="/quanly/reports/revenue">Báo cáo doanh thu</Link>
+                <Link href="/quanly/bao-cao/doanh-thu">Báo cáo doanh thu</Link>
               </Button>
             </div>
           </div>

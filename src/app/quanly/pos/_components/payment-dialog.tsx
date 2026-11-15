@@ -7,6 +7,7 @@ import {
   Landmark,
   Smartphone,
   Star,
+  Tag,
   X,
   CheckCircle2,
 } from "lucide-react";
@@ -22,6 +23,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatVND, type Customer, type PaymentMethod, type PaymentPart } from "./types";
+
+/** Voucher đã validate (qua /api/public/vouchers/validate). */
+export type AppliedPosVoucher = {
+  code: string;
+  name: string;
+  type: "percent" | "fixed_amount" | "free_shipping";
+  discount_amount: number;
+};
 
 type Props = {
   open: boolean;
@@ -46,6 +55,14 @@ type Props = {
   redeemedValue?: number;
   /** Đã áp dụng redeem? */
   hasRedeemed?: boolean;
+  /** Voucher đang áp dụng (nếu có). Không truyền → ẩn khối voucher. */
+  voucher?: AppliedPosVoucher | null;
+  /** Đang validate voucher? */
+  voucherBusy?: boolean;
+  /** Lỗi validate voucher hiển thị dưới ô nhập. */
+  voucherError?: string | null;
+  onVoucherApply?: (code: string) => void;
+  onVoucherClear?: () => void;
   onConfirm: (args: {
     payments: PaymentPart[];
     /** Tổng cần thu sau khi áp dụng redeem (cho backend). */
@@ -78,12 +95,18 @@ export function PaymentDialog({
   redeemedPoints = 0,
   redeemedValue = 0,
   hasRedeemed = false,
+  voucher = null,
+  voucherBusy = false,
+  voucherError = null,
+  onVoucherApply,
+  onVoucherClear,
   onConfirm,
 }: Props) {
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [txCode, setTxCode] = useState<string>("");
   const [totalDraft, setTotalDraft] = useState<string>("");
   const [redeemInput, setRedeemInput] = useState<string>("");
+  const [voucherInput, setVoucherInput] = useState<string>("");
 
   useEffect(() => {
     if (open) {
@@ -91,12 +114,17 @@ export function PaymentDialog({
       setTxCode("");
       setTotalDraft(String(total));
       setRedeemInput("");
+      setVoucherInput("");
     }
   }, [open, total]);
 
-  const effectiveTotal = editableTotal
-    ? Number(totalDraft.replace(/\D/g, "")) || 0
-    : total;
+  const voucherDiscount = Math.min(voucher?.discount_amount ?? 0, total);
+  const effectiveTotal = Math.max(
+    0,
+    (editableTotal
+      ? Number(totalDraft.replace(/\D/g, "")) || 0
+      : total) - voucherDiscount,
+  );
 
   const canSubmit = effectiveTotal > 0 && !submitting;
 
@@ -170,6 +198,79 @@ export function PaymentDialog({
               <div className="text-3xl font-bold text-primary tabular-nums">
                 {formatVND(effectiveTotal)}
               </div>
+            </div>
+          )}
+
+          {onVoucherApply && !voucher && (
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="pos-voucher"
+                className="text-xs text-muted-foreground"
+              >
+                Mã giảm giá (voucher)
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="pos-voucher"
+                  value={voucherInput}
+                  onChange={(e) => setVoucherInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && voucherInput.trim()) {
+                      onVoucherApply(voucherInput.trim());
+                    }
+                  }}
+                  placeholder="Nhập mã — VD: GIAM10"
+                  className="h-10 min-w-0 flex-1 uppercase"
+                  autoCapitalize="characters"
+                />
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => onVoucherApply(voucherInput.trim())}
+                  disabled={voucherBusy || !voucherInput.trim()}
+                  className="h-10 shrink-0"
+                >
+                  {voucherBusy ? "Đang kiểm tra..." : "Áp dụng"}
+                </Button>
+              </div>
+              {voucherError && (
+                <p className="text-xs text-red-500">{voucherError}</p>
+              )}
+            </div>
+          )}
+
+          {voucher && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-primary">
+                  <Tag className="h-4 w-4 shrink-0" />
+                  <span className="truncate">
+                    {voucher.code}
+                    {voucher.type === "percent" ? ` · ${voucher.name}` : ""}
+                  </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className="text-sm font-semibold tabular-nums text-primary">
+                    -{formatVND(voucherDiscount)}
+                  </span>
+                  {onVoucherClear && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={onVoucherClear}
+                      aria-label="Bỏ voucher"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {voucherDiscount < (voucher.discount_amount ?? 0) && (
+                <p className="text-[11px] text-muted-foreground">
+                  Voucher giảm tối đa còn {formatVND(voucherDiscount)} theo tổng đơn hiện tại.
+                </p>
+              )}
             </div>
           )}
 

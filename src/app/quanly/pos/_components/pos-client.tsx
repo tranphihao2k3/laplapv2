@@ -32,6 +32,9 @@ import { Separator } from "@/components/ui/separator";
 import { httpPost } from "@/lib/api/http";
 import { useCrudList, useMyShops } from "@/lib/api/admin-crud";
 import { useUser } from "@/hooks/use-user";
+import { validateVoucherForCart } from "@/lib/vouchers/client";
+import { posVoucherIdentity } from "@/lib/vouchers/identity";
+import type { AppliedVoucher } from "@/types/voucher";
 import { OptionsSelect, type SelectOption } from "@/components/ui/options-select";
 import { ProductSearch, type PosSearchHit } from "./product-search";
 import { PosQuickPicks } from "./pos-quick-picks";
@@ -99,6 +102,11 @@ function PosClientInner() {
   const [redeemedPoints, setRedeemedPoints] = useState(0);
   const [redeemedValue, setRedeemedValue] = useState(0);
 
+  // ===== Voucher =====
+  const [appliedVoucher, setAppliedVoucher] = useState<AppliedVoucher | null>(null);
+  const [voucherBusy, setVoucherBusy] = useState(false);
+  const [voucherError, setVoucherError] = useState<string | null>(null);
+
   // ===== Dialogs =====
   const [payOpen, setPayOpen] = useState(false);
   const [repairTicket, setRepairTicket] = useState<RepairTicket | null>(null);
@@ -116,6 +124,8 @@ function PosClientInner() {
     subtotal: number;
     discount: number;
     loyaltyDiscount: number;
+    voucherCode: string | null;
+    voucherDiscount: number;
     total: number;
     payments: PaymentPart[];
     received: number;
@@ -200,6 +210,49 @@ function PosClientInner() {
     () => Math.max(0, subtotal - flatDiscount - loyaltyDiscount),
     [subtotal, flatDiscount, loyaltyDiscount],
   );
+  // Voucher giảm trên tổng hiện tại (sau giảm giá tay + điểm thưởng),
+  // chặn không vượt quá tổng đơn.
+  const voucherDiscount = appliedVoucher
+    ? Math.min(appliedVoucher.discount_amount, total)
+    : 0;
+  const cartProductIds = useMemo(
+    () => [
+      ...new Set(
+        lines
+          .map((l) => l.product_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ],
+    [lines],
+  );
+
+  // ===== Voucher handlers =====
+  const applyVoucher = async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed || voucherBusy) return;
+    setVoucherBusy(true);
+    setVoucherError(null);
+    try {
+      const v = await validateVoucherForCart({
+        code: trimmed,
+        subtotal: total,
+        productIds: cartProductIds,
+        // Mốc giới hạn lượt dùng theo khách — phải khớp với mốc server
+        // dùng lúc checkout (cùng hàm posVoucherIdentity).
+        userIdentifier: posVoucherIdentity(customer?.phone, customer?.id),
+      });
+      setAppliedVoucher(v);
+      toast.success(`Đã áp dụng voucher "${v.code}" (-${formatVND(v.discount_amount)})`);
+    } catch (e) {
+      setVoucherError(e instanceof Error ? e.message : "Mã voucher không hợp lệ");
+    } finally {
+      setVoucherBusy(false);
+    }
+  };
+  const clearVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherError(null);
+  };
   // ===== Cart ops =====
   const addLine = (hit: PosSearchHit) => {
     if (hit.stock <= 0) {
@@ -291,6 +344,7 @@ function PosClientInner() {
     if (!window.confirm("Xoá tất cả sản phẩm trong giỏ?")) return;
     setLines([]);
     setDiscountInput("");
+    clearVoucher();
   };
 
   // ===== Hold bill =====
@@ -323,6 +377,7 @@ function PosClientInner() {
     setLines([]);
     setDiscountInput("");
     setNote("");
+    clearVoucher();
     toast.success(`Đã giữ ${name}`);
   };
 
@@ -336,6 +391,7 @@ function PosClientInner() {
     setDiscountInput(bill.discount > 0 ? String(bill.discount) : "");
     setNote(bill.note);
     setCustomer(bill.customer);
+    clearVoucher();
     setHeldBills((prev) => prev.filter((b) => b.id !== bill.id));
     toast.success(`Đã mở ${bill.name}`);
   };
@@ -449,6 +505,7 @@ function PosClientInner() {
       const payload = {
         shop_id: shopId,
         customer_id: customer?.id ?? null,
+        customer_phone: customer?.phone ?? "",
         channel: "pos" as const,
         items: lines.map((l) => {
           const draft = warrantyDrafts[l.variant_id];
@@ -464,7 +521,8 @@ function PosClientInner() {
             warranty_end_date: endDate,
           };
         }),
-        discount_amount: flatDiscount + loyaltyDiscount,
+        discount_amount: flatDiscount + loyaltyDiscount + voucherDiscount,
+        voucher_code: appliedVoucher?.code ?? "",
         payment: {
           method: primary.method,
           amount: totalAmount,
@@ -488,6 +546,8 @@ function PosClientInner() {
         subtotal,
         discount: flatDiscount,
         loyaltyDiscount,
+        voucherCode: appliedVoucher?.code ?? null,
+        voucherDiscount,
         total: totalAmount,
         payments: args.payments,
         received,
@@ -604,6 +664,8 @@ function PosClientInner() {
         subtotal: finalAmount,
         discount: 0,
         loyaltyDiscount: 0,
+        voucherCode: null,
+        voucherDiscount: 0,
         total: finalAmount,
         payments: args.payments,
         received,
@@ -633,6 +695,7 @@ function PosClientInner() {
     setNote("");
     setCustomer(null);
     clearRedeem();
+    clearVoucher();
     setReceiptOpen(false);
     setRepairTicket(null);
     setChosenWarrantyMonths(0);
@@ -708,7 +771,14 @@ function PosClientInner() {
               Mobile: đứng cạnh ô cửa hàng để header chỉ còn 2 hàng. */}
           <PosSessionBanner shopId={shopId} />
           <div className="order-3 min-w-0 flex-1 basis-full sm:order-2 sm:basis-auto">
-            <CustomerPicker value={customer} onChange={setCustomer} />
+            <CustomerPicker
+              value={customer}
+              onChange={(next) => {
+                // Voucher được validate theo khách — đổi khách phải áp lại.
+                if ((next?.id ?? null) !== (customer?.id ?? null)) clearVoucher();
+                setCustomer(next);
+              }}
+            />
           </div>
           {!shopsQuery.isLoading && shops.length === 0 && (
             <p className="w-full text-xs text-amber-600">Tài khoản chưa được gán cửa hàng nào.</p>
@@ -1140,6 +1210,11 @@ function PosClientInner() {
         hasRedeemed={redeemedValue > 0}
         onLoyaltyRedeem={handleRedeem}
         onLoyaltyClear={clearRedeem}
+        voucher={appliedVoucher}
+        voucherBusy={voucherBusy}
+        voucherError={voucherError}
+        onVoucherApply={(code) => void applyVoucher(code)}
+        onVoucherClear={clearVoucher}
         onConfirm={handleConfirmPayment}
       />
       <PaymentDialog
@@ -1170,6 +1245,8 @@ function PosClientInner() {
           subtotal={lastReceipt.subtotal}
           discount={lastReceipt.discount}
           loyaltyDiscount={lastReceipt.loyaltyDiscount}
+          voucherCode={lastReceipt.voucherCode}
+          voucherDiscount={lastReceipt.voucherDiscount}
           total={lastReceipt.total}
           payments={lastReceipt.payments}
           received={lastReceipt.received}
