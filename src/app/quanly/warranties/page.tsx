@@ -42,6 +42,7 @@ import {
   XCircle,
   FileWarning,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { QuickWarrantyDialog } from "./_components/quick-warranty-dialog";
 import { parseNoteBody } from "@/lib/warranties/quick-warranty";
@@ -227,6 +228,7 @@ function StatCard({
 
 export default function WarrantiesAdminPage() {
   const [search, setSearch] = useState("");
+  const [searchMode, setSearchMode] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [warrantyType, setWarrantyType] = useState<string>("all");
   const [page, setPage] = useState(1);
@@ -237,11 +239,12 @@ export default function WarrantiesAdminPage() {
     search,
     page,
     pageSize: 20,
-    ...(status !== "all" || warrantyType !== "all"
+    ...(status !== "all" || warrantyType !== "all" || searchMode !== "all"
       ? ({
           filters: {
             ...(status !== "all" ? { status } : {}),
             ...(warrantyType !== "all" ? { warranty_type: warrantyType } : {}),
+            ...(searchMode !== "all" ? { search_mode: searchMode } : {}),
           },
         } as never)
       : {}),
@@ -324,7 +327,10 @@ export default function WarrantiesAdminPage() {
       const params: Record<string, unknown> = { page: 1, pageSize: 100 };
       if (status !== "all") params.status = status;
       if (warrantyType !== "all") params.warranty_type = warrantyType;
-      if (search.trim()) params.search = search.trim();
+      if (search.trim()) {
+        params.search = search.trim();
+        if (searchMode !== "all") params.search_mode = searchMode;
+      }
       const page1 = await httpGet<Paginated<WarrantyRow>>("/v1/warranties", params);
       let all = page1.items ?? [];
       if ((page1.totalPages ?? 1) > 1) {
@@ -351,7 +357,7 @@ export default function WarrantiesAdminPage() {
     void Promise.all([list.refetch(), totalQ.refetch(), activeQ.refetch(), expiredQ.refetch(), claimedQ.refetch(), voidedQ.refetch(), soldQ.refetch(), repairQ.refetch(), activeSampleQ.refetch()]);
   }
 
-  const activeFilters = (status !== "all" ? 1 : 0) + (warrantyType !== "all" ? 1 : 0) + (search.trim() ? 1 : 0);
+  const activeFilters = (status !== "all" ? 1 : 0) + (warrantyType !== "all" ? 1 : 0) + (search.trim() ? 1 : 0) + (searchMode !== "all" ? 1 : 0);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -415,7 +421,7 @@ export default function WarrantiesAdminPage() {
               </Button>
             ) : null}
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto]">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
             <div className="relative sm:col-span-2 lg:col-span-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -427,7 +433,30 @@ export default function WarrantiesAdminPage() {
                 placeholder="Tìm SP, serial, khách, số HĐ…"
                 className="pl-9"
               />
+              {list.isFetching && !list.isLoading ? (
+                <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+              ) : null}
             </div>
+            <Select
+              value={searchMode}
+              onValueChange={(v) => {
+                setSearchMode(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full lg:w-[150px]">
+                <SelectValue placeholder="Tìm theo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả</SelectItem>
+                <SelectItem value="name">Tên khách</SelectItem>
+                <SelectItem value="phone">Số điện thoại</SelectItem>
+                <SelectItem value="serial">Serial</SelectItem>
+                <SelectItem value="imei">IMEI</SelectItem>
+                <SelectItem value="order">Số hóa đơn</SelectItem>
+                <SelectItem value="device">Tên thiết bị</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={warrantyType} onValueChange={(v) => { setWarrantyType(v); setPage(1); }}>
               <SelectTrigger className="w-full lg:w-[170px]">
                 <SelectValue placeholder="Loại BH" />

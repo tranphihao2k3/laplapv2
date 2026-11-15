@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, Number(sp.get("page") ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(sp.get("pageSize") ?? 20)));
     const search = (sp.get("search") ?? "").trim();
+    const searchMode = (sp.get("search_mode") ?? "all").trim();
     const status = sp.get("status");
     const { from, to } = rangeOf(page, pageSize);
 
@@ -64,19 +65,35 @@ export async function GET(req: NextRequest) {
     const warrantyType = sp.get("warranty_type");
     if (warrantyType) q = q.eq("warranty_type", warrantyType);
 
-    // Search server-side trên device_name + serial + khách + order_number
+    // Search server-side — mode decides WHICH column(s) to match, so admin
+    // can target exactly (VD: tìm đúng khách theo SĐT → không nhầm lẫn với
+    // khách cùng tên). `all` = ORAcross all supported columns (cũ).
     if (search) {
       const needle = `%${search.replace(/[%_]/g, "")}%`;
-      q = q.or(
-        [
-          `device_name.ilike.${needle}`,
-          `customer.full_name.ilike.${needle}`,
-          `customer.phone.ilike.${needle}`,
-          `order.order_number.ilike.${needle}`,
-          `serial.serial.ilike.${needle}`,
-          `serial.imei.ilike.${needle}`,
-        ].join(","),
-      );
+      const fieldByMode: Record<string, string> = {
+        name: "customer.full_name",
+        phone: "customer.phone",
+        serial: "serial.serial",
+        imei: "serial.imei",
+        order: "order.order_number",
+        device: "device_name",
+      };
+      const col = fieldByMode[searchMode];
+      if (col) {
+        // biome-ignore lint/suspicious: PostgREST column filter syntax
+        q = q.ilike(col, needle);
+      } else {
+        q = q.or(
+          [
+            `device_name.ilike.${needle}`,
+            `customer.full_name.ilike.${needle}`,
+            `customer.phone.ilike.${needle}`,
+            `order.order_number.ilike.${needle}`,
+            `serial.serial.ilike.${needle}`,
+            `serial.imei.ilike.${needle}`,
+          ].join(","),
+        );
+      }
     }
 
     q = q.order("start_date", { ascending: false }).range(from, to);
