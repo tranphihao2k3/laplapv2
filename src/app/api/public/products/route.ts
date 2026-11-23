@@ -17,6 +17,7 @@ type ProductRow = {
   name: string;
   slug: string | null;
   thumbnail_url: string | null;
+  images: string[] | null;
   status: string | null;
   created_at: string | null;
   brand_id: string | null;
@@ -34,6 +35,8 @@ export type PublicProduct = {
   name: string;
   slug: string;
   image?: string;
+  /** Toàn bộ ảnh gallery — dùng cho extension để gửi nhiều ảnh. */
+  images?: string[];
   price: number;
   createdAt: string | null;
   brandId: string | null;
@@ -97,7 +100,7 @@ export async function GET(req: NextRequest) {
 
     let pq = supabase
       .from("products")
-      .select("id,name,slug,thumbnail_url,status,created_at,brand_id,category_id,tags")
+      .select("id,name,slug,thumbnail_url,images,status,created_at,brand_id,category_id,tags")
       .eq("status", "active");
 
     if (brand) pq = pq.eq("brand_id", brand);
@@ -351,6 +354,9 @@ export async function GET(req: NextRequest) {
         name: p.name,
         slug: p.slug ?? p.id,
         image: p.thumbnail_url ?? undefined,
+        images: Array.isArray(p.images) && p.images.length > 0
+          ? (p.images as string[]).filter(Boolean)
+          : undefined,
         price: minPrice_.get(p.id) ?? 0,
         createdAt: p.created_at,
         brandId: p.brand_id,

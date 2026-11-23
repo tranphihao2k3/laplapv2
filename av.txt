@@ -1,0 +1,152 @@
+﻿--- line 579 ---
+      const rows = (json.data?.items ?? []) as { product_variant_id: string; available_qty: number | null }[];
+      const map = new Map<string, number>();
+      for (const r of rows) map.set(r.product_variant_id, Number(r.available_qty ?? 0));
+      setVariants((prev) =>
+        prev.map((v) => {
+          if (!v.id) return v;
+          const qty = map.get(v.id) ?? 0;
+--- line 588 ---
+      );
+    } catch {
+      // Không đọc được tồn kho → để các ô nhập ở trạng thái 0, vẫn ghi được khi lưu.
+      setVariants((prev) =>
+        prev.map((v) => (v.id ? { ...v, stock_qty: v.stock_qty ?? 0, stock_original: v.stock_original ?? 0 } : v)),
+      );
+    } finally {
+--- line 689 ---
+          cost_price: v.cost_price ?? 0,
+          is_active: v.is_active ?? true,
+        }));
+        setVariants(mapped);
+        // Tồn kho được nạp bởi effect (đọc stock_levels theo kho đang chọn).
+        const firstSpecs = resData.data.items.find((v) => v.specs && typeof v.specs === "object")?.specs;
+        if (firstSpecs && typeof firstSpecs === "object") {
+--- line 700 ---
+        }
+      }
+    } catch {
+      setVariants([]);
+    }
+    setDialogOpenNonce((n) => n + 1);
+    setOpen(true);
+--- line 730 ---
+    // Nếu shop đã được set sẵn thì giữ nguyên; kho để effect đồng bộ theo shop.
+    if (!shopId) setShopId(myShops[0]?.id ?? "");
+    setWarehouseId(warehouses[0]?.id ?? "");
+    setVariants([]);
+
+    // ── Default khi tạo mới: prefill "Laptop" + template kế thừa ──
+    // Tất cả Section trong dialog đều mở sẵn (defaultOpen) để admin điền
+--- line 815 ---
+          is_active: true,
+          initial_stock: 1,
+        }));
+        setVariants(newVariants);
+        // Giá nhanh = giá variant đầu tiên
+        if (group.variants[0].selling_price != null) {
+          setQuickPrice(group.variants[0].selling_price);
+--- line 824 ---
+        setQuickPrice(s.selling_price);
+        if (variants.length === 0) {
+          const defaultSku = s.name ? slugify(s.name).toUpperCase() : "VAR-DEFAULT";
+          setVariants([
+            {
+              sku: defaultSku,
+              name: "Mặc định",
+--- line 858 ---
+      toast.error("Vui lòng nhập SKU");
+      return;
+    }
+    setVariants((prev) => [
+      ...prev,
+      {
+        sku: newSku,
+--- line 870 ---
+      },
+    ]);
+    // Reset dòng nhập: SKU kế tiếp + giá vốn/tồn kho kế thừa biến thể vừa thêm,
+    // để thêm biến thể tiếp theo chỉ cần sửa phần phân biệt.
+    variantDraft.reset();
+  };
+
+--- line 906 ---
+        }
+      }
+    }
+    setVariants((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  /** Reset form fields sau khi lưu thành công (dùng khi "Lưu & thêm tiếp"). */
+--- line 930 ---
+    setQuickPrice("");
+    setQuickStock(1);
+    // Kho giữ nguyên, chỉ reset variants
+    setVariants([]);
+    // Bỏ dấu vết chỉnh sửa tay để dòng nhập biến thể được tự động điền lại
+    variantDraft.clearManualEdits();
+    // Reset mô tả tab về preview
+--- line 1565 ---
+          <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-6 sm:py-4">
+            <DialogTitle>{editingProduct ? "Chỉnh sửa sản phẩm" : "Thêm mới sản phẩm toàn diện"}</DialogTitle>
+            <DialogDescription className="hidden sm:block">
+              Form tích hợp cho phép điền thông tin chung, chọn danh mục/thương hiệu và thêm biến thể cùng lúc.
+            </DialogDescription>
+          </DialogHeader>
+
+--- line 2105 ---
+                    <Input type="number" min={0} value={newInitialStock} onChange={(e) => setNewInitialStock(Number(e.target.value))} className="h-8" />
+                  </div>
+                  <Button size="sm" type="button" onClick={addVariantToForm} className="h-8 col-span-2 sm:col-span-5 w-full sm:w-auto sm:justify-self-start">
+                    <Plus className="h-4 w-4 mr-1" /> Thêm biến thể
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+--- line 2149 ---
+                                value={v.sku}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, sku: val } : row)));
+                                }}
+                                className="h-8 font-mono text-xs"
+                                aria-label={`SKU biến thể ${i + 1}`}
+--- line 2160 ---
+                                value={v.name}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, name: val } : row)));
+                                }}
+                                className="h-8 text-sm"
+                                aria-label={`Tên biến thể ${i + 1}`}
+--- line 2173 ---
+                                value={v.selling_price}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value) || 0;
+                                  setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, selling_price: val } : row)));
+                                }}
+                                className="h-8 text-sm font-semibold"
+                                aria-label={`Giá bán biến thể ${i + 1}`}
+--- line 2186 ---
+                                value={v.cost_price}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value) || 0;
+                                  setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, cost_price: val } : row)));
+                                }}
+                                className="h-8 text-sm"
+                                aria-label={`Giá vốn biến thể ${i + 1}`}
+--- line 2203 ---
+                                  value={v.stock_qty ?? 0}
+                                  onChange={(e) => {
+                                    const qty = Number(e.target.value) || 0;
+                                    setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, stock_qty: qty } : row)));
+                                  }}
+                                  className="h-8 w-24"
+                                  aria-label={`Tồn kho biến thể ${i + 1}`}
+--- line 2215 ---
+                                  value={v.initial_stock ?? 0}
+                                  onChange={(e) => {
+                                    const qty = Number(e.target.value) || 0;
+                                    setVariants((prev) => prev.map((row, idx) => (idx === i ? { ...row, initial_stock: qty } : row)));
+                                  }}
+                                  className="h-8 w-24"
+                                  aria-label={`Tồn ban đầu biến thể ${i + 1}`}

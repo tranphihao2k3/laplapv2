@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Laplap – Gửi Sản Phẩm",
+  "version": "1.0.0",
+  "description": "Gửi nhanh thông tin sản phẩm từ Laplap Cần Thơ vào chat Zalo, Facebook, Messenger.",
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.zalo.me/*",
+        "https://messenger.com/*",
+        "https://www.messenger.com/*",
+        "https://facebook.com/*",
+        "https://www.facebook.com/*",
+        "https://business.facebook.com/*"
+      ],
+      "js":  ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "permissions": [
+    "storage",
+    "clipboardWrite",
+    "clipboardRead"
+  ],
+  "host_permissions": [
+    "https://laplapcantho.store/*",
+    "https://*.supabase.co/*",
+    "https://*.supabase.in/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

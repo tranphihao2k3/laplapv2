@@ -1,0 +1,466 @@
+/*
+ * content.css — Laplap Cần Thơ Extension
+ *
+ * All rules are scoped to IDs (#ll-fab, #ll-panel, #ll-toast) for high
+ * specificity, minimising collisions with the host page's styles.
+ *
+ * z-index strategy (host pages rarely exceed 10 000):
+ *   #ll-panel  : 2147483644
+ *   #ll-fab    : 2147483645
+ *   #ll-toast  : 2147483647 (maximum)
+ */
+
+/* ── Global reset for injected elements ────────────────────────────── */
+#ll-fab,
+#ll-panel,
+#ll-panel *,
+#ll-toast {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  line-height: normal;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   FAB — Floating Action Button
+   ══════════════════════════════════════════════════════════════════════ */
+#ll-fab {
+  all: unset;
+  position: fixed;
+  bottom: 72px;
+  right: 18px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #FF7043 0%, #E64A19 100%);
+  box-shadow:
+    0 4px 20px rgba(255, 112, 67, 0.55),
+    0 2px 6px  rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  z-index: 2147483645;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  transition:
+    transform     0.22s cubic-bezier(.34, 1.56, .64, 1),
+    box-shadow    0.2s  ease;
+  /* Override any host-page hiding */
+  visibility: visible !important;
+  opacity:    1       !important;
+}
+
+#ll-fab:hover {
+  transform: scale(1.12) rotate(-6deg);
+  box-shadow:
+    0 6px 30px rgba(255, 112, 67, 0.7),
+    0 2px 8px  rgba(0, 0, 0, 0.3);
+}
+
+#ll-fab:active {
+  transform: scale(0.93);
+  transition-duration: 0.08s;
+}
+
+#ll-fab svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Panel
+   ══════════════════════════════════════════════════════════════════════ */
+#ll-panel {
+  position: fixed;
+  bottom: 134px;
+  right: 18px;
+  width: 380px;
+  max-height: 540px;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+
+  /* Glass-dark aesthetic */
+  background: rgba(10, 10, 18, 0.97);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.7),
+    0  0   0 1px rgba(255, 112, 67, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  color: #ddd;
+  overflow: hidden;
+  z-index: 2147483644;
+
+  /* Hidden by default — animated in by adding .ll-open */
+  opacity: 0;
+  transform: translateY(16px) scale(0.95);
+  pointer-events: none;
+  transition:
+    opacity   0.22s ease,
+    transform 0.24s cubic-bezier(.34, 1.56, .64, 1);
+  visibility: visible !important;
+}
+
+#ll-panel.ll-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: all;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+#ll-panel .ll-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  flex-shrink: 0;
+}
+
+#ll-panel .ll-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: -0.3px;
+  color: #FF7043;
+}
+
+#ll-panel .ll-brand-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Shared icon button (close, clear) */
+#ll-panel .ll-icon-btn {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: #666;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+}
+
+#ll-panel .ll-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+#ll-panel .ll-icon-btn:focus-visible {
+  outline: 2px solid #FF7043;
+  outline-offset: 1px;
+}
+
+/* ── Search row ─────────────────────────────────────────────────────── */
+#ll-panel .ll-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  flex-shrink: 0;
+}
+
+#ll-panel .ll-search-ico {
+  color: #555;
+  flex-shrink: 0;
+}
+
+#ll-panel .ll-search-input {
+  all: unset;
+  flex: 1;
+  font-size: 13px;
+  color: #e5e5e5;
+  caret-color: #FF7043;
+  min-width: 0;
+}
+
+#ll-panel .ll-search-input::placeholder {
+  color: #444;
+}
+
+#ll-panel .ll-clear-btn {
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+#ll-panel .ll-clear-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* ── Product list (scrollable) ──────────────────────────────────────── */
+#ll-panel .ll-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.07) transparent;
+}
+
+#ll-panel .ll-list::-webkit-scrollbar       { width: 3px; }
+#ll-panel .ll-list::-webkit-scrollbar-track  { background: transparent; }
+#ll-panel .ll-list::-webkit-scrollbar-thumb  { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+
+/* ── State views (loading / empty / error) ──────────────────────────── */
+#ll-panel .ll-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 36px 20px;
+  color: #555;
+  font-size: 13px;
+  text-align: center;
+}
+
+#ll-panel .ll-state p {
+  color: #666;
+}
+
+#ll-panel .ll-state small {
+  color: #3f3f4f;
+  font-size: 11px;
+}
+
+#ll-panel .ll-error p  { color: #d9534f; }
+#ll-panel .ll-error svg { opacity: 0.7; }
+
+#ll-panel .ll-retry-btn {
+  all: unset;
+  margin-top: 4px;
+  padding: 6px 16px;
+  background: rgba(217, 83, 79, 0.1);
+  border: 1px solid rgba(217, 83, 79, 0.25);
+  color: #d9534f;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.14s;
+}
+#ll-panel .ll-retry-btn:hover { background: rgba(217, 83, 79, 0.2); }
+
+/* ── Spinner ────────────────────────────────────────────────────────── */
+#ll-panel .ll-spinner {
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid rgba(255, 112, 67, 0.15);
+  border-top-color: #FF7043;
+  border-radius: 50%;
+  animation: ll-spin 0.72s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes ll-spin { to { transform: rotate(360deg); } }
+
+/* ── Product card ───────────────────────────────────────────────────── */
+#ll-panel .ll-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background 0.11s;
+}
+
+#ll-panel .ll-card:hover      { background: rgba(255, 255, 255, 0.025); }
+#ll-panel .ll-card:last-child { border-bottom: none; }
+
+/* Thumbnail */
+#ll-panel .ll-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#ll-panel .ll-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+#ll-panel .ll-no-img {
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+/* Badges */
+#ll-panel .ll-badge {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+#ll-panel .ll-badge-oos {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  background: rgba(176, 32, 32, 0.88);
+  color: #fff;
+  padding: 2px 0;
+}
+
+#ll-panel .ll-badge-new {
+  top: 2px;
+  left: 2px;
+  background: #22c55e;
+  color: #fff;
+  border-radius: 4px;
+}
+
+/* Info section */
+#ll-panel .ll-info {
+  flex: 1;
+  min-width: 0;
+}
+
+#ll-panel .ll-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #ddd;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+#ll-panel .ll-price {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #FF7043;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+#ll-panel .ll-spec {
+  font-size: 11px;
+  color: #4a4a5a;
+  margin-top: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Dim out-of-stock cards */
+#ll-panel .ll-oos .ll-name,
+#ll-panel .ll-oos .ll-price { opacity: 0.4; }
+
+/* Send button */
+#ll-panel .ll-pick-btn {
+  all: unset;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  background: linear-gradient(135deg, #FF7043, #E64A19);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 0.14s, transform 0.12s;
+  white-space: nowrap;
+}
+
+#ll-panel .ll-pick-btn:hover  { opacity: 0.86; transform: scale(1.04); }
+#ll-panel .ll-pick-btn:active { transform: scale(0.95); transition-duration: 0.06s; }
+
+#ll-panel .ll-pick-btn:focus-visible {
+  outline: 2px solid #FF7043;
+  outline-offset: 2px;
+}
+
+/* ── Footer (load more) ─────────────────────────────────────────────── */
+#ll-panel .ll-footer {
+  display: flex;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.045);
+  flex-shrink: 0;
+}
+
+#ll-panel .ll-more-btn {
+  all: unset;
+  flex: 1;
+  text-align: center;
+  padding: 8px 12px;
+  color: #888;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: background 0.14s, color 0.14s;
+}
+
+#ll-panel .ll-more-btn:hover { background: rgba(255,255,255,.08); color: #bbb; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Toast notification
+   ══════════════════════════════════════════════════════════════════════ */
+#ll-toast {
+  position: fixed;
+  bottom: 86px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  padding: 9px 20px;
+  background: rgba(14, 14, 22, 0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #e8e8e8;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  z-index: 2147483647;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity   0.2s  ease,
+    transform 0.24s cubic-bezier(.34, 1.56, .64, 1);
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  visibility: visible !important;
+}
+
+#ll-toast.ll-toast-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

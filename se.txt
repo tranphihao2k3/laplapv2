@@ -1,0 +1,41 @@
+﻿  const startEdit = async (prod: Product) => {
+    setEditingProduct(prod);
+    setName(prod.name ?? "");
+    setSlug(prod.slug ?? "");
+    setStatus(prod.status ?? "draft");
+    setBrandId(prod.brand_id ?? "");
+    setCategoryId(prod.category_id ?? "");
+    // Đặt template kế thừa ngay (nếu data có sẵn). Nếu specTemplates còn đang loading,
+    // useEffect bên dưới sẽ fill sau khi list tải xong.
+    const inheritedNow = findTemplateForCategory(prod.category_id ?? null, specTemplates, categories);
+    setSpecTemplateId(inheritedNow?.id ?? "");
+    setSpecValues({});
+    setShortDesc(prod.short_description ?? "");
+    setDescription(prod.description ?? "");
+    setThumbnailUrl(prod.thumbnail_url ?? "");
+    setCoverUrl(prod.thumbnail_url ?? "");
+    setExistingImages(
+      Array.isArray(prod.images) && prod.images.length > 0
+        ? prod.images
+        : prod.thumbnail_url
+          ? [prod.thumbnail_url]
+          : [],
+    );
+    setSelectedFiles([]);
+    setTagsInput(prod.tags ? prod.tags.join(", ") : "");
+    setSelectedGifts(
+      (prod.gifts ?? []).map((g) => ({
+        id: g.id,
+        name: g.name,
+        slug: g.slug,
+        thumbnail_url: g.thumbnail_url,
+        status: g.status,
+      })),
+    );
+    setSlugTouched(true); // khi edit, slug đã có sẵn → không auto-overwrite từ name
+    setQuickPrice("");
+    setQuickStock("");
+    // Giữ kho đang chọn để đọc/ghi tồn kho của biến thể (nếu chưa chọn thì lấy kho đầu tiên).
+    if (!warehouseId && warehouses.length > 0) setWarehouseId(warehouses[0].id);
+
+    // Fetch existing variants of this product
