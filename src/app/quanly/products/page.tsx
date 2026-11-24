@@ -971,19 +971,28 @@ export default function ProductsAdminPage() {
   };
 
   const removeUploadedImage = (url: string) => {
-    setSelectedFiles((prev) => {
-      const target = prev.find((f) => f.localUrl === url);
-      if (target) {
-        URL.revokeObjectURL(target.localUrl);
-      }
-      return prev.filter((f) => f.localUrl !== url);
-    });
-
-    if (thumbnailUrl === url) {
-      setThumbnailUrl("");
+    // Ảnh mới (blob URL) — xoá khỏi selectedFiles
+    const isNewFile = selectedFiles.some((f) => f.localUrl === url);
+    if (isNewFile) {
+      setSelectedFiles((prev) => {
+        const target = prev.find((f) => f.localUrl === url);
+        if (target) URL.revokeObjectURL(target.localUrl);
+        return prev.filter((f) => f.localUrl !== url);
+      });
+    } else {
+      // Ảnh cũ (remote URL) — xoá khỏi existingImages
+      setExistingImages((prev) => prev.filter((img) => img !== url));
+      // Nếu là thumbnail hiện tại → xoá luôn thumbnailUrl
+      if (thumbnailUrl === url) setThumbnailUrl("");
     }
+
+    // Nếu đang là ảnh đại diện → chọn ảnh đầu tiên còn lại làm cover
     if (coverUrl === url) {
-      setCoverUrl("");
+      const remaining = [
+        ...existingImages.filter((img) => img !== url),
+        ...selectedFiles.filter((f) => f.localUrl !== url).map((f) => f.localUrl),
+      ];
+      setCoverUrl(remaining[0] ?? "");
     }
   };
 
